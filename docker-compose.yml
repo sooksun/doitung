@@ -1,3 +1,9 @@
+# ==============================================
+# EQAP - EduQuality Assessment Platform
+# Docker Compose for Ubuntu 24.x.x
+# Application Port: 9901
+# ==============================================
+
 version: '3.8'
 
 services:
@@ -8,20 +14,24 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
-      MYSQL_DATABASE: ${DB_NAME:-eqap}
+      MYSQL_DATABASE: ${DB_NAME:-eqap_db}
       MYSQL_USER: ${DB_USER:-eqap_user}
       MYSQL_PASSWORD: ${DB_PASSWORD:-eqap_password}
+      TZ: Asia/Bangkok
     ports:
       - "${DB_PORT:-3306}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d
     networks:
       - eqap_network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-rootpassword}"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 30s
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
 
   # Next.js Application
   app:
@@ -31,25 +41,34 @@ services:
     container_name: eqap_app
     restart: unless-stopped
     ports:
-      - "${APP_PORT:-3000}:3000"
+      - "9901:9901"
     environment:
-      DATABASE_URL: mysql://${DB_USER:-eqap_user}:${DB_PASSWORD:-eqap_password}@db:3306/${DB_NAME:-eqap}
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      DATABASE_URL: mysql://${DB_USER:-eqap_user}:${DB_PASSWORD:-eqap_password}@db:3306/${DB_NAME:-eqap_db}
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-your-super-secret-refresh-key-change-in-production}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
       NODE_ENV: production
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3000}
+      PORT: 9901
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:9901}
+      TZ: Asia/Bangkok
     depends_on:
       db:
         condition: service_healthy
     networks:
       - eqap_network
     volumes:
-      - ./public/uploads:/app/public/uploads
+      - uploads_data:/app/public/uploads
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   mysql_data:
+    driver: local
+  uploads_data:
     driver: local
 
 networks:

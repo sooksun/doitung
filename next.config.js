@@ -3,11 +3,15 @@ const nextConfig = {
   reactStrictMode: true,
   images: {
     domains: ['localhost'],
+    remotePatterns: [
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+      },
+    ],
   },
-  // Enable experimental features if needed
-  experimental: {
-    // Add experimental features here
-  },
+  // Enable standalone output for Docker deployment
+  output: 'standalone',
 }
 
 module.exports = nextConfig
