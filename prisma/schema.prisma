@@ -1,0 +1,268 @@
+// Prisma Schema for EduQuality Assessment Platform (EQAP)
+// Database: MySQL
+// ORM: Prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// CORE HIERARCHY
+// ============================================
+
+// สำนักงานเขตพื้นที่การศึกษา
+model EducationOffice {
+  id        String   @id @default(uuid())
+  name      String   @db.VarChar(255)
+  code      String?  @unique @db.VarChar(50)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  networks Network[]
+  users    User[]
+
+  @@map("education_offices")
+}
+
+// กลุ่มเครือข่าย
+model Network {
+  id        String   @id @default(uuid())
+  name      String   @db.VarChar(255)
+  code      String?  @db.VarChar(50)
+  officeId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  office  EducationOffice @relation(fields: [officeId], references: [id], onDelete: Cascade)
+  schools School[]
+  users   User[]
+
+  @@index([officeId])
+  @@map("networks")
+}
+
+// โรงเรียน
+model School {
+  id        String   @id @default(uuid())
+  name      String   @db.VarChar(255)
+  code      String?  @db.VarChar(50)
+  networkId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  network  Network   @relation(fields: [networkId], references: [id], onDelete: Cascade)
+  users    User[]
+  assessments Assessment[]
+
+  @@index([networkId])
+  @@map("schools")
+}
+
+// ============================================
+// ACADEMIC YEAR & SEMESTER
+// ============================================
+
+// ปีการศึกษา
+model AcademicYear {
+  id        String   @id @default(uuid())
+  year      Int      @unique // เช่น 2567, 2568
+  name      String   @db.VarChar(100) // เช่น "ปีการศึกษา 2567"
+  startDate DateTime?
+  endDate   DateTime?
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  semesters Semester[]
+  assessments Assessment[]
+
+  @@map("academic_years")
+}
+
+// ภาคเรียน
+model Semester {
+  id            String   @id @default(uuid())
+  name          String   @db.VarChar(100) // เช่น "ภาคเรียนที่ 1"
+  academicYearId String
+  startDate     DateTime?
+  endDate       DateTime?
+  isActive      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  assessments  Assessment[]
+
+  @@index([academicYearId])
+  @@map("semesters")
+}
+
+// ============================================
+// USER MANAGEMENT
+// ============================================
+
+// ผู้ใช้งาน
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique @db.VarChar(255)
+  password  String   @db.VarChar(255) // bcrypt hashed
+  firstName String   @db.VarChar(100)
+  lastName  String   @db.VarChar(100)
+  role      UserRole @default(VIEWER)
+  phone     String?  @db.VarChar(20)
+  isActive  Boolean  @default(true)
+  
+  // Multi-tenant relationships
+  officeId  String?
+  networkId String?
+  schoolId  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lastLogin DateTime?
+
+  // Relations
+  office     EducationOffice? @relation(fields: [officeId], references: [id], onDelete: SetNull)
+  network    Network?        @relation(fields: [networkId], references: [id], onDelete: SetNull)
+  school     School?         @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  assessments Assessment[]    // ผู้ใช้ที่สร้างแบบประเมิน
+
+  @@index([email])
+  @@index([role])
+  @@index([officeId])
+  @@index([networkId])
+  @@index([schoolId])
+  @@map("users")
+}
+
+enum UserRole {
+  SUPER_ADMIN      // Super Admin
+  OFFICE_ADMIN     // เขตพื้นที่
+  NETWORK_ADMIN    // เครือข่าย
+  SCHOOL_DIRECTOR  // ผู้อำนวยการโรงเรียน
+  TEACHER          // ครู/กรรมการ
+  VIEWER           // ผู้ดูข้อมูล
+}
+
+// ============================================
+// ASSESSMENT INDICATORS
+// ============================================
+
+// กลุ่มตัวชี้วัด (4 กลุ่ม)
+model IndicatorGroup {
+  id        String   @id @default(uuid())
+  code      String   @unique @db.VarChar(50) // เช่น "LEADERSHIP", "PLC", "TEACHER", "STUDENT"
+  name      String   @db.VarChar(255)
+  nameEn    String?  @db.VarChar(255) // English name for reference
+  orderNo   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  indicators Indicator[]
+
+  @@map("indicator_groups")
+}
+
+// ตัวชี้วัด (47 ตัว)
+model Indicator {
+  id        String   @id @default(uuid())
+  code      String   @unique @db.VarChar(50) // เช่น "L1", "PLC1", "T1", "S1"
+  title     String   @db.Text
+  groupId   String
+  orderNo   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  group     IndicatorGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  responses AssessmentResponse[]
+
+  @@index([groupId])
+  @@index([orderNo])
+  @@map("indicators")
+}
+
+// ============================================
+// ASSESSMENT
+// ============================================
+
+// แบบประเมิน
+model Assessment {
+  id        String   @id @default(uuid())
+  schoolId  String
+  academicYearId String
+  semesterId String?
+  status    AssessmentStatus @default(DRAFT)
+  submittedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // ผู้สร้างแบบประเมิน
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  // Relations
+  school       School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  semester     Semester?    @relation(fields: [semesterId], references: [id], onDelete: SetNull)
+  responses    AssessmentResponse[]
+
+  @@index([schoolId])
+  @@index([academicYearId])
+  @@index([semesterId])
+  @@index([status])
+  @@index([createdById])
+  @@unique([schoolId, academicYearId, semesterId]) // หนึ่งโรงเรียน หนึ่งปีการศึกษา หนึ่งภาคเรียน = หนึ่งแบบประเมิน
+  @@map("assessments")
+}
+
+enum AssessmentStatus {
+  DRAFT      // กำลังกรอก
+  IN_PROGRESS // กำลังตรวจสอบ
+  SUBMITTED  // ส่งแล้ว
+  APPROVED   // อนุมัติแล้ว
+  REJECTED   // ถูกปฏิเสธ
+}
+
+// คำตอบรายตัวชี้วัด
+model AssessmentResponse {
+  id           String   @id @default(uuid())
+  assessmentId String
+  indicatorId  String
+  score        Int      // 1-5 คะแนนสภาพที่เป็นอยู่ (Current State)
+  desiredScore Int?     // 1-5 คะแนนสภาพที่พึงประสงค์ (Desired State)
+  note         String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  indicator  Indicator  @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  evidence   Evidence[]
+
+  @@index([assessmentId])
+  @@index([indicatorId])
+  @@unique([assessmentId, indicatorId]) // หนึ่งแบบประเมิน หนึ่งตัวชี้วัด = หนึ่งคำตอบ
+  @@map("assessment_responses")
+}
+
+// หลักฐานประกอบการประเมิน
+model Evidence {
+  id           String   @id @default(uuid())
+  responseId   String
+  fileName     String   @db.VarChar(255)
+  originalName String   @db.VarChar(255)
+  filePath     String   @db.VarChar(500)
+  fileSize     Int      // bytes
+  mimeType     String   @db.VarChar(100)
+  description  String?  @db.Text
+  uploadedAt   DateTime @default(now())
+
+  response AssessmentResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+
+  @@index([responseId])
+  @@map("evidence")
+}
