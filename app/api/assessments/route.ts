@@ -194,12 +194,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Check if assessment already exists for this school, year, and semester
+    // Check if assessment already exists for this user, school, year, and semester
+    // (รองรับหลายผู้ประเมินต่อโรงเรียน - ตรวจสอบเฉพาะของผู้ใช้คนนี้)
     const existingAssessment = await prisma.assessment.findFirst({
       where: {
         schoolId,
         academicYearId,
         semesterId: semesterId || null,
+        createdById: decoded.userId, // ตรวจสอบเฉพาะแบบประเมินของผู้ใช้คนนี้
       },
     })
 
@@ -207,7 +209,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json<APIResponse<{ assessment: Assessment }>>(
         {
           success: true,
-          message: 'พบการประเมินที่มีอยู่แล้ว',
+          message: 'พบการประเมินของคุณที่มีอยู่แล้ว',
           data: { assessment: existingAssessment as Assessment },
         },
         { status: 200 }

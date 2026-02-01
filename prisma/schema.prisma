@@ -217,7 +217,7 @@ model Assessment {
   @@index([semesterId])
   @@index([status])
   @@index([createdById])
-  @@unique([schoolId, academicYearId, semesterId]) // หนึ่งโรงเรียน หนึ่งปีการศึกษา หนึ่งภาคเรียน = หนึ่งแบบประเมิน
+  @@unique([schoolId, academicYearId, semesterId, createdById]) // หนึ่งโรงเรียน หนึ่งปีการศึกษา หนึ่งภาคเรียน หนึ่งผู้ประเมิน = หนึ่งแบบประเมิน (รองรับหลายผู้ประเมินต่อโรงเรียน)
   @@map("assessments")
 }
 
