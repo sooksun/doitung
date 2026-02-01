@@ -1,72 +1,98 @@
 # ==============================================
 # EQAP - EduQuality Assessment Platform
-# Docker Multi-stage Build for Ubuntu 24.x.x
-# Port: 9901
+# Docker Multi-stage Build (Debian Slim for Prisma compatibility)
+# App Port: 9901
 # ==============================================
 
-# Base image - Node.js 20 LTS Alpine
-FROM node:20-alpine AS base
+# Base image - Node.js 20 LTS (Debian Bookworm Slim)
+FROM node:20-bookworm-slim AS base
 
-# Install dependencies only when needed
+# ------------------------------------------------
+# deps: install OS deps + Node deps
+# ------------------------------------------------
 FROM base AS deps
-RUN apk add --no-cache libc6-compat openssl
+
+# OS packages needed by Prisma/Node runtime
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+     openssl \
+     ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Copy package files
 COPY package.json package-lock.json* ./
 
-# Install dependencies
+# Install dependencies (include dev deps for build/prisma generate)
 RUN npm ci --only=production=false
 
-# Rebuild the source code only when needed
+# ------------------------------------------------
+# builder: build Next.js + generate prisma client
+# ------------------------------------------------
 FROM base AS builder
 WORKDIR /app
 
+# Copy node_modules from deps
 COPY --from=deps /app/node_modules ./node_modules
+
+# Copy source
 COPY . .
 
-# Generate Prisma Client
+# Clear old Prisma client and regenerate for correct platform
+RUN rm -rf node_modules/.prisma node_modules/@prisma/client
 RUN npx prisma generate
 
-# Build Next.js application with standalone output
+# Build Next.js with standalone output
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
-# Production image, copy all the files and run next
+# ------------------------------------------------
+# runner: minimal runtime image
+# ------------------------------------------------
 FROM base AS runner
 WORKDIR /app
+
+# OS packages needed at runtime (Prisma engine loads here)
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+     openssl \
+     ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Create non-root user for security
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs \
+  && adduser --system --uid 1001 nextjs
 
 # Copy necessary files from builder
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+
+# Prisma engine + schema (fix permissions)
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/prisma ./prisma
 
 # Create uploads directory with proper permissions
-RUN mkdir -p /app/public/uploads/evidence
-RUN chown -R nextjs:nodejs /app/public/uploads
+RUN mkdir -p /app/public/uploads/evidence \
+  && chown -R nextjs:nodejs /app/public/uploads
 
 # Switch to non-root user
 USER nextjs
 
-# Expose port 9901
+# Expose port
 EXPOSE 9901
 
 # Environment variables
 ENV PORT=9901
-ENV HOSTNAME="0.0.0.0"
+ENV HOSTNAME=0.0.0.0
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:9901/ || exit 1
 
-# Start the application
+# Start the application (Next standalone provides server.js)
 CMD ["node", "server.js"]

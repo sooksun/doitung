@@ -1,39 +1,55 @@
 # ==============================================
 # EQAP - EduQuality Assessment Platform
-# Docker Compose for Ubuntu 24.x.x
+# Docker Compose for Ubuntu 24.x.x / CasaOS
 # Application Port: 9901
 # ==============================================
 
-version: '3.8'
-
 services:
-  # MySQL Database
+  # =========================
+  # MariaDB for this project
+  # =========================
   db:
-    image: mysql:8.0
+    image: mariadb:11.4
     container_name: eqap_db
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
-      MYSQL_DATABASE: ${DB_NAME:-eqap_db}
-      MYSQL_USER: ${DB_USER:-eqap_user}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-eqap_password}
-      TZ: Asia/Bangkok
-    ports:
-      - "${DB_PORT:-3306}:3306"
+      TZ: ${TZ:-Asia/Bangkok}
+      MARIADB_DATABASE: ${DB_NAME:-eqap_db}
+      MARIADB_USER: ${DB_USER:-eqap_user}
+      MARIADB_PASSWORD: ${DB_PASSWORD:-eqap_password}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
+    command:
+      [
+        "--character-set-server=utf8mb4",
+        "--collation-server=utf8mb4_unicode_ci",
+        "--default-authentication-plugin=mysql_native_password"
+      ]
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./mysql-init:/docker-entrypoint-initdb.d
     networks:
       - eqap_network
+
+    # ❗ไม่ publish port 3306 ออก host เพื่อไม่ชนกับ MariaDB ตัวหลัก
+    # ถ้าต้องการเข้าจากข้างนอก ใช้ port อื่น เช่น 3308
+    # ports:
+    #   - "3308:3306"
+
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-rootpassword}"]
+      test: ["CMD-SHELL", "mariadb-admin ping -h 127.0.0.1 -u root -p$${MARIADB_ROOT_PASSWORD} --silent"]
       interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 15
       start_period: 30s
-    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
 
-  # Next.js Application
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # =========================
+  # Next.js App (EQAP)
+  # =========================
   app:
     build:
       context: .
@@ -43,22 +59,30 @@ services:
     ports:
       - "9901:9901"
     environment:
+      TZ: ${TZ:-Asia/Bangkok}
+      NODE_ENV: production
+      PORT: 9901
+      HOSTNAME: "0.0.0.0"
+
+      # Prisma DATABASE_URL (connect to db service in the same docker network)
       DATABASE_URL: mysql://${DB_USER:-eqap_user}:${DB_PASSWORD:-eqap_password}@db:3306/${DB_NAME:-eqap_db}
+
       JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-your-super-secret-refresh-key-change-in-production}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
-      NODE_ENV: production
-      PORT: 9901
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:9901}
-      TZ: Asia/Bangkok
+
     depends_on:
       db:
         condition: service_healthy
+
     networks:
       - eqap_network
+
     volumes:
       - uploads_data:/app/public/uploads
+
     logging:
       driver: "json-file"
       options:
