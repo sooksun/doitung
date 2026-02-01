@@ -32,7 +32,7 @@ export default function ExportMenu({ summaries, disabled = false }: ExportMenuPr
         exportToCSV(summaries, `${filename}.csv`)
         break
       case 'excel':
-        exportToExcel(summaries, `${filename}.xls`)
+        exportToExcel(summaries as unknown as Record<string, unknown>[], `${filename}.xls`)
         break
       case 'print':
         printReport(summaries)

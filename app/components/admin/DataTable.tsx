@@ -70,7 +70,7 @@ export default function DataTable<T extends Record<string, unknown>>({
               <tr key={index} className="hover:bg-gray-50">
                 {columns.map((column) => (
                   <td key={column.key} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {column.render ? column.render(row[column.key], row) : row[column.key]}
+                    {column.render ? column.render(row[column.key], row) : String(row[column.key] ?? '')}
                   </td>
                 ))}
                 {(onEdit || onDelete || onView) && (

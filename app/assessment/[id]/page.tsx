@@ -7,7 +7,7 @@ import { useAutoSave } from '@/hooks/useAutoSave'
 import GroupRatingTable from '@/components/assessment/GroupRatingTable'
 import ProgressBar from '@/components/assessment/ProgressBar'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import { Assessment, AssessmentResponseInput } from '@/lib/types'
+import { Assessment, AssessmentResponseInput, AssessmentResponse } from '@/lib/types'
 import { showSuccess, showError, confirmAction } from '@/lib/toast'
 
 export default function AssessmentFormPage() {
@@ -16,7 +16,7 @@ export default function AssessmentFormPage() {
   const assessmentId = params.id as string
   
   const [assessment, setAssessment] = useState<Assessment | null>(null)
-  const [indicators, setIndicators] = useState<{ id: string; code?: string; name: string; nameEn?: string; indicators: { id: string; code: string; title: string; orderNo: number }[] }[]>([])
+  const [indicators, setIndicators] = useState<{ id: string; code: string; name: string; nameEn?: string; indicators: { id: string; code: string; title: string; orderNo: number }[] }[]>([])
   const [responses, setResponses] = useState<Map<string, AssessmentResponseInput>>(new Map())
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -70,7 +70,7 @@ export default function AssessmentFormPage() {
           responsesMap.set(response.indicatorId, {
             indicatorId: response.indicatorId,
             score: response.score,
-            desiredScore: response.desiredScore,
+            desiredScore: response.desiredScore ?? undefined,
             note: response.note || '',
           })
         })

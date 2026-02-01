@@ -36,10 +36,11 @@ class Logger {
     this.log('warn', message, context)
   }
 
-  error(message: string, error?: Error | unknown, context?: unknown): void {
+  error(message: string, error?: Error | unknown, context?: Record<string, unknown>): void {
+    const errorObj = error instanceof Error ? error : null
     this.log('error', message, {
-      error: error?.message || error,
-      stack: error?.stack,
+      error: errorObj?.message || error,
+      stack: errorObj?.stack,
       ...context,
     })
   }

@@ -4,10 +4,10 @@ import * as XLSX from 'xlsx'
 interface AssessmentSummaryRow {
   schoolName?: string
   academicYearName?: string
-  semesterName?: string
+  semesterName?: string | null
   overallScore?: number
   status?: string
-  submittedAt?: string
+  submittedAt?: string | Date | null
 }
 
 // CSV Export
@@ -129,8 +129,16 @@ export function exportToExcel(data: Record<string, unknown>[], filename: string)
   XLSX.writeFile(wb, `${filename}.xlsx`)
 }
 
+interface AssessmentExport {
+  schoolName?: string
+  academicYearName?: string
+  semesterName?: string
+  overallScore?: number
+  domainScores?: { groupName: string; averageScore: number; answeredIndicators?: number; totalIndicators?: number }[]
+}
+
 // Export assessment report to Excel
-export function exportAssessmentToExcel(assessment: Record<string, unknown>) {
+export function exportAssessmentToExcel(assessment: AssessmentExport) {
   const data: Record<string, unknown>[] = []
 
   // Header information
@@ -156,7 +164,7 @@ export function exportAssessmentToExcel(assessment: Record<string, unknown>) {
   }
   data.push({
     'รายการ': 'คะแนนรวม',
-    'ข้อมูล': `${assessment.overallScore.toFixed(2)} / 5.00`,
+    'ข้อมูล': `${(assessment.overallScore ?? 0).toFixed(2)} / 5.00`,
     '': '',
     ' ': '',
   })
@@ -170,11 +178,11 @@ export function exportAssessmentToExcel(assessment: Record<string, unknown>) {
     ' ': '',
   })
 
-  ;(assessment.domainScores as { groupName: string; averageScore: number }[]).forEach((domain) => {
+  ;(assessment.domainScores || []).forEach((domain) => {
     data.push({
       'รายการ': domain.groupName,
       'ข้อมูล': `${domain.averageScore.toFixed(2)} / 5.00`,
-      '': `${domain.answeredIndicators} / ${domain.totalIndicators}`,
+      '': `${domain.answeredIndicators ?? 0} / ${domain.totalIndicators ?? 0}`,
       ' ': '',
     })
   })
@@ -184,17 +192,27 @@ export function exportAssessmentToExcel(assessment: Record<string, unknown>) {
   exportToExcel(data, filename)
 }
 
+interface ComparisonSummary {
+  schoolName?: string
+  academicYearName?: string
+  semesterName?: string
+  overallScore?: number
+  status?: string
+  submittedAt?: string
+  domainScores?: { groupName: string; averageScore: number }[]
+}
+
 // Export multiple assessments comparison
-export function exportComparisonToExcel(summaries: { domainScores?: { groupName: string; averageScore: number }[] }[]) {
+export function exportComparisonToExcel(summaries: ComparisonSummary[]) {
   const data = summaries.map((summary) => ({
-    'โรงเรียน': summary.schoolName,
-    'ปีการศึกษา': summary.academicYearName,
+    'โรงเรียน': summary.schoolName || '-',
+    'ปีการศึกษา': summary.academicYearName || '-',
     'ภาคเรียน': summary.semesterName || '-',
-    'คะแนนรวม': summary.overallScore.toFixed(2),
+    'คะแนนรวม': (summary.overallScore ?? 0).toFixed(2),
     ...Object.fromEntries(
       (summary.domainScores || []).map((d: { groupName: string; averageScore: number }) => [d.groupName, d.averageScore.toFixed(2)])
     ),
-    'สถานะ': summary.status === 'SUBMITTED' ? 'ส่งแล้ว' : summary.status,
+    'สถานะ': summary.status === 'SUBMITTED' ? 'ส่งแล้ว' : summary.status || '-',
     'วันที่ส่ง': summary.submittedAt
       ? new Date(summary.submittedAt).toLocaleDateString('th-TH')
       : '-',
@@ -203,18 +221,31 @@ export function exportComparisonToExcel(summaries: { domainScores?: { groupName:
   exportToExcel(data, `รายงานเปรียบเทียบการประเมิน_${new Date().toLocaleDateString('th-TH')}`)
 }
 
+interface UserExport {
+  email?: string
+  firstName?: string
+  lastName?: string
+  role?: string
+  office?: { name: string }
+  network?: { name: string }
+  school?: { name: string }
+  isActive?: boolean
+  createdAt?: string | Date
+  lastLogin?: string | Date | null
+}
+
 // Export users list
-export function exportUsersToExcel(users: Record<string, unknown>[]) {
+export function exportUsersToExcel(users: UserExport[]) {
   const data = users.map((user) => ({
-    'อีเมล': user.email,
-    'ชื่อ': user.firstName,
-    'นามสกุล': user.lastName,
-    'บทบาท': user.role,
+    'อีเมล': user.email || '-',
+    'ชื่อ': user.firstName || '-',
+    'นามสกุล': user.lastName || '-',
+    'บทบาท': user.role || '-',
     'สำนักงานเขต': user.office?.name || '-',
     'เครือข่าย': user.network?.name || '-',
     'โรงเรียน': user.school?.name || '-',
     'สถานะ': user.isActive ? 'ใช้งาน' : 'ปิดใช้งาน',
-    'วันที่สร้าง': new Date(user.createdAt).toLocaleDateString('th-TH'),
+    'วันที่สร้าง': user.createdAt ? new Date(user.createdAt).toLocaleDateString('th-TH') : '-',
     'เข้าใช้ล่าสุด': user.lastLogin
       ? new Date(user.lastLogin).toLocaleDateString('th-TH')
       : '-',
@@ -223,11 +254,18 @@ export function exportUsersToExcel(users: Record<string, unknown>[]) {
   exportToExcel(data, `รายชื่อผู้ใช้_${new Date().toLocaleDateString('th-TH')}`)
 }
 
+interface SchoolExport {
+  code?: string
+  name?: string
+  network?: { name: string; office?: { name: string } }
+  _count?: { users?: number; assessments?: number }
+}
+
 // Export schools list
-export function exportSchoolsToExcel(schools: Record<string, unknown>[]) {
+export function exportSchoolsToExcel(schools: SchoolExport[]) {
   const data = schools.map((school) => ({
     'รหัสโรงเรียน': school.code || '-',
-    'ชื่อโรงเรียน': school.name,
+    'ชื่อโรงเรียน': school.name || '-',
     'เครือข่าย': school.network?.name || '-',
     'สำนักงานเขต': school.network?.office?.name || '-',
     'จำนวนผู้ใช้': school._count?.users || 0,

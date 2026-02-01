@@ -39,11 +39,11 @@ export default function ExportButton({
           showError(result.message)
         }
       } else if (type === 'comparison' && data) {
-        exportComparisonToExcel(data)
+        exportComparisonToExcel(data as Parameters<typeof exportComparisonToExcel>[0])
       } else if (type === 'users' && data) {
-        exportUsersToExcel(data)
+        exportUsersToExcel(data as Parameters<typeof exportUsersToExcel>[0])
       } else if (type === 'schools' && data) {
-        exportSchoolsToExcel(data)
+        exportSchoolsToExcel(data as Parameters<typeof exportSchoolsToExcel>[0])
       }
     } catch (error) {
       console.error('Export error:', error)

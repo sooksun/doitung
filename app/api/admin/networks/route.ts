@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { Prisma } from '@prisma/client'
 import prisma from '@/lib/prisma'
 import { getTokenFromHeader, verifyAccessToken } from '@/lib/auth'
 import { APIResponse } from '@/lib/types'
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
-      where.name = { contains: search, mode: 'insensitive' }
+      where.name = { contains: search }
     }
 
     const networks = await prisma.network.findMany({

@@ -56,10 +56,11 @@ export interface Assessment {
   academicYearId: string
   semesterId?: string | null
   status: AssessmentStatus
-  submittedAt?: Date | null
-  createdAt: Date
-  updatedAt: Date
+  submittedAt?: Date | string | null
+  createdAt: Date | string
+  updatedAt: Date | string
   createdById: string
+  responseCount?: number
   school?: {
     id: string
     name: string

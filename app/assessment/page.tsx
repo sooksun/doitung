@@ -139,7 +139,7 @@ export default function AssessmentListPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-6">
-            {assessments.map((assessment: Assessment & { school?: { name: string }; academicYear?: { name: string }; semester?: { name: string }; responseCount?: number; createdBy?: { firstName: string; lastName: string }; createdAt: string; submittedAt?: string }, index: number) => (
+            {assessments.map((assessment, index) => (
               <div
                 key={assessment.id}
                 className="card p-6 hover:shadow-glow-purple transition-all duration-300 animate-fadeIn"

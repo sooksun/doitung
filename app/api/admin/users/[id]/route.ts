@@ -134,7 +134,7 @@ export async function PUT(
     const data: Record<string, unknown> = { ...validationResult.data }
 
     // Hash password if provided
-    if (data.password) {
+    if (data.password && typeof data.password === 'string') {
       data.password = await hashPassword(data.password)
     }
 

@@ -6,12 +6,13 @@ import Modal from '@/components/admin/Modal'
 import FormField from '@/components/admin/FormField'
 import { showSuccess, showError, confirmAction } from '@/lib/toast'
 
-interface UserRow {
+interface UserRow extends Record<string, unknown> {
   id: string
   email: string
   firstName: string
   lastName: string
   role: string
+  isActive?: boolean
   office?: { id: string; name?: string }
   network?: { id: string; name?: string }
   school?: { id: string; name?: string }
@@ -170,11 +171,14 @@ export default function UsersManagementPage() {
     {
       key: 'isActive',
       label: 'สถานะ',
-      render: (value: boolean) => (
-        <span className={`px-2 py-1 rounded-full text-xs ${value ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-          {value ? 'ใช้งาน' : 'ปิดใช้งาน'}
-        </span>
-      ),
+      render: (value: unknown) => {
+        const isActive = value as boolean
+        return (
+          <span className={`px-2 py-1 rounded-full text-xs ${isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+            {isActive ? 'ใช้งาน' : 'ปิดใช้งาน'}
+          </span>
+        )
+      },
     },
   ]
 

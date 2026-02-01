@@ -10,7 +10,7 @@ interface FilterValues {
 
 interface DashboardFiltersProps {
   onFilterChange: (filters: FilterValues) => void
-  userRole: string
+  userRole?: string
 }
 
 interface OptionItem {
