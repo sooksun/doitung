@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     const officeId = searchParams.get('officeId')
     const search = searchParams.get('search') || ''
 
-    const where: any = {}
+    const where: Prisma.NetworkWhereInput = {}
     
     if (decoded.role === 'OFFICE_ADMIN' && decoded.officeId) {
       where.officeId = decoded.officeId

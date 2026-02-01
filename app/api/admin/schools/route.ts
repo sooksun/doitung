@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { Prisma } from '@prisma/client'
 import prisma from '../../../lib/prisma'
 import { getTokenFromHeader, verifyAccessToken } from '../../../lib/auth'
 import { APIResponse } from '../../../lib/types'
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
     const officeId = searchParams.get('officeId')
 
     // Build filter
-    const where: any = {}
+    const where: Prisma.SchoolWhereInput = {}
 
     // Apply role-based filter
     if (decoded.role === 'NETWORK_ADMIN' && decoded.networkId) {

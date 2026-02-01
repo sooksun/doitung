@@ -6,7 +6,7 @@ import { showError } from '@/lib/toast'
 
 interface ExportButtonProps {
   type: 'assessment' | 'comparison' | 'users' | 'schools'
-  data?: any
+  data?: unknown
   assessmentId?: string
   label?: string
   className?: string

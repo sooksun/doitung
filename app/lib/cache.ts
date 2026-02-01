@@ -8,7 +8,7 @@ interface CacheEntry<T> {
 }
 
 class SimpleCache {
-  private cache: Map<string, CacheEntry<any>> = new Map()
+  private cache: Map<string, CacheEntry<unknown>> = new Map()
 
   set<T>(key: string, data: T, ttl: number = 300000): void {
     // Default TTL: 5 minutes (300000ms)

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { showError } from '@/lib/toast'
 
 export default function AdminLayout({
@@ -11,11 +12,12 @@ export default function AdminLayout({
   children: React.ReactNode
 }) {
   const router = useRouter()
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<{ firstName: string; lastName: string; role: string } | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     verifyAdmin()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
   }, [])
 
   const verifyAdmin = async () => {
@@ -58,37 +60,38 @@ export default function AdminLayout({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-dark-bg">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">กำลังโหลด...</p>
+          <p className="text-gray-600 dark:text-gray-400">กำลังโหลด...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-dark-bg">
       {/* Header */}
-      <header className="bg-white shadow-sm">
+      <header className="nav-header bg-white dark:bg-dark-card shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">⚙️ Admin Panel</h1>
-              <p className="text-sm text-gray-600 mt-1">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">⚙️ Admin Panel</h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                 {user?.firstName} {user?.lastName} ({user?.role})
               </p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex items-center gap-3">
+              <ThemeToggle />
               <Link
                 href="/dashboard"
-                className="px-4 py-2 bg-secondary-100 text-secondary-700 rounded-lg hover:bg-secondary-200 transition-colors font-medium"
+                className="px-4 py-2 bg-secondary-100 dark:bg-secondary-900/30 text-secondary-700 dark:text-secondary-300 rounded-lg hover:bg-secondary-200 dark:hover:bg-secondary-800/50 transition-colors font-medium"
               >
                 📊 Dashboard
               </Link>
               <button
                 onClick={handleLogout}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                className="btn-ghost px-4 py-2"
               >
                 ออกจากระบบ
               </button>
@@ -98,36 +101,36 @@ export default function AdminLayout({
       </header>
 
       {/* Navigation */}
-      <nav className="bg-white border-b border-gray-200">
+      <nav className="bg-white dark:bg-dark-card border-b border-gray-200 dark:border-dark-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex space-x-8 overflow-x-auto py-4">
             <Link
               href="/admin"
-              className="whitespace-nowrap px-3 py-2 text-sm font-medium text-gray-700 hover:text-primary-600 hover:border-b-2 hover:border-primary-600"
+              className="nav-link whitespace-nowrap px-3 py-2 text-sm font-medium"
             >
               หน้าหลัก
             </Link>
             <Link
               href="/admin/users"
-              className="whitespace-nowrap px-3 py-2 text-sm font-medium text-gray-700 hover:text-primary-600 hover:border-b-2 hover:border-primary-600"
+              className="nav-link whitespace-nowrap px-3 py-2 text-sm font-medium"
             >
               จัดการผู้ใช้
             </Link>
             <Link
               href="/admin/schools"
-              className="whitespace-nowrap px-3 py-2 text-sm font-medium text-gray-700 hover:text-primary-600 hover:border-b-2 hover:border-primary-600"
+              className="nav-link whitespace-nowrap px-3 py-2 text-sm font-medium"
             >
               จัดการโรงเรียน
             </Link>
             <Link
               href="/admin/structure"
-              className="whitespace-nowrap px-3 py-2 text-sm font-medium text-gray-700 hover:text-primary-600 hover:border-b-2 hover:border-primary-600"
+              className="nav-link whitespace-nowrap px-3 py-2 text-sm font-medium"
             >
               โครงสร้าง (เขต/เครือข่าย)
             </Link>
             <Link
               href="/admin/indicators"
-              className="whitespace-nowrap px-3 py-2 text-sm font-medium text-gray-700 hover:text-primary-600 hover:border-b-2 hover:border-primary-600"
+              className="nav-link whitespace-nowrap px-3 py-2 text-sm font-medium"
             >
               จัดการตัวชี้วัด
             </Link>

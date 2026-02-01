@@ -131,7 +131,7 @@ export async function PUT(
       )
     }
 
-    const data: any = { ...validationResult.data }
+    const data: Record<string, unknown> = { ...validationResult.data }
 
     // Hash password if provided
     if (data.password) {
@@ -140,7 +140,7 @@ export async function PUT(
 
     const user = await prisma.user.update({
       where: { id },
-      data,
+      data: data as Parameters<typeof prisma.user.update>[0]['data'],
       select: {
         id: true,
         email: true,

@@ -2,70 +2,439 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ================================
+   Font: Sarabun (Google Font)
+   โหลดจาก link ใน layout - ไม่ใช้ next/font class เพื่อไม่ให้ build เก่าใส่ Inter ทับ
+================================ */
+html,
+body,
+body[data-font="sarabun"],
+body[data-font="sarabun"] * {
+  font-family: 'Sarabun', var(--font-sarabun), ui-sans-serif, system-ui, sans-serif !important;
+}
+
+/* ================================
+   EQAP Theme System
+   Light Mode: ฟ้าอ่อน-ขาว
+   Dark Mode: ขาว-ม่วง-ฟ้า
+================================ */
+
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 255, 255, 255;
-  --background-end-rgb: 255, 255, 255;
+  /* Light mode variables */
+  --color-bg-primary: #f0f9ff;
+  --color-bg-secondary: #ffffff;
+  --color-bg-card: #ffffff;
+  --color-text-primary: #1e293b;
+  --color-text-secondary: #64748b;
+  --color-border: #e0f2fe;
+  --color-accent: #3b82f6;
+  --color-accent-secondary: #a855f7;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
-  }
+.dark {
+  /* Dark mode variables */
+  --color-bg-primary: #0f0a1a;
+  --color-bg-secondary: #1a1025;
+  --color-bg-card: #1a1025;
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #a5b4fc;
+  --color-border: #2d1f42;
+  --color-accent: #a855f7;
+  --color-accent-secondary: #3b82f6;
 }
 
+/* Base body styles */
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  @apply antialiased;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Base styles already handled by body above */
+/* Light mode body gradient */
+body:not(.dark) {
+  background: linear-gradient(135deg, #f0f9ff 0%, #ffffff 50%, #faf5ff 100%);
+}
 
-/* Input text color - always black */
+/* Dark mode body gradient */
+.dark body,
+body.dark {
+  background: linear-gradient(135deg, #1a1025 0%, #0f0a1a 50%, #0c1929 100%);
+}
+
+/* ================================
+   Form Elements
+================================ */
+
+/* Light mode inputs */
 input,
 select,
 textarea {
-  color: #000000 !important;
+  @apply transition-all duration-200;
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-card);
+  border-color: var(--color-border);
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: #6b7280 !important;
+  color: var(--color-text-secondary);
 }
 
-/* Ensure option text is black */
+/* Dark mode inputs */
+.dark input,
+.dark select,
+.dark textarea {
+  @apply bg-dark-card border-dark-border text-white;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  @apply text-gray-400;
+}
+
+/* Option elements */
 option {
-  color: #000000;
-  background-color: #ffffff;
+  background-color: var(--color-bg-card);
+  color: var(--color-text-primary);
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+.dark option {
+  @apply bg-dark-card text-white;
 }
 
-/* Custom scrollbar */
+/* Focus states */
+input:focus,
+select:focus,
+textarea:focus {
+  @apply ring-2 ring-primary-500 border-transparent;
+}
+
+/* ================================
+   Cards & Containers
+================================ */
+
+.card {
+  @apply rounded-xl shadow-lg transition-all duration-300;
+  background-color: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+}
+
+.dark .card {
+  @apply bg-dark-card border-dark-border shadow-glow-purple;
+}
+
+/* Glass effect for cards */
+.card-glass {
+  @apply backdrop-blur-lg;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.dark .card-glass {
+  background: rgba(26, 16, 37, 0.8);
+}
+
+/* ================================
+   Buttons
+================================ */
+
+.btn-primary {
+  @apply px-6 py-3 rounded-lg font-semibold transition-all duration-300;
+  @apply bg-gradient-to-r from-primary-500 to-secondary-500;
+  @apply text-white shadow-lg;
+  @apply hover:from-primary-600 hover:to-secondary-600;
+  @apply hover:shadow-glow-purple hover:-translate-y-0.5;
+  @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+}
+
+.btn-secondary {
+  @apply px-6 py-3 rounded-lg font-semibold transition-all duration-300;
+  @apply border-2 border-primary-500 text-primary-600;
+  @apply hover:bg-primary-50 hover:-translate-y-0.5;
+}
+
+.dark .btn-secondary {
+  @apply border-primary-400 text-primary-300;
+  @apply hover:bg-dark-hover;
+}
+
+.btn-ghost {
+  @apply px-4 py-2 rounded-lg font-medium transition-all duration-200;
+  @apply text-gray-600 hover:bg-gray-100;
+}
+
+.dark .btn-ghost {
+  @apply text-gray-300 hover:bg-dark-hover;
+}
+
+/* ================================
+   Navigation & Header
+================================ */
+
+.nav-header {
+  @apply sticky top-0 z-50 backdrop-blur-lg;
+  @apply border-b transition-all duration-300;
+  background: rgba(255, 255, 255, 0.9);
+  border-color: var(--color-border);
+}
+
+.dark .nav-header {
+  background: rgba(26, 16, 37, 0.9);
+  border-color: #2d1f42;
+}
+
+.nav-link {
+  @apply px-4 py-2 rounded-lg font-medium transition-all duration-200;
+  @apply text-gray-600 hover:text-primary-600 hover:bg-primary-50;
+}
+
+.dark .nav-link {
+  @apply text-gray-300 hover:text-primary-300 hover:bg-dark-hover;
+}
+
+.nav-link.active {
+  @apply text-primary-600 bg-primary-50;
+}
+
+.dark .nav-link.active {
+  @apply text-primary-300 bg-dark-hover;
+}
+
+/* ================================
+   Tables
+================================ */
+
+.table-container {
+  @apply overflow-hidden rounded-xl;
+  background-color: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+}
+
+.dark .table-container {
+  @apply bg-dark-card border-dark-border;
+}
+
+table {
+  @apply w-full;
+}
+
+thead {
+  @apply bg-gray-50;
+}
+
+.dark thead {
+  @apply bg-dark-hover;
+}
+
+th {
+  @apply px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider;
+  color: var(--color-text-secondary);
+}
+
+td {
+  @apply px-6 py-4 whitespace-nowrap;
+}
+
+tbody tr {
+  @apply border-t transition-colors duration-150;
+  border-color: var(--color-border);
+}
+
+tbody tr:hover {
+  @apply bg-gray-50;
+}
+
+.dark tbody tr {
+  @apply border-dark-border;
+}
+
+.dark tbody tr:hover {
+  @apply bg-dark-hover;
+}
+
+/* ================================
+   Sidebar
+================================ */
+
+.sidebar {
+  @apply fixed left-0 top-0 h-full w-64 p-4;
+  @apply border-r transition-all duration-300;
+  background-color: var(--color-bg-secondary);
+  border-color: var(--color-border);
+}
+
+.dark .sidebar {
+  @apply bg-dark-bg border-dark-border;
+}
+
+.sidebar-link {
+  @apply flex items-center gap-3 px-4 py-3 rounded-lg;
+  @apply font-medium transition-all duration-200;
+  @apply text-gray-600 hover:text-primary-600 hover:bg-primary-50;
+}
+
+.dark .sidebar-link {
+  @apply text-gray-300 hover:text-primary-300 hover:bg-dark-hover;
+}
+
+.sidebar-link.active {
+  @apply text-white bg-gradient-to-r from-primary-500 to-secondary-500;
+  @apply shadow-glow-purple;
+}
+
+/* ================================
+   Custom Scrollbar
+================================ */
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-gray-100;
+  @apply bg-gray-100 rounded-full;
+}
+
+.dark ::-webkit-scrollbar-track {
+  @apply bg-dark-bg;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-primary-400 rounded-full;
+  @apply rounded-full;
+  background: linear-gradient(135deg, #a855f7, #3b82f6);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-primary-500;
+  background: linear-gradient(135deg, #9333ea, #2563eb);
+}
+
+/* ================================
+   Animations
+================================ */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(139, 92, 246, 0.5);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slideIn {
+  animation: slideIn 0.3s ease-out;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* ================================
+   Utility Classes
+================================ */
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  .glass {
+    @apply backdrop-blur-lg;
+    background: rgba(255, 255, 255, 0.1);
+  }
+  
+  .dark .glass {
+    background: rgba(26, 16, 37, 0.5);
+  }
+  
+  .gradient-text {
+    @apply bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-primary-500 to-secondary-500;
+  }
+  
+  .gradient-border {
+    @apply relative;
+  }
+  
+  .gradient-border::before {
+    content: '';
+    @apply absolute inset-0 rounded-lg;
+    @apply bg-gradient-to-r from-primary-500 to-secondary-500;
+    @apply -z-10;
+    padding: 2px;
+  }
+}
+
+/* ================================
+   Status Badges
+================================ */
+
+.badge {
+  @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold;
+}
+
+.badge-success {
+  @apply bg-green-100 text-green-800;
+}
+
+.dark .badge-success {
+  @apply bg-green-900/30 text-green-400;
+}
+
+.badge-warning {
+  @apply bg-yellow-100 text-yellow-800;
+}
+
+.dark .badge-warning {
+  @apply bg-yellow-900/30 text-yellow-400;
+}
+
+.badge-danger {
+  @apply bg-red-100 text-red-800;
+}
+
+.dark .badge-danger {
+  @apply bg-red-900/30 text-red-400;
+}
+
+.badge-info {
+  @apply bg-blue-100 text-blue-800;
+}
+
+.dark .badge-info {
+  @apply bg-blue-900/30 text-blue-400;
+}
+
+.badge-primary {
+  @apply bg-primary-100 text-primary-800;
+}
+
+.dark .badge-primary {
+  @apply bg-primary-900/30 text-primary-400;
 }

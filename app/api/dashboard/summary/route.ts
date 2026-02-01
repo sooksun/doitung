@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import prisma from '../../../lib/prisma'
 import { getTokenFromHeader, verifyAccessToken } from '../../../lib/auth'
 import { APIResponse, AssessmentSummary, DomainScore } from '../../../lib/types'
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status') as AssessmentStatus | null
 
     // Build filter
-    const where: any = {
+    const where: Prisma.AssessmentWhereInput = {
       status: status || AssessmentStatus.SUBMITTED,
     }
 

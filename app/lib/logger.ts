@@ -2,26 +2,10 @@
 
 type LogLevel = 'info' | 'warn' | 'error' | 'debug'
 
-interface LogEntry {
-  timestamp: Date
-  level: LogLevel
-  message: string
-  context?: any
-  userId?: string
-  requestId?: string
-}
-
 class Logger {
   private isDevelopment = process.env.NODE_ENV === 'development'
 
-  private log(level: LogLevel, message: string, context?: any): void {
-    const entry: LogEntry = {
-      timestamp: new Date(),
-      level,
-      message,
-      context,
-    }
-
+  private log(level: LogLevel, message: string, context?: unknown): void {
     // In development, use console
     if (this.isDevelopment) {
       const emoji = {
@@ -44,15 +28,15 @@ class Logger {
     // - Sentry, LogRocket, etc.
   }
 
-  info(message: string, context?: any): void {
+  info(message: string, context?: unknown): void {
     this.log('info', message, context)
   }
 
-  warn(message: string, context?: any): void {
+  warn(message: string, context?: unknown): void {
     this.log('warn', message, context)
   }
 
-  error(message: string, error?: Error | any, context?: any): void {
+  error(message: string, error?: Error | unknown, context?: unknown): void {
     this.log('error', message, {
       error: error?.message || error,
       stack: error?.stack,
@@ -60,7 +44,7 @@ class Logger {
     })
   }
 
-  debug(message: string, context?: any): void {
+  debug(message: string, context?: unknown): void {
     if (this.isDevelopment) {
       this.log('debug', message, context)
     }
@@ -90,14 +74,14 @@ const logger = new Logger()
 export default logger
 
 // Helper function for API route error handling
-export function handleAPIError(error: any, operation: string): {
+export function handleAPIError(error: unknown, operation: string): {
   success: false
   message: string
 } {
   logger.error(`${operation} failed`, error)
 
   // Don't expose internal errors to client
-  const message = process.env.NODE_ENV === 'development'
+  const message = process.env.NODE_ENV === 'development' && error instanceof Error
     ? error.message
     : 'เกิดข้อผิดพลาดในการดำเนินการ'
 

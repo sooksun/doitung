@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { Prisma } from '@prisma/client'
 import prisma from '../../lib/prisma'
 import { getTokenFromHeader, verifyAccessToken } from '../../lib/auth'
 import { APIResponse, Assessment } from '../../lib/types'
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10')
 
     // Build filter based on user role
-    const where: any = {}
+    const where: Prisma.AssessmentWhereInput = {}
 
     // Filter by school for non-admin users
     if (decoded.role === 'SCHOOL_DIRECTOR' || decoded.role === 'TEACHER') {
@@ -115,7 +116,7 @@ export async function GET(request: NextRequest) {
       responses: undefined, // Remove full responses from list
     }))
 
-    return NextResponse.json<APIResponse<{ assessments: typeof transformedAssessments; pagination: any }>>(
+    return NextResponse.json<APIResponse<{ assessments: typeof transformedAssessments; pagination: { page: number; limit: number; total: number; totalPages: number } }>>(
       {
         success: true,
         data: {

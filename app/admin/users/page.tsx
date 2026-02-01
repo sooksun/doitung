@@ -6,12 +6,23 @@ import Modal from '@/components/admin/Modal'
 import FormField from '@/components/admin/FormField'
 import { showSuccess, showError, confirmAction } from '@/lib/toast'
 
+interface UserRow {
+  id: string
+  email: string
+  firstName: string
+  lastName: string
+  role: string
+  office?: { id: string; name?: string }
+  network?: { id: string; name?: string }
+  school?: { id: string; name?: string }
+}
+
 export default function UsersManagementPage() {
-  const [users, setUsers] = useState([])
+  const [users, setUsers] = useState<UserRow[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create')
-  const [selectedUser, setSelectedUser] = useState<any>(null)
+  const [selectedUser, setSelectedUser] = useState<UserRow | null>(null)
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -59,7 +70,7 @@ export default function UsersManagementPage() {
     setIsModalOpen(true)
   }
 
-  const handleEdit = (user: any) => {
+  const handleEdit = (user: UserRow) => {
     setModalMode('edit')
     setSelectedUser(user)
     setFormData({
@@ -75,7 +86,7 @@ export default function UsersManagementPage() {
     setIsModalOpen(true)
   }
 
-  const handleDelete = async (user: any) => {
+  const handleDelete = async (user: UserRow) => {
     const confirmed = await confirmAction(
       `คุณต้องการลบผู้ใช้ ${user.firstName} ${user.lastName} หรือไม่?`,
       'ยืนยันการลบผู้ใช้'
@@ -147,13 +158,13 @@ export default function UsersManagementPage() {
     {
       key: 'name',
       label: 'ชื่อ-นามสกุล',
-      render: (_: any, row: any) => `${row.firstName} ${row.lastName}`,
+      render: (_: unknown, row: UserRow) => `${row.firstName} ${row.lastName}`,
     },
     { key: 'role', label: 'บทบาท' },
     {
       key: 'organization',
       label: 'สังกัด',
-      render: (_: any, row: any) => 
+      render: (_: unknown, row: UserRow) =>
         row.school?.name || row.network?.name || row.office?.name || '-',
     },
     {

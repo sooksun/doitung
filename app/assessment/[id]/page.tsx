@@ -6,8 +6,9 @@ import Link from 'next/link'
 import { useAutoSave } from '@/hooks/useAutoSave'
 import GroupRatingTable from '@/components/assessment/GroupRatingTable'
 import ProgressBar from '@/components/assessment/ProgressBar'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { Assessment, AssessmentResponseInput } from '@/lib/types'
-import { showSuccess, showError, showInfo, confirmAction, crudToast } from '@/lib/toast'
+import { showSuccess, showError, confirmAction } from '@/lib/toast'
 
 export default function AssessmentFormPage() {
   const router = useRouter()
@@ -15,7 +16,7 @@ export default function AssessmentFormPage() {
   const assessmentId = params.id as string
   
   const [assessment, setAssessment] = useState<Assessment | null>(null)
-  const [indicators, setIndicators] = useState<any[]>([])
+  const [indicators, setIndicators] = useState<{ id: string; code?: string; name: string; nameEn?: string; indicators: { id: string; code: string; title: string; orderNo: number }[] }[]>([])
   const [responses, setResponses] = useState<Map<string, AssessmentResponseInput>>(new Map())
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -23,8 +24,8 @@ export default function AssessmentFormPage() {
   const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'error' | null>(null)
   const [selectedGroup, setSelectedGroup] = useState<string | 'all'>('all')
 
-  // Auto-save hook
-  const { save } = useAutoSave({
+  // Auto-save hook (save is called internally by the hook)
+  useAutoSave({
     assessmentId: assessmentId,
     responses: Array.from(responses.values()),
     onSave: (success) => {
@@ -38,6 +39,7 @@ export default function AssessmentFormPage() {
     if (assessmentId) {
       fetchAssessmentAndIndicators()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetch on assessmentId only
   }, [assessmentId])
 
   const fetchAssessmentAndIndicators = async () => {
@@ -64,7 +66,7 @@ export default function AssessmentFormPage() {
       // Build responses map from existing responses
       const responsesMap = new Map<string, AssessmentResponseInput>()
       if (assessmentData.data.assessment.responses) {
-        assessmentData.data.assessment.responses.forEach((response: any) => {
+        ;(assessmentData.data.assessment.responses as AssessmentResponse[]).forEach((response) => {
           responsesMap.set(response.indicatorId, {
             indicatorId: response.indicatorId,
             score: response.score,
@@ -165,10 +167,10 @@ export default function AssessmentFormPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-dark-bg">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">กำลังโหลด...</p>
+          <p className="text-gray-600 dark:text-gray-400">กำลังโหลด...</p>
         </div>
       </div>
     )
@@ -176,10 +178,10 @@ export default function AssessmentFormPage() {
 
   if (!assessment) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-dark-bg">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">ไม่พบแบบประเมิน</h2>
-          <Link href="/assessment" className="text-primary-600 hover:text-primary-700">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">ไม่พบแบบประเมิน</h2>
+          <Link href="/assessment" className="text-primary-600 dark:text-primary-400 hover:text-primary-700">
             กลับไปรายการแบบประเมิน
           </Link>
         </div>
@@ -190,48 +192,49 @@ export default function AssessmentFormPage() {
   const isSubmitted = assessment.status === 'SUBMITTED'
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-dark-bg">
       {/* Fixed Header */}
-      <div className="sticky top-0 z-50 bg-white shadow-md">
+      <div className="sticky top-0 z-50 nav-header bg-white dark:bg-dark-card shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <Link href="/assessment" className="text-primary-600 hover:text-primary-700 text-sm mb-2 inline-block">
+              <Link href="/assessment" className="text-primary-600 dark:text-primary-400 hover:text-primary-700 text-sm mb-2 inline-block">
                 ← กลับไปรายการแบบประเมิน
               </Link>
-              <h1 className="text-xl font-bold text-gray-900">
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">
                 {assessment.school?.name}
               </h1>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
                 {assessment.academicYear?.name}
                 {assessment.semester && ` - ${assessment.semester.name}`}
               </p>
             </div>
 
-            {/* Auto-save Status */}
+            {/* Theme Toggle + Auto-save Status */}
             <div className="flex items-center gap-4">
+              <ThemeToggle />
               {autoSaveStatus && (
                 <div className="flex items-center gap-2 text-sm">
                   {autoSaveStatus === 'saving' && (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600"></div>
-                      <span className="text-gray-600">กำลังบันทึก...</span>
+                      <span className="text-gray-600 dark:text-gray-400">กำลังบันทึก...</span>
                     </>
                   )}
                   {autoSaveStatus === 'saved' && (
                     <>
-                      <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                      <svg className="w-4 h-4 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                       </svg>
-                      <span className="text-green-600">บันทึกแล้ว</span>
+                      <span className="text-green-600 dark:text-green-400">บันทึกแล้ว</span>
                     </>
                   )}
                   {autoSaveStatus === 'error' && (
                     <>
-                      <svg className="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                      <svg className="w-4 h-4 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                       </svg>
-                      <span className="text-red-600">บันทึกล้มเหลว</span>
+                      <span className="text-red-600 dark:text-red-400">บันทึกล้มเหลว</span>
                     </>
                   )}
                 </div>
@@ -256,13 +259,13 @@ export default function AssessmentFormPage() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {error && (
-          <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+          <div className="mb-6 p-4 bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg">
             {error}
           </div>
         )}
 
         {isSubmitted && (
-          <div className="mb-6 p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg">
+          <div className="mb-6 p-4 bg-green-100 dark:bg-green-900/30 border border-green-400 dark:border-green-800 text-green-700 dark:text-green-400 rounded-lg">
             <p className="font-medium">✓ แบบประเมินนี้ถูกส่งแล้ว</p>
             <p className="text-sm mt-1">ส่งเมื่อ: {new Date(assessment.submittedAt!).toLocaleString('th-TH')}</p>
           </div>
@@ -275,7 +278,7 @@ export default function AssessmentFormPage() {
             className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-colors ${
               selectedGroup === 'all'
                 ? 'bg-primary-600 text-white'
-                : 'bg-white text-gray-700 hover:bg-gray-100'
+                : 'bg-white dark:bg-dark-card text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover'
             }`}
           >
             ทั้งหมด ({totalIndicators})
@@ -287,7 +290,7 @@ export default function AssessmentFormPage() {
               className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-colors ${
                 selectedGroup === group.id
                   ? 'bg-primary-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
+                  : 'bg-white dark:bg-dark-card text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover'
               }`}
             >
               {group.name} ({group.indicators.length})
@@ -310,13 +313,13 @@ export default function AssessmentFormPage() {
 
         {/* Bottom Actions */}
         {!isSubmitted && (
-          <div className="mt-8 p-6 bg-white rounded-lg shadow-md">
+          <div className="mt-8 p-6 card bg-white dark:bg-dark-card rounded-lg shadow-md">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-lg font-semibold text-gray-900">
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">
                   ตอบแล้ว {answeredCount} / {totalIndicators} ข้อ
                 </p>
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                   {answeredCount < totalIndicators 
                     ? `เหลืออีก ${totalIndicators - answeredCount} ข้อ`
                     : 'ตอบครบทุกข้อแล้ว พร้อมส่ง!'}

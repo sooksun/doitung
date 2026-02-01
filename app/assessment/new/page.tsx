@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { ThemeToggle } from '@/components/ThemeToggle'
 
 interface School {
   id: string
@@ -35,10 +36,11 @@ export default function CreateAssessmentPage() {
   
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<{ schoolId?: string | null } | null>(null)
 
   useEffect(() => {
     fetchUserAndData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
   }, [])
 
   const fetchUserAndData = async () => {
@@ -82,8 +84,8 @@ export default function CreateAssessmentPage() {
         const years = yearsData.data.years || []
         setAcademicYears(years)
         // Extract all semesters from academic years
-        const allSemesters = years.flatMap((year: any) => 
-          (year.semesters || []).map((sem: any) => ({
+        const allSemesters = years.flatMap((year: AcademicYear & { semesters?: { id: string; name: string }[] }) =>
+          (year.semesters || []).map((sem) => ({
             id: sem.id,
             name: `${year.name} - ${sem.name}`,
             academicYearId: year.id
@@ -137,25 +139,30 @@ export default function CreateAssessmentPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm">
+    <div className="min-h-screen">
+      <header className="nav-header">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <Link href="/assessment" className="text-primary-600 hover:text-primary-700 text-sm mb-2 inline-block">
-            ← กลับไปรายการแบบประเมิน
-          </Link>
-          <h1 className="text-2xl font-bold text-gray-900">
-            สร้างแบบประเมินใหม่
-          </h1>
-          <p className="text-sm text-gray-600 mt-1">
-            เลือกโรงเรียนและปีการศึกษาที่ต้องการประเมิน
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <Link href="/assessment" className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 text-sm mb-2 inline-block transition-colors">
+                ← กลับไปรายการแบบประเมิน
+              </Link>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                สร้างแบบประเมินใหม่
+              </h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                เลือกโรงเรียนและปีการศึกษาที่ต้องการประเมิน
+              </p>
+            </div>
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-white rounded-lg shadow-md p-8">
+        <div className="card p-8 animate-fadeIn">
           {error && (
-            <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+            <div className="mb-6 p-4 bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg animate-fadeIn">
               {error}
             </div>
           )}
@@ -163,7 +170,7 @@ export default function CreateAssessmentPage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* School Selection */}
             <div>
-              <label htmlFor="school" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="school" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 โรงเรียน *
               </label>
               <select
@@ -171,7 +178,7 @@ export default function CreateAssessmentPage() {
                 value={formData.schoolId}
                 onChange={(e) => setFormData({ ...formData, schoolId: e.target.value })}
                 disabled={user?.schoolId !== null}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 border border-gray-300 dark:border-dark-border rounded-xl bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-hover disabled:cursor-not-allowed transition-all"
                 required
               >
                 <option value="">-- เลือกโรงเรียน --</option>
@@ -182,7 +189,7 @@ export default function CreateAssessmentPage() {
                 ))}
               </select>
               {user?.schoolId && (
-                <p className="mt-1 text-sm text-gray-500">
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   โรงเรียนถูกกำหนดตามบัญชีผู้ใช้ของคุณ
                 </p>
               )}
@@ -190,14 +197,14 @@ export default function CreateAssessmentPage() {
 
             {/* Academic Year Selection */}
             <div>
-              <label htmlFor="academicYear" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="academicYear" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 ปีการศึกษา *
               </label>
               <select
                 id="academicYear"
                 value={formData.academicYearId}
                 onChange={(e) => setFormData({ ...formData, academicYearId: e.target.value, semesterId: '' })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-300 dark:border-dark-border rounded-xl bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
                 required
               >
                 <option value="">-- เลือกปีการศึกษา --</option>
@@ -211,7 +218,7 @@ export default function CreateAssessmentPage() {
 
             {/* Semester Selection (Optional) */}
             <div>
-              <label htmlFor="semester" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="semester" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 ภาคเรียน (ถ้ามี)
               </label>
               <select
@@ -219,7 +226,7 @@ export default function CreateAssessmentPage() {
                 value={formData.semesterId}
                 onChange={(e) => setFormData({ ...formData, semesterId: e.target.value })}
                 disabled={!formData.academicYearId}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-100"
+                className="w-full px-4 py-3 border border-gray-300 dark:border-dark-border rounded-xl bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-hover transition-all"
               >
                 <option value="">-- ไม่ระบุภาคเรียน --</option>
                 {semesters
@@ -233,14 +240,16 @@ export default function CreateAssessmentPage() {
             </div>
 
             {/* Info Box */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="bg-secondary-50 dark:bg-secondary-900/20 border border-secondary-200 dark:border-secondary-800 rounded-xl p-4">
               <div className="flex items-start">
-                <svg className="h-5 w-5 text-blue-600 mt-0.5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <div className="text-sm text-blue-800">
-                  <p className="font-medium mb-1">ข้อมูลเกี่ยวกับแบบประเมิน:</p>
-                  <ul className="list-disc list-inside space-y-1 ml-2">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-secondary-500 to-primary-500 flex items-center justify-center mr-3 flex-shrink-0">
+                  <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="text-sm text-secondary-800 dark:text-secondary-200">
+                  <p className="font-medium mb-2">ข้อมูลเกี่ยวกับแบบประเมิน:</p>
+                  <ul className="list-disc list-inside space-y-1 ml-2 text-secondary-700 dark:text-secondary-300">
                     <li>แบบประเมินประกอบด้วย 47 ตัวชี้วัดใน 4 กลุ่ม</li>
                     <li>ระบบจะบันทึกอัตโนมัติทุก 30 วินาที</li>
                     <li>สามารถทำแบบประเมินแบบแบ่งเป็นหลายครั้งได้</li>
@@ -254,16 +263,24 @@ export default function CreateAssessmentPage() {
             <div className="flex gap-4">
               <Link
                 href="/assessment"
-                className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium text-center"
+                className="btn-secondary flex-1 text-center"
               >
                 ยกเลิก
               </Link>
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'กำลังสร้าง...' : 'เริ่มทำแบบประเมิน'}
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    กำลังสร้าง...
+                  </span>
+                ) : 'เริ่มทำแบบประเมิน'}
               </button>
             </div>
           </form>

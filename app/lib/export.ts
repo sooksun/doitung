@@ -1,12 +1,21 @@
 // Export utilities for Excel, CSV and Print
 import * as XLSX from 'xlsx'
 
+interface AssessmentSummaryRow {
+  schoolName?: string
+  academicYearName?: string
+  semesterName?: string
+  overallScore?: number
+  status?: string
+  submittedAt?: string
+}
+
 // CSV Export
-export function exportToCSV(data: any[], filename: string) {
+export function exportToCSV(data: AssessmentSummaryRow[], filename: string) {
   if (!data || data.length === 0) return
 
   // Convert assessment summaries to flat format
-  const flatData = data.map((item: any) => ({
+  const flatData = data.map((item) => ({
     'โรงเรียน': item.schoolName || '',
     'ปีการศึกษา': item.academicYearName || '',
     'ภาคเรียน': item.semesterName || '-',
@@ -23,7 +32,7 @@ export function exportToCSV(data: any[], filename: string) {
     headers.join(','),
     ...flatData.map(row => 
       headers.map(header => {
-        const val = (row as any)[header]
+        const val = (row as Record<string, unknown>)[header]
         // Escape commas and quotes
         return `"${String(val).replace(/"/g, '""')}"`
       }).join(',')
@@ -44,7 +53,7 @@ export function exportToCSV(data: any[], filename: string) {
 }
 
 // Print Report
-export function printReport(data: any[]) {
+export function printReport(data: AssessmentSummaryRow[]) {
   if (!data || data.length === 0) return
 
   const printWindow = window.open('', '_blank')
@@ -108,7 +117,7 @@ export function printReport(data: any[]) {
 }
 
 // Excel Export
-export function exportToExcel(data: any[], filename: string) {
+export function exportToExcel(data: Record<string, unknown>[], filename: string) {
   // Create workbook and worksheet
   const wb = XLSX.utils.book_new()
   const ws = XLSX.utils.json_to_sheet(data)
@@ -121,8 +130,8 @@ export function exportToExcel(data: any[], filename: string) {
 }
 
 // Export assessment report to Excel
-export function exportAssessmentToExcel(assessment: any) {
-  const data: any[] = []
+export function exportAssessmentToExcel(assessment: Record<string, unknown>) {
+  const data: Record<string, unknown>[] = []
 
   // Header information
   data.push({
@@ -161,7 +170,7 @@ export function exportAssessmentToExcel(assessment: any) {
     ' ': '',
   })
 
-  assessment.domainScores.forEach((domain: any) => {
+  ;(assessment.domainScores as { groupName: string; averageScore: number }[]).forEach((domain) => {
     data.push({
       'รายการ': domain.groupName,
       'ข้อมูล': `${domain.averageScore.toFixed(2)} / 5.00`,
@@ -176,14 +185,14 @@ export function exportAssessmentToExcel(assessment: any) {
 }
 
 // Export multiple assessments comparison
-export function exportComparisonToExcel(summaries: any[]) {
+export function exportComparisonToExcel(summaries: { domainScores?: { groupName: string; averageScore: number }[] }[]) {
   const data = summaries.map((summary) => ({
     'โรงเรียน': summary.schoolName,
     'ปีการศึกษา': summary.academicYearName,
     'ภาคเรียน': summary.semesterName || '-',
     'คะแนนรวม': summary.overallScore.toFixed(2),
     ...Object.fromEntries(
-      summary.domainScores.map((d: any) => [d.groupName, d.averageScore.toFixed(2)])
+      (summary.domainScores || []).map((d: { groupName: string; averageScore: number }) => [d.groupName, d.averageScore.toFixed(2)])
     ),
     'สถานะ': summary.status === 'SUBMITTED' ? 'ส่งแล้ว' : summary.status,
     'วันที่ส่ง': summary.submittedAt
@@ -195,7 +204,7 @@ export function exportComparisonToExcel(summaries: any[]) {
 }
 
 // Export users list
-export function exportUsersToExcel(users: any[]) {
+export function exportUsersToExcel(users: Record<string, unknown>[]) {
   const data = users.map((user) => ({
     'อีเมล': user.email,
     'ชื่อ': user.firstName,
@@ -215,7 +224,7 @@ export function exportUsersToExcel(users: any[]) {
 }
 
 // Export schools list
-export function exportSchoolsToExcel(schools: any[]) {
+export function exportSchoolsToExcel(schools: Record<string, unknown>[]) {
   const data = schools.map((school) => ({
     'รหัสโรงเรียน': school.code || '-',
     'ชื่อโรงเรียน': school.name,

@@ -25,7 +25,13 @@ export async function sendEmail({ to, subject, html }: EmailOptions): Promise<bo
 }
 
 // Email templates
-export function getAssessmentSubmittedEmail(assessment: any): string {
+interface AssessmentEmailData {
+  schoolName: string
+  academicYearName: string
+  overallScore: number
+  submittedAt: string
+}
+export function getAssessmentSubmittedEmail(assessment: AssessmentEmailData): string {
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2 style="color: #7c3aed;">แบบประเมินถูกส่งแล้ว</h2>
@@ -41,7 +47,13 @@ export function getAssessmentSubmittedEmail(assessment: any): string {
   `
 }
 
-export function getUserCreatedEmail(user: any): string {
+interface UserEmailData {
+  firstName: string
+  lastName: string
+  email: string
+  role: string
+}
+export function getUserCreatedEmail(user: UserEmailData): string {
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2 style="color: #7c3aed;">ยินดีต้อนรับสู่ระบบ EQAP</h2>

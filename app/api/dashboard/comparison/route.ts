@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import prisma from '../../../lib/prisma'
 import { getTokenFromHeader, verifyAccessToken } from '../../../lib/auth'
 import { APIResponse, ComparisonData } from '../../../lib/types'
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
     const officeId = searchParams.get('officeId')
 
     // Build filter
-    const where: any = {
+    const where: Prisma.AssessmentWhereInput = {
       status: AssessmentStatus.SUBMITTED,
     }
 

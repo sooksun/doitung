@@ -2,23 +2,23 @@
 
 import { ReactNode } from 'react'
 
-interface Column {
+interface Column<T = Record<string, unknown>> {
   key: string
   label: string
-  render?: (value: any, row: any) => ReactNode
+  render?: (value: unknown, row: T) => ReactNode
 }
 
-interface DataTableProps {
-  columns: Column[]
-  data: any[]
-  onEdit?: (row: any) => void
-  onDelete?: (row: any) => void
-  onView?: (row: any) => void
+interface DataTableProps<T = Record<string, unknown>> {
+  columns: Column<T>[]
+  data: T[]
+  onEdit?: (row: T) => void
+  onDelete?: (row: T) => void
+  onView?: (row: T) => void
   loading?: boolean
   emptyMessage?: string
 }
 
-export default function DataTable({
+export default function DataTable<T extends Record<string, unknown>>({
   columns,
   data,
   onEdit,
@@ -26,7 +26,7 @@ export default function DataTable({
   onView,
   loading = false,
   emptyMessage = 'ไม่มีข้อมูล',
-}: DataTableProps) {
+}: DataTableProps<T>) {
   if (loading) {
     return (
       <div className="bg-white rounded-lg shadow-md p-8 text-center">

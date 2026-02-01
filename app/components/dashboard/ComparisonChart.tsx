@@ -72,7 +72,7 @@ export default function ComparisonChart({
               borderRadius: '8px',
               padding: '8px 12px',
             }}
-            formatter={(value: any) => value.toFixed(2)}
+            formatter={(value: number) => value.toFixed(2)}
           />
           <Legend
             wrapperStyle={{

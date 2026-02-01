@@ -2,9 +2,21 @@
 
 import { useState, useEffect } from 'react'
 
+interface FilterValues {
+  schoolId?: string
+  academicYearId?: string
+  semesterId?: string
+}
+
 interface DashboardFiltersProps {
-  onFilterChange: (filters: any) => void
+  onFilterChange: (filters: FilterValues) => void
   userRole: string
+}
+
+interface OptionItem {
+  id: string
+  name: string
+  year?: number
 }
 
 export default function DashboardFilters({ onFilterChange, userRole }: DashboardFiltersProps) {
@@ -14,9 +26,9 @@ export default function DashboardFilters({ onFilterChange, userRole }: Dashboard
     semesterId: '',
   })
 
-  const [schools, setSchools] = useState<any[]>([])
-  const [academicYears, setAcademicYears] = useState<any[]>([])
-  const [semesters, setSemesters] = useState<any[]>([])
+  const [schools, setSchools] = useState<OptionItem[]>([])
+  const [academicYears, setAcademicYears] = useState<OptionItem[]>([])
+  const [semesters, setSemesters] = useState<OptionItem[]>([])
 
   useEffect(() => {
     // TODO: Fetch schools, academic years, semesters from API

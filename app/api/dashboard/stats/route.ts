@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import prisma from '../../../lib/prisma'
 import { getTokenFromHeader, verifyAccessToken } from '../../../lib/auth'
 import { APIResponse, DashboardStats } from '../../../lib/types'
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
     const academicYearId = searchParams.get('academicYearId')
 
     // Build filter based on user role and query params
-    const where: any = {}
+    const where: Prisma.AssessmentWhereInput = {}
 
     // Apply role-based filtering
     if (decoded.role === 'SCHOOL_DIRECTOR' || decoded.role === 'TEACHER') {

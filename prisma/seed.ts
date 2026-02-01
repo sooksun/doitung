@@ -267,7 +267,7 @@ async function main() {
   // ============================================
   console.log('🏫 Creating schools...');
 
-  const schools = [
+  const schoolsData = [
     { code: 'SCH_001', name: 'โรงเรียนวัดพระศรีมหาธาตุ', networkId: network1.id },
     { code: 'SCH_002', name: 'โรงเรียนวัดบวรนิเวศ', networkId: network1.id },
     { code: 'SCH_003', name: 'โรงเรียนวัดสระเกศ', networkId: network2.id },
@@ -278,12 +278,17 @@ async function main() {
     { code: 'SCH_008', name: 'โรงเรียนวัดประยุรวงศาวาส', networkId: network4.id },
   ];
 
-  const createdSchools = await prisma.school.createMany({
-    data: schools,
-    skipDuplicates: true,
-  });
+  // Check existing and create only if not exists (by code)
+  for (const school of schoolsData) {
+    const existing = await prisma.school.findFirst({
+      where: { code: school.code },
+    });
+    if (!existing) {
+      await prisma.school.create({ data: school });
+    }
+  }
   
-  // Get created schools
+  // Get all schools
   const allSchools = await prisma.school.findMany();
 
   // ============================================

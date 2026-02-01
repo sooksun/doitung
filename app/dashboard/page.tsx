@@ -9,24 +9,27 @@ import ComparisonChart from '../components/dashboard/ComparisonChart'
 import DashboardFilters from '../components/dashboard/DashboardFilters'
 import { DashboardStats, AssessmentSummary, ComparisonData } from '../lib/types'
 import { showInfo } from '@/lib/toast'
+import { ThemeToggle } from '@/components/ThemeToggle'
 
 export default function DashboardPage() {
   const router = useRouter()
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<{ firstName?: string; lastName?: string; role?: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [summaries, setSummaries] = useState<AssessmentSummary[]>([])
   const [comparison, setComparison] = useState<ComparisonData[]>([])
-  const [filters, setFilters] = useState<any>({})
+  const [filters, setFilters] = useState<{ schoolId?: string; academicYearId?: string; semesterId?: string }>({})
 
   useEffect(() => {
     fetchUserData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
   }, [])
 
   useEffect(() => {
     if (user) {
       fetchDashboardData()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetch when user or filters change
   }, [user, filters])
 
   const fetchUserData = async () => {
@@ -112,39 +115,51 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">กำลังโหลด...</p>
+          <p className="text-gray-600 dark:text-gray-400">กำลังโหลด...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen">
       {/* Header */}
-      <header className="bg-white shadow-sm">
+      <header className="nav-header">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                📊 Dashboard - ภาพรวมระบบ
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-secondary-500 flex items-center justify-center shadow-glow-purple">
+                  <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                </span>
+                Dashboard
               </h1>
-              <p className="text-sm text-gray-600 mt-1">
-                ยินดีต้อนรับ, {user?.firstName} {user?.lastName} ({user?.role})
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 ml-12">
+                ยินดีต้อนรับ, {user?.firstName} {user?.lastName} 
+                <span className="badge badge-primary ml-2">{user?.role}</span>
               </p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex items-center gap-3">
+              <ThemeToggle />
               <Link
                 href="/assessment"
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
+                className="btn-primary px-4 py-2"
               >
-                📝 แบบประเมิน
+                <span className="flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                  แบบประเมิน
+                </span>
               </Link>
               <button
                 onClick={handleLogout}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                className="btn-ghost px-4 py-2"
               >
                 ออกจากระบบ
               </button>
@@ -176,50 +191,53 @@ export default function DashboardPage() {
 
           {/* Latest Assessment Summary */}
           {summaries.length > 0 && (
-            <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="card p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                   รายละเอียดการประเมินล่าสุด
                 </h3>
                 <button
                   onClick={handleExport}
-                  className="px-3 py-1 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors font-medium"
+                  className="badge badge-success hover:opacity-80 transition-opacity cursor-pointer"
                 >
-                  📥 Export
+                  <svg className="w-4 h-4 mr-1 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Export
                 </button>
               </div>
               
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div>
-                  <p className="text-sm text-gray-600">โรงเรียน</p>
-                  <p className="text-base font-semibold text-gray-900">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">โรงเรียน</p>
+                  <p className="text-base font-semibold text-gray-900 dark:text-white">
                     {summaries[0].schoolName}
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">ปีการศึกษา</p>
-                  <p className="text-base font-medium text-gray-900">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">ปีการศึกษา</p>
+                  <p className="text-base font-medium text-gray-900 dark:text-gray-200">
                     {summaries[0].academicYearName}
                     {summaries[0].semesterName && ` - ${summaries[0].semesterName}`}
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">คะแนนรวม</p>
-                  <p className="text-3xl font-bold text-primary-600">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">คะแนนรวม</p>
+                  <p className="text-3xl font-bold gradient-text">
                     {summaries[0].overallScore.toFixed(2)}
-                    <span className="text-lg font-normal text-gray-500"> / 5.00</span>
+                    <span className="text-lg font-normal text-gray-500 dark:text-gray-400"> / 5.00</span>
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">สถานะ</p>
-                  <span className="inline-block px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">สถานะ</p>
+                  <span className="badge badge-success">
                     {summaries[0].status === 'SUBMITTED' ? 'ส่งแล้ว' : summaries[0].status}
                   </span>
                 </div>
                 {summaries[0].submittedAt && (
                   <div>
-                    <p className="text-sm text-gray-600">วันที่ส่ง</p>
-                    <p className="text-base font-medium text-gray-900">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">วันที่ส่ง</p>
+                    <p className="text-base font-medium text-gray-900 dark:text-gray-200">
                       {new Date(summaries[0].submittedAt).toLocaleDateString('th-TH', {
                         year: 'numeric',
                         month: 'long',
@@ -232,7 +250,7 @@ export default function DashboardPage() {
 
               <Link
                 href={`/assessment/${summaries[0].assessmentId}`}
-                className="mt-6 block w-full px-4 py-2 bg-primary-600 text-white text-center rounded-lg hover:bg-primary-700 transition-colors font-medium"
+                className="btn-primary mt-6 block w-full text-center"
               >
                 ดูรายละเอียดเต็ม
               </Link>
@@ -249,55 +267,43 @@ export default function DashboardPage() {
 
         {/* Recent Assessments Table */}
         {summaries.length > 0 && (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          <div className="card p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
               การประเมินล่าสุด
             </h3>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+            <div className="table-container">
+              <table className="min-w-full">
+                <thead>
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      โรงเรียน
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      ปีการศึกษา
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      คะแนนรวม
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      สถานะ
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      
-                    </th>
+                    <th>โรงเรียน</th>
+                    <th>ปีการศึกษา</th>
+                    <th>คะแนนรวม</th>
+                    <th>สถานะ</th>
+                    <th></th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody>
                   {summaries.slice(0, 5).map((summary) => (
-                    <tr key={summary.assessmentId} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <tr key={summary.assessmentId}>
+                      <td className="font-medium text-gray-900 dark:text-white">
                         {summary.schoolName}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      <td className="text-gray-600 dark:text-gray-400">
                         {summary.academicYearName}
                         {summary.semesterName && ` - ${summary.semesterName}`}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-lg font-bold text-primary-600">
+                      <td>
+                        <span className="text-lg font-bold gradient-text">
                           {summary.overallScore.toFixed(2)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
-                          ส่งแล้ว
-                        </span>
+                      <td>
+                        <span className="badge badge-success">ส่งแล้ว</span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                      <td className="text-right">
                         <Link
                           href={`/assessment/${summary.assessmentId}`}
-                          className="text-primary-600 hover:text-primary-700 font-medium"
+                          className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium transition-colors"
                         >
                           ดูรายละเอียด →
                         </Link>
@@ -312,7 +318,7 @@ export default function DashboardPage() {
               <div className="mt-4 text-center">
                 <Link
                   href="/assessment"
-                  className="text-primary-600 hover:text-primary-700 font-medium"
+                  className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium transition-colors"
                 >
                   ดูทั้งหมด ({summaries.length} รายการ) →
                 </Link>
@@ -323,17 +329,21 @@ export default function DashboardPage() {
 
         {/* No Data State */}
         {summaries.length === 0 && (
-          <div className="bg-white rounded-lg shadow-md p-12 text-center">
-            <div className="text-6xl mb-4">📊</div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">
+          <div className="card p-12 text-center">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary-500 to-secondary-500 flex items-center justify-center mx-auto mb-6 shadow-glow-purple">
+              <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
               ยังไม่มีข้อมูลการประเมิน
             </h3>
-            <p className="text-gray-600 mb-6">
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
               เริ่มต้นสร้างและทำแบบประเมินเพื่อดูภาพรวมข้อมูล
             </p>
             <Link
               href="/assessment/new"
-              className="inline-block px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
+              className="btn-primary inline-block"
             >
               สร้างแบบประเมินแรก
             </Link>

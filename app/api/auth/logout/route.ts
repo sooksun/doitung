@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { APIResponse } from '@/lib/types'
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     // In a stateless JWT system, logout is handled client-side
     // by removing the tokens from storage

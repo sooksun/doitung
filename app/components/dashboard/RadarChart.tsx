@@ -67,7 +67,7 @@ export default function RadarChartComponent({
                 borderRadius: '8px',
                 padding: '8px 12px',
               }}
-              formatter={(value: any) => [`${value.toFixed(2)} / 5.00`, 'คะแนน']}
+              formatter={(value: number) => [`${value.toFixed(2)} / 5.00`, 'คะแนน']}
             />
             <Legend
               wrapperStyle={{
