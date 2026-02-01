@@ -70,37 +70,39 @@ export default function GroupRatingTable({
 
       {/* Rating Table */}
       <div className="overflow-x-auto">
-        <table className="w-full">
+        <table className="w-full table-fixed">
           {/* Header Rows */}
-          <thead>
+          <thead className="sticky top-0 z-10">
             {/* Category Header Row */}
-            <tr className="border-b border-gray-200 bg-purple-50">
-              <th rowSpan={2} className="text-left px-4 py-3 text-sm font-medium text-gray-700 border-r border-gray-200" style={{ minWidth: '300px' }}>
+            <tr className="border-b border-gray-200">
+              <th rowSpan={2} className="text-left px-3 py-3 text-sm font-medium text-gray-700 border-r border-gray-200 bg-gray-100" style={{ width: '45%' }}>
                 ตัวชี้วัด
               </th>
-              <th colSpan={5} className="text-center px-2 py-2 text-sm font-bold text-purple-700 border-r border-gray-200 bg-purple-100">
+              <th colSpan={5} className="text-center px-1 py-2 text-xs font-bold text-purple-800 border-r-2 border-purple-300 bg-purple-200">
                 ประเมินสภาพที่เป็นอยู่
               </th>
-              <th colSpan={5} className="text-center px-2 py-2 text-sm font-bold text-blue-700 bg-blue-100">
+              <th colSpan={5} className="text-center px-1 py-2 text-xs font-bold text-blue-800 bg-blue-200">
                 ประเมินสภาพที่พึงประสงค์
               </th>
             </tr>
             {/* Score Header Row */}
-            <tr className="border-b border-gray-200 bg-gray-50">
+            <tr className="border-b border-gray-200">
               {/* Current State Scores */}
-              {scoreOptions.map((score) => (
+              {scoreOptions.map((score, idx) => (
                 <th
                   key={`current-${score}`}
-                  className="text-center px-2 py-2 text-base font-bold text-purple-700 w-12 border-r border-gray-100"
+                  className={`text-center px-1 py-2 text-sm font-bold text-purple-800 bg-purple-100 ${idx === 4 ? 'border-r-2 border-purple-300' : 'border-r border-purple-200'}`}
+                  style={{ width: '5.5%' }}
                 >
                   {score}
                 </th>
               ))}
               {/* Desired State Scores */}
-              {scoreOptions.map((score) => (
+              {scoreOptions.map((score, idx) => (
                 <th
                   key={`desired-${score}`}
-                  className="text-center px-2 py-2 text-base font-bold text-blue-700 w-12 border-r border-gray-100"
+                  className={`text-center px-1 py-2 text-sm font-bold text-blue-800 bg-blue-100 ${idx < 4 ? 'border-r border-blue-200' : ''}`}
+                  style={{ width: '5.5%' }}
                 >
                   {score}
                 </th>
@@ -110,7 +112,7 @@ export default function GroupRatingTable({
 
           {/* Body Rows */}
           <tbody>
-            {group.indicators.map((indicator, index) => {
+            {group.indicators.map((indicator) => {
               const currentResponse = responses.get(indicator.id)
               const hasBothScores = currentResponse?.score && currentResponse?.desiredScore
 
@@ -119,13 +121,11 @@ export default function GroupRatingTable({
                   key={indicator.id}
                   className={`
                     border-b border-gray-100 transition-colors
-                    ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
-                    ${hasBothScores ? 'bg-green-50' : ''}
-                    hover:bg-purple-50
+                    ${hasBothScores ? 'ring-1 ring-inset ring-green-200' : ''}
                   `}
                 >
                   {/* Indicator Title */}
-                  <td className="px-4 py-4 text-sm text-gray-700 leading-relaxed border-r border-gray-200">
+                  <td className="px-3 py-3 text-sm text-gray-700 leading-relaxed border-r border-gray-200">
                     <div className="flex items-start gap-2">
                       {hasBothScores && (
                         <span className="flex-shrink-0 w-5 h-5 bg-green-500 text-white rounded-full flex items-center justify-center text-xs mt-0.5">
@@ -138,17 +138,20 @@ export default function GroupRatingTable({
                     </div>
                   </td>
 
-                  {/* Current State Radio Buttons */}
-                  {scoreOptions.map((score) => (
-                    <td key={`current-${score}`} className="text-center px-2 py-4 border-r border-gray-100">
+                  {/* Current State Radio Buttons - Purple background */}
+                  {scoreOptions.map((score, idx) => (
+                    <td 
+                      key={`current-${score}`} 
+                      className={`text-center px-1 py-3 bg-purple-50 ${idx === 4 ? 'border-r-2 border-purple-300' : 'border-r border-purple-100'}`}
+                    >
                       <label
                         className={`
-                          inline-flex items-center justify-center w-7 h-7 rounded-full border-2 cursor-pointer
+                          inline-flex items-center justify-center w-6 h-6 rounded-full border-2 cursor-pointer
                           transition-all duration-200 ease-in-out
                           ${
                             currentResponse?.score === score
                               ? 'border-purple-600 bg-purple-600 shadow-lg scale-110'
-                              : 'border-gray-300 hover:border-purple-400 hover:bg-purple-50'
+                              : 'border-purple-300 hover:border-purple-500 hover:bg-purple-100 bg-white'
                           }
                           ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
                         `}
@@ -163,23 +166,26 @@ export default function GroupRatingTable({
                           className="sr-only"
                         />
                         {currentResponse?.score === score && (
-                          <div className="w-2.5 h-2.5 bg-white rounded-full"></div>
+                          <div className="w-2 h-2 bg-white rounded-full"></div>
                         )}
                       </label>
                     </td>
                   ))}
 
-                  {/* Desired State Radio Buttons */}
-                  {scoreOptions.map((score) => (
-                    <td key={`desired-${score}`} className="text-center px-2 py-4 border-r border-gray-100">
+                  {/* Desired State Radio Buttons - Blue background */}
+                  {scoreOptions.map((score, idx) => (
+                    <td 
+                      key={`desired-${score}`} 
+                      className={`text-center px-1 py-3 bg-blue-50 ${idx < 4 ? 'border-r border-blue-100' : ''}`}
+                    >
                       <label
                         className={`
-                          inline-flex items-center justify-center w-7 h-7 rounded-full border-2 cursor-pointer
+                          inline-flex items-center justify-center w-6 h-6 rounded-full border-2 cursor-pointer
                           transition-all duration-200 ease-in-out
                           ${
                             currentResponse?.desiredScore === score
                               ? 'border-blue-600 bg-blue-600 shadow-lg scale-110'
-                              : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'
+                              : 'border-blue-300 hover:border-blue-500 hover:bg-blue-100 bg-white'
                           }
                           ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
                         `}
@@ -194,7 +200,7 @@ export default function GroupRatingTable({
                           className="sr-only"
                         />
                         {currentResponse?.desiredScore === score && (
-                          <div className="w-2.5 h-2.5 bg-white rounded-full"></div>
+                          <div className="w-2 h-2 bg-white rounded-full"></div>
                         )}
                       </label>
                     </td>
