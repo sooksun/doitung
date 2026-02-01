@@ -75,7 +75,7 @@ export default function GroupRatingTable({
           <thead className="sticky top-0 z-10">
             {/* Category Header Row */}
             <tr className="border-b border-gray-200">
-              <th rowSpan={2} className="text-left px-3 py-3 text-sm font-medium text-gray-700 border-r border-gray-200 bg-gray-100" style={{ width: '45%' }}>
+              <th rowSpan={2} className="text-left px-3 py-3 text-sm font-medium text-gray-700 border-r border-gray-200 bg-gray-100 overflow-hidden" style={{ width: '50%' }}>
                 ตัวชี้วัด
               </th>
               <th colSpan={5} className="text-center px-1 py-2 text-xs font-bold text-purple-800 border-r-2 border-purple-300 bg-purple-200">
@@ -125,14 +125,14 @@ export default function GroupRatingTable({
                   `}
                 >
                   {/* Indicator Title */}
-                  <td className="px-3 py-3 text-sm text-gray-700 leading-relaxed border-r border-gray-200">
-                    <div className="flex items-start gap-2">
+                  <td className="px-3 py-3 text-sm text-gray-700 leading-relaxed border-r border-gray-200 overflow-hidden">
+                    <div className="flex items-start gap-2 max-w-full">
                       {hasBothScores && (
                         <span className="flex-shrink-0 w-5 h-5 bg-green-500 text-white rounded-full flex items-center justify-center text-xs mt-0.5">
                           ✓
                         </span>
                       )}
-                      <span className={hasBothScores ? 'text-gray-900 font-medium' : ''}>
+                      <span className={`break-words overflow-hidden ${hasBothScores ? 'text-gray-900 font-medium' : ''}`}>
                         {indicator.title}
                       </span>
                     </div>
