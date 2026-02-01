@@ -123,7 +123,7 @@ export default function UsersManagementPage() {
       const token = localStorage.getItem('accessToken')
       const url = modalMode === 'create'
         ? '/api/admin/users'
-        : `/api/admin/users/${selectedUser.id}`
+        : `/api/admin/users/${selectedUser?.id}`
       
       const body = modalMode === 'create'
         ? formData
