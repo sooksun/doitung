@@ -1,4 +1,4 @@
-import { hashPassword, verifyPassword, generateAccessToken, verifyAccessToken } from '@/app/lib/auth'
+import { hashPassword, verifyPassword, generateAccessToken, verifyAccessToken } from '@/lib/auth'
 
 describe('Auth Utilities', () => {
   describe('Password Hashing', () => {
