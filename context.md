@@ -99,6 +99,9 @@
 - ✅ eslint.config.js - ESLint configuration
 - ✅ package.json - Dependencies (not template anymore!)
 
+### 7. Deployment Fix (2026-02-01)
+- ✅ แก้ login loop ใน Docker/HTTP โดยปรับ cookie `accessToken` ให้ตั้งค่า `secure` ตาม protocol จริง
+
 ---
 
 ## 🚀 Next Steps

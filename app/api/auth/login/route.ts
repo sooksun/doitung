@@ -116,10 +116,12 @@ export async function POST(request: NextRequest) {
 
     const response = NextResponse.json(responseData, { status: 200 })
     
-    // Set token in cookie for middleware
+    // Set token in cookie for middleware (allow http in server/docker)
+    const forwardedProto = request.headers.get('x-forwarded-proto')
+    const isHttps = forwardedProto === 'https' || request.nextUrl.protocol === 'https:'
     response.cookies.set('accessToken', accessToken, {
       httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isHttps,
       sameSite: 'lax',
       maxAge: 60 * 60, // 1 hour
       path: '/',

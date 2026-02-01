@@ -1,51 +1,85 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
-  const router = useRouter()
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  // Ensure client-side hydration is complete
+  useEffect(() => {
+    setMounted(true)
+    console.log('[Login] Component mounted, hydration complete')
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log('[Login] Form submitted with:', formData.email)
+    
+    if (!formData.email || !formData.password) {
+      setError('กรุณากรอกอีเมลและรหัสผ่าน')
+      return
+    }
+
     setError('')
     setLoading(true)
 
     try {
+      console.log('[Login] Sending POST request to /api/auth/login')
+      
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        credentials: 'include',
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+        }),
       })
 
+      console.log('[Login] Response status:', response.status)
+      
       const data = await response.json()
+      console.log('[Login] Response data:', data.success ? 'Success' : data.message)
 
       if (data.success) {
         // Save tokens to localStorage
         localStorage.setItem('accessToken', data.accessToken)
         localStorage.setItem('refreshToken', data.refreshToken)
         localStorage.setItem('user', JSON.stringify(data.user))
+        
+        console.log('[Login] Tokens saved, redirecting to dashboard...')
 
-        // Redirect to dashboard (force reload)
+        // Redirect to dashboard (force full page reload)
         window.location.href = '/dashboard'
       } else {
         setError(data.message || 'เข้าสู่ระบบไม่สำเร็จ')
       }
-    } catch (error) {
-      console.error('Login error:', error)
-      setError('เกิดข้อผิดพลาดในการเชื่อมต่อ')
+    } catch (err) {
+      console.error('[Login] Error:', err)
+      setError('เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่อีกครั้ง')
     } finally {
       setLoading(false)
     }
+  }
+
+  // Show loading state until mounted
+  if (!mounted) {
+    return (
+      <div className="bg-white rounded-2xl shadow-xl p-8">
+        <div className="text-center">
+          <p className="text-gray-600">กำลังโหลด...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
