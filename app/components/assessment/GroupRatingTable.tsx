@@ -133,7 +133,10 @@ export default function GroupRatingTable({
                           ✓
                         </span>
                       )}
-                      <span className={`break-words overflow-hidden text-gray-700 dark:text-gray-200 group-hover:text-purple-900 dark:group-hover:text-white ${hasBothScores ? 'font-medium' : ''}`}>
+                      <span
+                        data-assessment-indicator
+                        className={`break-words overflow-hidden text-gray-700 dark:text-white group-hover:text-purple-900 dark:group-hover:text-white ${hasBothScores ? 'font-medium' : ''}`}
+                      >
                         {indicator.title}
                       </span>
                     </div>

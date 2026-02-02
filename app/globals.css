@@ -438,3 +438,12 @@ tbody tr:hover {
 .dark .badge-primary {
   @apply bg-primary-900/30 text-primary-400;
 }
+
+/* Assessment table - force white text in dark mode for readability */
+.dark [data-assessment-indicator] {
+  color: #ffffff !important;
+}
+
+.dark [data-assessment-indicator]:hover {
+  color: #ffffff !important;
+}
