@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { DevelopmentCondition } from '@/lib/types'
 
 interface ConditionsPanelProps {
@@ -32,14 +32,116 @@ export default function ConditionsPanel({
     impactText: '',
     reflectionNote: '',
   })
+  const [aiLoading, setAiLoading] = useState<'transform' | 'questions' | 'summary' | 'plc' | null>(null)
+  const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([])
+  const [showSummary, setShowSummary] = useState(false)
+  const [summaryData, setSummaryData] = useState<{ supporters: string; blockers: string; suggest: string } | null>(null)
+  const [showPlcPick, setShowPlcPick] = useState(false)
+  const [plcPickData, setPlcPickData] = useState<{ supporter?: string; blocker?: string; questions: string[] } | null>(null)
+  const [blameSuggestion, setBlameSuggestion] = useState<string | null>(null)
 
   const supporters = conditions.filter((c) => c.type === 'supporter')
   const blockers = conditions.filter((c) => c.type === 'blocker')
 
+  const callCoPilot = useCallback(async (action: string, payload: Record<string, unknown>) => {
+    const token = localStorage.getItem('accessToken')
+    if (!token) return null
+    const res = await fetch('/api/ai/de-co-pilot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action, payload }),
+    })
+    const data = await res.json()
+    return data.success ? data.data : null
+  }, [])
+
   const openForm = (type: 'SUPPORTER' | 'BLOCKER') => {
     setFormType(type)
     setForm({ signalText: '', impactText: '', reflectionNote: '' })
+    setSuggestedQuestions([])
+    setBlameSuggestion(null)
     setShowForm(true)
+  }
+
+  const handleAiTransform = async () => {
+    const raw = form.signalText.trim() || form.impactText.trim()
+    if (!raw) return
+    setAiLoading('transform')
+    try {
+      const data = await callCoPilot('transform', { raw, type: formType })
+      if (data?.signalText != null) {
+        setForm((prev) => ({
+          ...prev,
+          signalText: data.signalText || prev.signalText,
+          impactText: data.impactText || prev.impactText,
+          reflectionNote: data.reflectionNote || prev.reflectionNote,
+        }))
+      }
+    } finally {
+      setAiLoading(null)
+    }
+  }
+
+  const handleAiQuestions = async () => {
+    setAiLoading('questions')
+    try {
+      const data = await callCoPilot('questions', {
+        signalText: form.signalText,
+        impactText: form.impactText,
+      })
+      if (data?.questions?.length) setSuggestedQuestions(data.questions)
+    } finally {
+      setAiLoading(null)
+    }
+  }
+
+  const handleAiSummary = async () => {
+    setAiLoading('summary')
+    try {
+      const payload = conditions.map((c) => ({
+        type: c.type === 'supporter' ? 'SUPPORTER' : 'BLOCKER',
+        signalText: c.signalText,
+        impactText: c.impactText,
+        description: c.description,
+      }))
+      const data = await callCoPilot('summary-month', { conditions: payload })
+      if (data) {
+        setSummaryData(data)
+        setShowSummary(true)
+      }
+    } finally {
+      setAiLoading(null)
+    }
+  }
+
+  const handlePlcPick = async () => {
+    setAiLoading('plc')
+    try {
+      const payload = conditions.map((c) => ({
+        type: c.type === 'supporter' ? 'SUPPORTER' : 'BLOCKER',
+        signalText: c.signalText,
+        impactText: c.impactText,
+        description: c.description,
+      }))
+      const data = await callCoPilot('plc-pick', { conditions: payload })
+      if (data) {
+        setPlcPickData(data)
+        setShowPlcPick(true)
+      }
+    } finally {
+      setAiLoading(null)
+    }
+  }
+
+  const checkBlameOnBlur = useCallback(async (text: string) => {
+    if (!text.trim()) return
+    const data = await callCoPilot('check-blame', { text })
+    if (data?.isRisky && data?.suggestion) setBlameSuggestion(data.suggestion)
+    else setBlameSuggestion(null)
+  }, [callCoPilot])
+  const applyBlameSuggestion = () => {
+    if (blameSuggestion) setForm((prev) => ({ ...prev, impactText: prev.impactText || blameSuggestion }))
+    setBlameSuggestion(null)
   }
 
   const handleAdd = async () => {
@@ -84,11 +186,40 @@ export default function ConditionsPanel({
         ข้อมูลเชิงระบบเพื่อออกแบบการหนุนเสริมร่วมกัน — สิ่งนี้หนุนหรือถ่วงอะไร และส่งผลต่อการพัฒนาอย่างไร
       </p>
 
+      {/* DE-PLC Co-Pilot: ปุ่ม AI ในฟอร์มเดียว */}
       {showForm && assessmentId && (
         <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
           <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
             {formType === 'SUPPORTER' ? '➕ บันทึกสิ่งที่หนุน' : '⚠ บันทึกสิ่งที่ถ่วง'}
           </p>
+          <div className="flex flex-wrap gap-2 mb-3">
+            <button
+              type="button"
+              onClick={handleAiTransform}
+              disabled={aiLoading !== null || (!form.signalText.trim() && !form.impactText.trim())}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 text-sm font-medium hover:bg-primary-200 dark:hover:bg-primary-800/50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {aiLoading === 'transform' ? (
+                <span className="animate-spin w-4 h-4 border-2 border-primary-500 border-t-transparent rounded-full" />
+              ) : (
+                '✨'
+              )}
+              ช่วยเขียนแบบ DE
+            </button>
+            <button
+              type="button"
+              onClick={handleAiQuestions}
+              disabled={aiLoading !== null}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary-100 dark:bg-secondary-900/30 text-secondary-700 dark:text-secondary-300 text-sm font-medium hover:bg-secondary-200 dark:hover:bg-secondary-800/50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {aiLoading === 'questions' ? (
+                <span className="animate-spin w-4 h-4 border-2 border-secondary-500 border-t-transparent rounded-full" />
+              ) : (
+                '❓'
+              )}
+              ช่วยตั้งคำถามพัฒนา
+            </button>
+          </div>
           <div className="space-y-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -97,11 +228,25 @@ export default function ConditionsPanel({
               <textarea
                 value={form.signalText}
                 onChange={(e) => setForm({ ...form, signalText: e.target.value })}
+                onBlur={(e) => checkBlameOnBlur(e.target.value)}
                 placeholder="เล่าให้เพื่อนฟังได้ เช่น: ผู้บริหารปรับตารางงาน ลดภาระเอกสารช่วง PLC"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
                 rows={2}
               />
             </div>
+            {blameSuggestion && (
+              <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                <p className="text-sm text-amber-800 dark:text-amber-200 mb-2">{blameSuggestion}</p>
+                <div className="flex gap-2">
+                  <button type="button" onClick={applyBlameSuggestion} className="text-sm text-primary-600 dark:text-primary-400 font-medium hover:underline">
+                    ใช้คำแนะนำ
+                  </button>
+                  <button type="button" onClick={() => setBlameSuggestion(null)} className="text-sm text-gray-500 hover:underline">
+                    ปิด
+                  </button>
+                </div>
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 ส่งผลต่อการพัฒนาอย่างไร <span className="text-red-500">*</span>
@@ -125,6 +270,20 @@ export default function ConditionsPanel({
                 placeholder="ข้อสังเกตเชิง DE"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
               />
+              {suggestedQuestions.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {suggestedQuestions.map((q, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setForm((prev) => ({ ...prev, reflectionNote: prev.reflectionNote ? `${prev.reflectionNote} ${q}` : q }))}
+                      className="px-2.5 py-1 rounded-md bg-secondary-100 dark:bg-secondary-900/30 text-secondary-700 dark:text-secondary-300 text-xs hover:bg-secondary-200 dark:hover:bg-secondary-800/50"
+                    >
+                      + {q}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="flex gap-2">
               <button onClick={handleAdd} className="btn-primary px-4 py-2 text-sm">
@@ -252,6 +411,75 @@ export default function ConditionsPanel({
           )}
         </div>
       </div>
+
+      {/* DE Co-Pilot: สรุปสัญญาณ / เลือกประเด็น PLC */}
+      {conditions.length > 0 && (
+        <div className="mt-6 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={handleAiSummary}
+            disabled={aiLoading !== null}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-sm font-medium hover:bg-purple-200 dark:hover:bg-purple-800/50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {aiLoading === 'summary' ? (
+              <span className="animate-spin w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full" />
+            ) : (
+              '🧠'
+            )}
+            สรุปสัญญาณเดือนนี้
+          </button>
+          <button
+            type="button"
+            onClick={handlePlcPick}
+            disabled={aiLoading !== null}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-sm font-medium hover:bg-indigo-200 dark:hover:bg-indigo-800/50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {aiLoading === 'plc' ? (
+              <span className="animate-spin w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full" />
+            ) : (
+              '🎯'
+            )}
+            ช่วยเลือกประเด็นคุย PLC
+          </button>
+        </div>
+      )}
+
+      {showSummary && summaryData && (
+        <div className="mt-4 p-4 rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20">
+          <h4 className="text-sm font-semibold text-purple-800 dark:text-purple-200 mb-2">🧠 สรุปสัญญาณเดือนนี้</h4>
+          <p className="text-sm text-gray-700 dark:text-gray-300 mb-1">{summaryData.supporters}</p>
+          <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">{summaryData.blockers}</p>
+          <p className="text-xs text-purple-600 dark:text-purple-400">{summaryData.suggest}</p>
+          <button type="button" onClick={() => setShowSummary(false)} className="mt-2 text-sm text-purple-600 dark:text-purple-400 hover:underline">
+            ปิด
+          </button>
+        </div>
+      )}
+
+      {showPlcPick && plcPickData && (
+        <div className="mt-4 p-4 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20">
+          <h4 className="text-sm font-semibold text-indigo-800 dark:text-indigo-200 mb-2">🎯 ประเด็นคุย PLC เดือนนี้</h4>
+          {plcPickData.supporter && (
+            <p className="text-sm text-gray-700 dark:text-gray-300 mb-1">
+              <span className="font-medium text-green-700 dark:text-green-400">ขยายผล:</span> {plcPickData.supporter}
+            </p>
+          )}
+          {plcPickData.blocker && (
+            <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
+              <span className="font-medium text-orange-700 dark:text-orange-400">ออกแบบแก้:</span> {plcPickData.blocker}
+            </p>
+          )}
+          <p className="text-xs font-medium text-indigo-600 dark:text-indigo-400 mb-1">คำถาม DE สำหรับวง:</p>
+          <ul className="text-xs text-gray-600 dark:text-gray-400 list-disc list-inside space-y-0.5">
+            {plcPickData.questions.map((q, i) => (
+              <li key={i}>{q}</li>
+            ))}
+          </ul>
+          <button type="button" onClick={() => setShowPlcPick(false)} className="mt-2 text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
+            ปิด
+          </button>
+        </div>
+      )}
 
       <div className="mt-6 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
         <p className="text-xs text-gray-600 dark:text-gray-400">
