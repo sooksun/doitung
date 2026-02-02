@@ -201,9 +201,16 @@ export default function AssessmentFormPage() {
               <Link href="/assessment" className="text-primary-600 dark:text-primary-400 hover:text-primary-700 text-sm mb-2 inline-block">
                 ← กลับไปรายการแบบประเมิน
               </Link>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                {assessment.school?.name}
-              </h1>
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                  {assessment.school?.name}
+                </h1>
+                {assessment.createdBy && (
+                  <span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-xs font-medium">
+                    👤 {assessment.createdBy.firstName} {assessment.createdBy.lastName}
+                  </span>
+                )}
+              </div>
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 {assessment.academicYear?.name}
                 {assessment.semester && ` - ${assessment.semester.name}`}
