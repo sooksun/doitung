@@ -53,16 +53,16 @@ export default function GroupRatingTable({
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
+    <div className="bg-white dark:bg-dark-card rounded-xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700">
       {/* Group Header */}
-      <div className="bg-gradient-to-r from-purple-100 to-blue-100 px-6 py-4 border-b border-gray-200">
+      <div className="bg-gradient-to-r from-purple-100 to-blue-100 dark:from-purple-900/30 dark:to-blue-900/30 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-bold text-gray-800">
+            <h2 className="text-lg font-bold text-gray-800 dark:text-white">
               ตัวชี้วัดด้าน {group.name} <span className="text-red-500">*</span>
             </h2>
           </div>
-          <div className="text-sm text-gray-600 bg-white px-3 py-1 rounded-full shadow-sm">
+          <div className="text-sm text-gray-600 dark:text-gray-300 bg-white dark:bg-dark-bg px-3 py-1 rounded-full shadow-sm">
             ตอบแล้ว {getAnsweredCount()}/{group.indicators.length}
           </div>
         </div>
@@ -74,24 +74,24 @@ export default function GroupRatingTable({
           {/* Header Rows */}
           <thead className="sticky top-0 z-10">
             {/* Category Header Row */}
-            <tr className="border-b border-gray-200">
-              <th rowSpan={2} className="text-left px-3 py-3 text-sm font-medium text-gray-700 border-r border-gray-200 bg-gray-100 overflow-hidden" style={{ width: '50%' }}>
+            <tr className="border-b border-gray-200 dark:border-gray-700">
+              <th rowSpan={2} className="text-left px-3 py-3 text-sm font-medium text-gray-700 dark:text-gray-200 border-r border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 overflow-hidden" style={{ width: '50%' }}>
                 ตัวชี้วัด
               </th>
-              <th colSpan={5} className="text-center px-1 py-2 text-xs font-bold text-purple-800 border-r-2 border-purple-300 bg-purple-200">
+              <th colSpan={5} className="text-center px-1 py-2 text-xs font-bold text-purple-800 dark:text-purple-200 border-r-2 border-purple-300 dark:border-purple-600 bg-purple-200 dark:bg-purple-900/50">
                 ประเมินสภาพที่เป็นอยู่
               </th>
-              <th colSpan={5} className="text-center px-1 py-2 text-xs font-bold text-blue-800 bg-blue-200">
+              <th colSpan={5} className="text-center px-1 py-2 text-xs font-bold text-blue-800 dark:text-blue-200 bg-blue-200 dark:bg-blue-900/50">
                 ประเมินสภาพที่พึงประสงค์
               </th>
             </tr>
             {/* Score Header Row */}
-            <tr className="border-b border-gray-200">
+            <tr className="border-b border-gray-200 dark:border-gray-700">
               {/* Current State Scores */}
               {scoreOptions.map((score, idx) => (
                 <th
                   key={`current-${score}`}
-                  className={`text-center px-1 py-2 text-sm font-bold text-purple-800 bg-purple-100 ${idx === 4 ? 'border-r-2 border-purple-300' : 'border-r border-purple-200'}`}
+                  className={`text-center px-1 py-2 text-sm font-bold text-purple-800 dark:text-purple-200 bg-purple-100 dark:bg-purple-900/30 ${idx === 4 ? 'border-r-2 border-purple-300 dark:border-purple-600' : 'border-r border-purple-200 dark:border-purple-700'}`}
                   style={{ width: '5.5%' }}
                 >
                   {score}
@@ -101,7 +101,7 @@ export default function GroupRatingTable({
               {scoreOptions.map((score, idx) => (
                 <th
                   key={`desired-${score}`}
-                  className={`text-center px-1 py-2 text-sm font-bold text-blue-800 bg-blue-100 ${idx < 4 ? 'border-r border-blue-200' : ''}`}
+                  className={`text-center px-1 py-2 text-sm font-bold text-blue-800 dark:text-blue-200 bg-blue-100 dark:bg-blue-900/30 ${idx < 4 ? 'border-r border-blue-200 dark:border-blue-700' : ''}`}
                   style={{ width: '5.5%' }}
                 >
                   {score}
@@ -120,19 +120,20 @@ export default function GroupRatingTable({
                 <tr
                   key={indicator.id}
                   className={`
-                    border-b border-gray-100 transition-colors
-                    ${hasBothScores ? 'ring-1 ring-inset ring-green-200' : ''}
+                    border-b border-gray-100 dark:border-gray-700 transition-colors
+                    hover:bg-gray-50 dark:hover:bg-gray-800
+                    ${hasBothScores ? 'ring-1 ring-inset ring-green-200 dark:ring-green-800' : ''}
                   `}
                 >
                   {/* Indicator Title */}
-                  <td className="px-3 py-3 text-sm text-gray-700 leading-relaxed border-r border-gray-200 overflow-hidden">
+                  <td className="px-3 py-3 text-sm text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white leading-relaxed border-r border-gray-200 dark:border-gray-700 overflow-hidden">
                     <div className="flex items-start gap-2 max-w-full">
                       {hasBothScores && (
                         <span className="flex-shrink-0 w-5 h-5 bg-green-500 text-white rounded-full flex items-center justify-center text-xs mt-0.5">
                           ✓
                         </span>
                       )}
-                      <span className={`break-words overflow-hidden ${hasBothScores ? 'text-gray-900 font-medium' : ''}`}>
+                      <span className={`break-words overflow-hidden ${hasBothScores ? 'text-gray-900 dark:text-white font-medium' : ''}`}>
                         {indicator.title}
                       </span>
                     </div>
@@ -142,7 +143,7 @@ export default function GroupRatingTable({
                   {scoreOptions.map((score, idx) => (
                     <td 
                       key={`current-${score}`} 
-                      className={`text-center px-1 py-3 bg-purple-50 ${idx === 4 ? 'border-r-2 border-purple-300' : 'border-r border-purple-100'}`}
+                      className={`text-center px-1 py-3 bg-purple-50 dark:bg-purple-900/20 ${idx === 4 ? 'border-r-2 border-purple-300 dark:border-purple-600' : 'border-r border-purple-100 dark:border-purple-800'}`}
                     >
                       <label
                         className={`
@@ -151,7 +152,7 @@ export default function GroupRatingTable({
                           ${
                             currentResponse?.score === score
                               ? 'border-purple-600 bg-purple-600 shadow-lg scale-110'
-                              : 'border-purple-300 hover:border-purple-500 hover:bg-purple-100 bg-white'
+                              : 'border-purple-300 dark:border-purple-500 hover:border-purple-500 hover:bg-purple-100 dark:hover:bg-purple-800 bg-white dark:bg-gray-700'
                           }
                           ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
                         `}
@@ -176,7 +177,7 @@ export default function GroupRatingTable({
                   {scoreOptions.map((score, idx) => (
                     <td 
                       key={`desired-${score}`} 
-                      className={`text-center px-1 py-3 bg-blue-50 ${idx < 4 ? 'border-r border-blue-100' : ''}`}
+                      className={`text-center px-1 py-3 bg-blue-50 dark:bg-blue-900/20 ${idx < 4 ? 'border-r border-blue-100 dark:border-blue-800' : ''}`}
                     >
                       <label
                         className={`
@@ -185,7 +186,7 @@ export default function GroupRatingTable({
                           ${
                             currentResponse?.desiredScore === score
                               ? 'border-blue-600 bg-blue-600 shadow-lg scale-110'
-                              : 'border-blue-300 hover:border-blue-500 hover:bg-blue-100 bg-white'
+                              : 'border-blue-300 dark:border-blue-500 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-800 bg-white dark:bg-gray-700'
                           }
                           ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
                         `}
@@ -213,30 +214,30 @@ export default function GroupRatingTable({
       </div>
 
       {/* Footer Legend */}
-      <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
-        <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-gray-600">
+      <div className="px-6 py-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-gray-600 dark:text-gray-300">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-green-600">5</span>
+            <span className="font-semibold text-green-600 dark:text-green-400">5</span>
             <span>= ดีมาก</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-blue-600">4</span>
+            <span className="font-semibold text-blue-600 dark:text-blue-400">4</span>
             <span>= ดี</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-yellow-600">3</span>
+            <span className="font-semibold text-yellow-600 dark:text-yellow-400">3</span>
             <span>= ปานกลาง</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-orange-600">2</span>
+            <span className="font-semibold text-orange-600 dark:text-orange-400">2</span>
             <span>= พอใช้</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-red-600">1</span>
+            <span className="font-semibold text-red-600 dark:text-red-400">1</span>
             <span>= ปรับปรุง</span>
           </div>
         </div>
-        <div className="flex justify-center gap-8 mt-3 text-xs text-gray-500">
+        <div className="flex justify-center gap-8 mt-3 text-xs text-gray-500 dark:text-gray-400">
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded-full bg-purple-600"></div>
             <span>สภาพที่เป็นอยู่</span>
