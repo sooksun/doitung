@@ -249,6 +249,41 @@ export default function CreateAssessmentPage() {
               )}
             </div>
 
+            {/* Assessor Selection */}
+            <div>
+              <label htmlFor="assessor" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                ผู้ประเมิน *
+              </label>
+              <select
+                id="assessor"
+                value={formData.assessorId}
+                onChange={(e) => setFormData({ ...formData, assessorId: e.target.value })}
+                disabled={user?.role !== 'SUPER_ADMIN' && user?.role !== 'OFFICE_ADMIN'}
+                className="w-full px-4 py-3 border border-gray-300 dark:border-dark-border rounded-xl bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-hover disabled:cursor-not-allowed transition-all"
+                required
+              >
+                <option value="">-- เลือกผู้ประเมิน --</option>
+                {assessors
+                  .filter(a => user?.role === 'SUPER_ADMIN' || user?.role === 'OFFICE_ADMIN' || a.id === user?.id)
+                  .map((assessor) => (
+                    <option key={assessor.id} value={assessor.id}>
+                      {assessor.firstName} {assessor.lastName}
+                      {assessor.schoolName && ` (${assessor.schoolName})`}
+                    </option>
+                  ))}
+              </select>
+              {(user?.role !== 'SUPER_ADMIN' && user?.role !== 'OFFICE_ADMIN') && (
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  ผู้ประเมินคือคุณ (ถูกกำหนดตามบัญชีผู้ใช้)
+                </p>
+              )}
+              {(user?.role === 'SUPER_ADMIN' || user?.role === 'OFFICE_ADMIN') && (
+                <p className="mt-1 text-sm text-purple-600 dark:text-purple-400">
+                  🔑 Admin สามารถเลือกผู้ประเมินคนอื่นได้
+                </p>
+              )}
+            </div>
+
             {/* Academic Year Selection */}
             <div>
               <label htmlFor="academicYear" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -291,41 +326,6 @@ export default function CreateAssessmentPage() {
                     </option>
                   ))}
               </select>
-            </div>
-
-            {/* Assessor Selection */}
-            <div>
-              <label htmlFor="assessor" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                ผู้ประเมิน *
-              </label>
-              <select
-                id="assessor"
-                value={formData.assessorId}
-                onChange={(e) => setFormData({ ...formData, assessorId: e.target.value })}
-                disabled={user?.role !== 'SUPER_ADMIN' && user?.role !== 'OFFICE_ADMIN'}
-                className="w-full px-4 py-3 border border-gray-300 dark:border-dark-border rounded-xl bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-hover disabled:cursor-not-allowed transition-all"
-                required
-              >
-                <option value="">-- เลือกผู้ประเมิน --</option>
-                {assessors
-                  .filter(a => user?.role === 'SUPER_ADMIN' || user?.role === 'OFFICE_ADMIN' || a.id === user?.id)
-                  .map((assessor) => (
-                    <option key={assessor.id} value={assessor.id}>
-                      {assessor.firstName} {assessor.lastName}
-                      {assessor.schoolName && ` (${assessor.schoolName})`}
-                    </option>
-                  ))}
-              </select>
-              {(user?.role !== 'SUPER_ADMIN' && user?.role !== 'OFFICE_ADMIN') && (
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  ผู้ประเมินคือคุณ (ถูกกำหนดตามบัญชีผู้ใช้)
-                </p>
-              )}
-              {(user?.role === 'SUPER_ADMIN' || user?.role === 'OFFICE_ADMIN') && (
-                <p className="mt-1 text-sm text-purple-600 dark:text-purple-400">
-                  🔑 Admin สามารถเลือกผู้ประเมินคนอื่นได้
-                </p>
-              )}
             </div>
 
             {/* Info Box */}
