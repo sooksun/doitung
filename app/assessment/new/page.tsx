@@ -75,18 +75,28 @@ export default function CreateAssessmentPage() {
       const userData = await userResponse.json()
       
       if (userData.success && userData.data) {
-        setUser(userData.data)
-        
-        // If user has a school, pre-select it
-        if (userData.data.schoolId) {
-          setFormData(prev => ({ 
-            ...prev, 
-            schoolId: userData.data.schoolId,
-            assessorId: userData.data.id, // ตั้งค่าผู้ประเมินเป็นตัวเอง
+        const me = userData.data
+        setUser(me)
+
+        // ผู้ประเมิน: non-admin ใช้ตัวเอง (API admin/users ไม่ให้เข้าถึง)
+        const isAdmin = me.role === 'SUPER_ADMIN' || me.role === 'OFFICE_ADMIN'
+        if (!isAdmin) {
+          setAssessors([{
+            id: me.id,
+            firstName: me.firstName,
+            lastName: me.lastName,
+            schoolName: me.school?.name,
+          }])
+        }
+
+        if (me.schoolId) {
+          setFormData(prev => ({
+            ...prev,
+            schoolId: me.schoolId,
+            assessorId: me.id,
           }))
         } else {
-          // Admin ไม่มี schoolId ก็ตั้งค่าผู้ประเมินเป็นตัวเอง
-          setFormData(prev => ({ ...prev, assessorId: userData.data.id }))
+          setFormData(prev => ({ ...prev, assessorId: me.id }))
         }
       }
 
@@ -118,18 +128,24 @@ export default function CreateAssessmentPage() {
         setSemesters(allSemesters)
       }
 
-      // Fetch assessors (users with TEACHER role or current user's school)
-      const assessorsResponse = await fetch('/api/admin/users?role=TEACHER', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      const assessorsData = await assessorsResponse.json()
-      if (assessorsData.success && assessorsData.data?.users) {
-        setAssessors(assessorsData.data.users.map((u: { id: string; firstName: string; lastName: string; school?: { name: string } }) => ({
-          id: u.id,
-          firstName: u.firstName,
-          lastName: u.lastName,
-          schoolName: u.school?.name,
-        })))
+      // Admin เท่านั้น: ดึงรายชื่อผู้ประเมินจาก API
+      if (userData.success && userData.data) {
+        const me = userData.data
+        const isAdmin = me.role === 'SUPER_ADMIN' || me.role === 'OFFICE_ADMIN'
+        if (isAdmin) {
+          const assessorsResponse = await fetch('/api/admin/users?role=TEACHER', {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          const assessorsData = await assessorsResponse.json()
+          if (assessorsData.success && assessorsData.data?.users) {
+            setAssessors(assessorsData.data.users.map((u: { id: string; firstName: string; lastName: string; school?: { name: string } }) => ({
+              id: u.id,
+              firstName: u.firstName,
+              lastName: u.lastName,
+              schoolName: u.school?.name,
+            })))
+          }
+        }
       }
     } catch (error) {
       console.warn('Fetch data warning:', error)
@@ -286,13 +302,13 @@ export default function CreateAssessmentPage() {
                 id="assessor"
                 value={formData.assessorId}
                 onChange={(e) => setFormData({ ...formData, assessorId: e.target.value })}
-                disabled={user?.role !== 'ADMIN'}
+                disabled={user?.role !== 'SUPER_ADMIN' && user?.role !== 'OFFICE_ADMIN'}
                 className="w-full px-4 py-3 border border-gray-300 dark:border-dark-border rounded-xl bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-hover disabled:cursor-not-allowed transition-all"
                 required
               >
                 <option value="">-- เลือกผู้ประเมิน --</option>
                 {assessors
-                  .filter(a => user?.role === 'ADMIN' || a.id === user?.id)
+                  .filter(a => user?.role === 'SUPER_ADMIN' || user?.role === 'OFFICE_ADMIN' || a.id === user?.id)
                   .map((assessor) => (
                     <option key={assessor.id} value={assessor.id}>
                       {assessor.firstName} {assessor.lastName}
@@ -300,12 +316,12 @@ export default function CreateAssessmentPage() {
                     </option>
                   ))}
               </select>
-              {user?.role !== 'ADMIN' && (
+              {(user?.role !== 'SUPER_ADMIN' && user?.role !== 'OFFICE_ADMIN') && (
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   ผู้ประเมินคือคุณ (ถูกกำหนดตามบัญชีผู้ใช้)
                 </p>
               )}
-              {user?.role === 'ADMIN' && (
+              {(user?.role === 'SUPER_ADMIN' || user?.role === 'OFFICE_ADMIN') && (
                 <p className="mt-1 text-sm text-purple-600 dark:text-purple-400">
                   🔑 Admin สามารถเลือกผู้ประเมินคนอื่นได้
                 </p>

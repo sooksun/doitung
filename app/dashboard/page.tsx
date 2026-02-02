@@ -110,10 +110,15 @@ export default function DashboardPage() {
     }
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+    } catch {
+      // ignore
+    }
     localStorage.removeItem('accessToken')
     localStorage.removeItem('refreshToken')
-    router.push('/login')
+    window.location.href = '/login' // hard redirect ล้าง cache/state
   }
 
   const handleExport = () => {

@@ -1,20 +1,26 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { APIResponse } from '@/lib/types'
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
-    // In a stateless JWT system, logout is handled client-side
-    // by removing the tokens from storage
-    // This endpoint can be used for additional cleanup if needed
-    // (e.g., blacklisting tokens, logging, etc.)
-
-    return NextResponse.json<APIResponse>(
+    const response = NextResponse.json<APIResponse>(
       {
         success: true,
         message: 'ออกจากระบบสำเร็จ',
       },
       { status: 200 }
     )
+
+    // ลบ cookie accessToken เพื่อให้ middleware ไม่เห็น token
+    response.cookies.set('accessToken', '', {
+      httpOnly: false,
+      secure: request.headers.get('x-forwarded-proto') === 'https',
+      sameSite: 'lax',
+      maxAge: 0, // อายุหมดทันที
+      path: '/',
+    })
+
+    return response
   } catch (error) {
     console.error('Logout error:', error)
     return NextResponse.json<APIResponse>(
