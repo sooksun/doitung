@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
     if (academicYearId) where.academicYearId = academicYearId
     if (semesterId) where.semesterId = semesterId
 
-    // Get assessments with responses
+    // Get assessments with responses and conditions
     const assessments = await prisma.assessment.findMany({
       where,
       include: {
@@ -96,6 +96,7 @@ export async function GET(request: NextRequest) {
             },
           },
         },
+        conditions: true, // เงื่อนไขที่หนุน/ถ่วง (DE)
       },
       orderBy: {
         submittedAt: 'desc',
@@ -111,6 +112,34 @@ export async function GET(request: NextRequest) {
         orderNo: 'asc',
       },
     })
+
+    // Get previous assessments for trend calculation (เปรียบเทียบกับครั้งก่อน)
+    const previousAssessments = await prisma.assessment.findMany({
+      where: {
+        ...where,
+        status: AssessmentStatus.SUBMITTED,
+        submittedAt: {
+          lt: assessments[0]?.submittedAt || new Date(),
+        },
+      },
+      include: {
+        responses: {
+          include: {
+            indicator: {
+              include: {
+                group: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        submittedAt: 'desc',
+      },
+      take: 1,
+    })
+
+    const previousAssessment = previousAssessments[0]
 
     // Calculate domain scores for each assessment (ทั้งสภาพที่เป็นอยู่ และสภาพที่พึงประสงค์)
     const summaries: AssessmentSummary[] = assessments.map((assessment) => {
@@ -128,6 +157,26 @@ export async function GET(request: NextRequest) {
             ? withDesired.reduce((sum, r) => sum + (r.desiredScore ?? 0), 0) / withDesired.length
             : 0
 
+        // คำนวณ trend (เปรียบเทียบกับครั้งก่อน)
+        let trend: 'improving' | 'stable' | 'declining' | 'new' = 'new'
+        let previousScore: number | undefined
+
+        if (previousAssessment) {
+          const prevGroupResponses = previousAssessment.responses.filter(
+            (r) => r.indicator.groupId === group.id
+          )
+          const prevAvg =
+            prevGroupResponses.length > 0
+              ? prevGroupResponses.reduce((sum, r) => sum + r.score, 0) / prevGroupResponses.length
+              : 0
+          previousScore = Math.round(prevAvg * 100) / 100
+
+          const diff = avgCurrent - prevAvg
+          if (diff > 0.2) trend = 'improving'
+          else if (diff < -0.2) trend = 'declining'
+          else trend = 'stable'
+        }
+
         return {
           groupId: group.id,
           groupCode: group.code,
@@ -137,6 +186,8 @@ export async function GET(request: NextRequest) {
           averageDesiredScore: Math.round(avgDesired * 100) / 100,
           totalIndicators: group.indicators.length,
           answeredIndicators: groupResponses.length,
+          trend,
+          previousScore,
         }
       })
 
@@ -154,6 +205,13 @@ export async function GET(request: NextRequest) {
         submittedAt: assessment.submittedAt,
         domainScores,
         overallScore: Math.round(overallScore * 100) / 100,
+        conditions: assessment.conditions.map((c) => ({
+          id: c.id,
+          type: c.type.toLowerCase() as 'supporter' | 'blocker',
+          description: c.description,
+          category: c.category || undefined,
+          createdAt: c.createdAt,
+        })),
       }
     })
 

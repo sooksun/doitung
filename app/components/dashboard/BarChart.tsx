@@ -65,13 +65,13 @@ export default function BarChartComponent({
             formatter={(value: number) => [`${value.toFixed(2)} / 5.00`, '']}
           />
           <Legend />
-          <Bar dataKey="สภาพที่เป็นอยู่" fill="#7c3aed" radius={[4, 4, 0, 0]} name="สภาพที่เป็นอยู่" />
+          <Bar dataKey="สภาพที่เป็นอยู่" fill="#7c3aed" radius={[4, 4, 0, 0]} name="สัญญาณปัจจุบัน" />
           {showTwoDimensions && (
             <Bar
               dataKey="สภาพที่พึงประสงค์"
               fill="#3b82f6"
               radius={[4, 4, 0, 0]}
-              name="สภาพที่พึงประสงค์"
+              name="ทิศทางที่พึงประสงค์"
             />
           )}
         </RechartsBarChart>

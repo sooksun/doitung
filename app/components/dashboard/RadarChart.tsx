@@ -51,7 +51,7 @@ export default function RadarChartComponent({
             />
             <PolarRadiusAxis angle={90} domain={[0, 5]} tick={{ fill: '#9ca3af', fontSize: 11 }} />
             <Radar
-              name="สภาพที่เป็นอยู่"
+              name="สัญญาณปัจจุบัน"
               dataKey="สภาพที่เป็นอยู่"
               stroke="#7c3aed"
               fill="#7c3aed"
@@ -60,7 +60,7 @@ export default function RadarChartComponent({
             />
             {showTwoDimensions && (
               <Radar
-                name="สภาพที่พึงประสงค์"
+                name="ทิศทางที่พึงประสงค์"
                 dataKey="สภาพที่พึงประสงค์"
                 stroke="#3b82f6"
                 fill="#3b82f6"

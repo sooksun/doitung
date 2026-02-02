@@ -4,9 +4,11 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import SummaryCards from '../components/dashboard/SummaryCards'
+import SystemSignals from '../components/dashboard/SystemSignals'
 import RadarChartComponent from '../components/dashboard/RadarChart'
 import BarChartComponent from '../components/dashboard/BarChart'
 import ComparisonChart from '../components/dashboard/ComparisonChart'
+import ConditionsPanel from '../components/dashboard/ConditionsPanel'
 import DashboardFilters from '../components/dashboard/DashboardFilters'
 import { DashboardStats, AssessmentSummary, ComparisonData } from '../lib/types'
 import { showInfo } from '@/lib/toast'
@@ -217,6 +219,13 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* DE: System Signals Overview */}
+        {summaries.length > 0 && (
+          <div className="mb-8">
+            <SystemSignals domainScores={summaries[0].domainScores} />
+          </div>
+        )}
+
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           {/* Chart - Spider or Bar (2 มิติ: สภาพที่เป็นอยู่ / สภาพที่พึงประสงค์) */}
@@ -225,13 +234,13 @@ export default function DashboardPage() {
               {chartType === 'spider' ? (
                 <RadarChartComponent
                   domainScores={summaries[0].domainScores}
-                  title="ผลการประเมินล่าสุด - 4 มิติ"
+                  title="สัญญาณการพัฒนา - 4 มิติ"
                   showTwoDimensions
                 />
               ) : (
                 <BarChartComponent
                   domainScores={summaries[0].domainScores}
-                  title="คะแนนเฉลี่ยรายด้าน"
+                  title="สัญญาณการพัฒนารายด้าน"
                   showTwoDimensions
                 />
               )}
@@ -306,6 +315,17 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+
+        {/* DE: Conditions & Blockers */}
+        {summaries.length > 0 && (
+          <div className="mb-8">
+            <ConditionsPanel
+              conditions={summaries[0].conditions}
+              assessmentId={summaries[0].assessmentId}
+              editable={false}
+            />
+          </div>
+        )}
 
         {/* Comparison Chart */}
         {comparison.length > 0 && (

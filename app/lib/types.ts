@@ -122,6 +122,8 @@ export interface DashboardStats {
   lastUpdated: Date
 }
 
+export type TrendIndicator = 'improving' | 'stable' | 'declining' | 'new'
+
 export interface DomainScore {
   groupId: string
   groupCode: string
@@ -131,6 +133,16 @@ export interface DomainScore {
   averageDesiredScore: number // คะแนนเฉลี่ยสภาพที่พึงประสงค์ (Desired State)
   totalIndicators: number
   answeredIndicators: number
+  trend?: TrendIndicator     // แนวโน้มการพัฒนา (DE)
+  previousScore?: number     // คะแนนครั้งก่อน (สำหรับคำนวณ trend)
+}
+
+export interface DevelopmentCondition {
+  id?: string
+  type: 'supporter' | 'blocker'
+  description: string
+  category?: string // 'time' | 'workload' | 'policy' | 'culture' | 'resource'
+  createdAt?: Date
 }
 
 export interface AssessmentSummary {
@@ -142,6 +154,7 @@ export interface AssessmentSummary {
   submittedAt?: Date | null
   domainScores: DomainScore[]
   overallScore: number
+  conditions?: DevelopmentCondition[] // สิ่งที่หนุน/ถ่วง (DE)
 }
 
 export interface ComparisonData {

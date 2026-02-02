@@ -211,6 +211,7 @@ model Assessment {
   academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
   semester     Semester?    @relation(fields: [semesterId], references: [id], onDelete: SetNull)
   responses    AssessmentResponse[]
+  conditions   DevelopmentCondition[] // สิ่งที่หนุน/ถ่วง (DE)
 
   @@index([schoolId])
   @@index([academicYearId])
@@ -266,4 +267,30 @@ model Evidence {
 
   @@index([responseId])
   @@map("evidence")
+}
+
+// ============================================
+// DEVELOPMENTAL EVALUATION (DE)
+// ============================================
+
+// สิ่งที่หนุน/ถ่วง การพัฒนา (Conditions & Blockers)
+model DevelopmentCondition {
+  id           String   @id @default(uuid())
+  assessmentId String
+  type         ConditionType // supporter หรือ blocker
+  description  String   @db.Text
+  category     String?  @db.VarChar(50) // time, workload, policy, culture, resource
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentId])
+  @@index([type])
+  @@map("development_conditions")
+}
+
+enum ConditionType {
+  SUPPORTER // สิ่งที่หนุน
+  BLOCKER   // สิ่งที่ถ่วง
 }

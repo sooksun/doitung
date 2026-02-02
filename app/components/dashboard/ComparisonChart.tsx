@@ -29,7 +29,7 @@ interface ComparisonChartProps {
 
 export default function ComparisonChart({
   data,
-  title = 'การเปรียบเทียบข้อมูลหลายปี',
+  title = 'สัญญาณการพัฒนาตามกลุ่มตัวชี้วัด',
 }: ComparisonChartProps) {
   if (data.length === 0) {
     return (
