@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import OpenAI from 'openai'
 import { getTokenFromHeader, verifyAccessToken } from '@/lib/auth'
 import { APIResponse } from '@/lib/types'
 
@@ -10,6 +11,29 @@ type Action =
   | 'summary-month'
   | 'plc-pick'
   | 'narrative'
+
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY?.trim()
+const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null
+
+async function callOpenAI(systemPrompt: string, userContent: string, jsonMode = false): Promise<string | null> {
+  if (!openai) return null
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userContent },
+      ],
+      ...(jsonMode ? { response_format: { type: 'json_object' } } : {}),
+      max_tokens: 1024,
+    })
+    const content = completion.choices[0]?.message?.content?.trim()
+    return content || null
+  } catch (err) {
+    console.error('OpenAI API error:', err)
+    return null
+  }
+}
 
 const BLAME_PATTERNS = [
   /ครูไม่(ให้|ร่วมมือ|สนใจ)/i,
@@ -135,13 +159,41 @@ export async function POST(request: NextRequest) {
       case 'transform': {
         const raw = (payload.raw as string) || ''
         const type = (payload.type as 'SUPPORTER' | 'BLOCKER') || 'SUPPORTER'
-        const result = transformToDE(raw, type)
+        const systemPrompt = `คุณเป็นผู้ช่วยเขียนแบบ Developmental Evaluation (DE) สำหรับโรงเรียน
+ตอบเป็น JSON เท่านั้น ในรูปแบบ: {"signalText":"สิ่งที่เกิดขึ้น","impactText":"ส่งผลต่อการพัฒนาอย่างไร","reflectionNote":"ข้อสังเกตหรือคำถามเพื่อการพัฒนา"}
+- signalText: เหตุการณ์/เงื่อนไขที่เกิดขึ้น (ไม่กล่าวโทษคน ใช้ภาษาเชิงระบบ)
+- impactText: ส่งผลต่อครู/ผู้เรียน/PLC อย่างไร
+- reflectionNote: คำถามหรือข้อสังเกตสั้น ๆ เพื่อการพัฒนา (ถ้าไม่มีให้ใช้ "")`
+        const userContent = `ประเภท: ${type === 'SUPPORTER' ? 'สิ่งที่หนุน' : 'สิ่งที่ถ่วง'}\nข้อความที่ครูพิมพ์: ${raw}\nแปลงเป็นรูปแบบ DE (เหตุ → ผล → ข้อสังเกต) ตอบเป็น JSON เท่านั้น`
+        const aiJson = await callOpenAI(systemPrompt, userContent, true)
+        let result = transformToDE(raw, type)
+        if (aiJson) {
+          try {
+            const parsed = JSON.parse(aiJson) as { signalText?: string; impactText?: string; reflectionNote?: string }
+            if (parsed.signalText) result = { signalText: parsed.signalText, impactText: parsed.impactText || result.impactText, reflectionNote: parsed.reflectionNote || result.reflectionNote }
+          } catch {
+            // keep rule-based result
+          }
+        }
         return NextResponse.json<APIResponse>({ success: true, data: result })
       }
       case 'questions': {
         const signalText = (payload.signalText as string) || ''
         const impactText = (payload.impactText as string) || ''
-        const questions = suggestQuestions(signalText, impactText)
+        const systemPrompt = `คุณเป็นผู้ช่วยตั้งคำถาม Developmental Evaluation (DE) สำหรับวง PLC
+ตอบเป็น JSON เท่านั้น ในรูปแบบ: {"questions":["คำถามที่ 1","คำถามที่ 2","คำถามที่ 3"]}
+ให้ 2-3 คำถามที่ช่วยให้วง PLC คิดต่อยอดจากสัญญาณที่บันทึก (ภาษาไทย)`
+        const userContent = `สัญญาณ: ${signalText}\nผลกระทบ: ${impactText}\nเสนอ 2-3 คำถาม DE สำหรับวง PLC (ตอบเป็น JSON เท่านั้น)`
+        const aiJson = await callOpenAI(systemPrompt, userContent, true)
+        let questions = suggestQuestions(signalText, impactText)
+        if (aiJson) {
+          try {
+            const parsed = JSON.parse(aiJson) as { questions?: string[] }
+            if (Array.isArray(parsed.questions) && parsed.questions.length) questions = parsed.questions
+          } catch {
+            // keep default
+          }
+        }
         return NextResponse.json<APIResponse>({ success: true, data: { questions } })
       }
       case 'domain': {
@@ -152,23 +204,71 @@ export async function POST(request: NextRequest) {
       }
       case 'check-blame': {
         const text = (payload.text as string) || ''
-        const result = checkBlame(text)
+        const systemPrompt = `คุณเป็นผู้ช่วยตรวจข้อความเชิง Developmental Evaluation (DE)
+ถ้าข้อความมีลักษณะ "กล่าวโทษคน" หรือ "ตำหนิบุคคล" (เช่น ครูไม่ให้ความร่วมมือ นักเรียนพื้นฐานอ่อน) ให้ตอบเป็น JSON: {"isRisky":true,"suggestion":"ข้อความแนะนำแบบเชิงระบบ ไม่กล่าวโทษคน"}
+ถ้าไม่มีปัญหาให้ตอบ: {"isRisky":false}
+suggestion ต้องเป็นประโยคเดียว ภาษาไทย อธิบายเป็นเงื่อนไข/ระบบ แทนการกล่าวโทษ`
+        const userContent = `ตรวจข้อความ: ${text}\nตอบเป็น JSON เท่านั้น`
+        const aiJson = await callOpenAI(systemPrompt, userContent, true)
+        let result = checkBlame(text)
+        if (aiJson) {
+          try {
+            const parsed = JSON.parse(aiJson) as { isRisky?: boolean; suggestion?: string }
+            if (typeof parsed.isRisky === 'boolean') result = { isRisky: parsed.isRisky, suggestion: parsed.suggestion }
+          } catch {
+            // keep rule-based
+          }
+        }
         return NextResponse.json<APIResponse>({ success: true, data: result })
       }
       case 'summary-month': {
         const conditions = (payload.conditions as Array<{ type: string; signalText?: string; impactText?: string; description?: string }>) || []
+        const systemPrompt = `คุณเป็นผู้ช่วยสรุปสัญญาณการพัฒนา (DE) รายเดือน
+จากรายการสัญญาณที่หนุนและถ่วง ให้สรุปเป็น 3 ส่วน สั้น ๆ ภาษาไทย ตอบเป็น JSON:
+{"supporters":"สรุป pattern สิ่งที่หนุน","blockers":"สรุป pattern สิ่งที่ถ่วง","suggest":"ข้อเสนอว่าควรหนุนระบบไหนเพิ่ม"}`
+        const text = conditions.map((c) => `${c.type}: ${c.signalText || c.description || ''} → ${c.impactText || ''}`).join('\n')
+        const aiJson = await callOpenAI(systemPrompt, text || 'ยังไม่มีข้อมูล', true)
         const result = summaryMonth(conditions)
+        if (aiJson) {
+          try {
+            const parsed = JSON.parse(aiJson) as { supporters?: string; blockers?: string; suggest?: string }
+            if (parsed.supporters) result.supporters = parsed.supporters
+            if (parsed.blockers) result.blockers = parsed.blockers
+            if (parsed.suggest) result.suggest = parsed.suggest
+          } catch {
+            // keep rule-based
+          }
+        }
         return NextResponse.json<APIResponse>({ success: true, data: result })
       }
       case 'plc-pick': {
         const conditions = (payload.conditions as Array<{ type: string; signalText?: string; impactText?: string; description?: string }>) || []
+        const systemPrompt = `คุณเป็นผู้ช่วยเลือกประเด็นคุย PLC จากสัญญาณที่หนุนและถ่วง
+ตอบเป็น JSON: {"supporter":"ข้อความ 1 สัญญาณที่หนุน (ขยายผล)","blocker":"ข้อความ 1 สัญญาณที่ถ่วง (ออกแบบแก้)","questions":["คำถาม DE ข้อ 1","คำถาม DE ข้อ 2"]}
+ถ้าไม่มีสัญญาณที่หนุนหรือถ่วง ให้ใช้ "" สำหรับส่วนนั้น questions ต้อง 2 ข้อ ภาษาไทย`
+        const text = conditions.map((c) => `${c.type}: ${c.signalText || c.description || ''}`).join('\n')
+        const aiJson = await callOpenAI(systemPrompt, text || 'ยังไม่มีข้อมูล', true)
         const result = plcPick(conditions)
+        if (aiJson) {
+          try {
+            const parsed = JSON.parse(aiJson) as { supporter?: string; blocker?: string; questions?: string[] }
+            if (parsed.supporter != null) result.supporter = parsed.supporter
+            if (parsed.blocker != null) result.blocker = parsed.blocker
+            if (Array.isArray(parsed.questions)) result.questions = parsed.questions
+          } catch {
+            // keep rule-based
+          }
+        }
         return NextResponse.json<APIResponse>({ success: true, data: result })
       }
       case 'narrative': {
-        const conditions = payload.conditions as unknown[]
+        const conditions = (payload.conditions as unknown[]) || []
         const context = (payload.context as string) || ''
-        const narrative = `สรุปสัญญาณการพัฒนา: ${context}\nจากข้อมูลที่มี AI จะสังเคราะห์เป็น narrative ส่งเขต/มูลนิธิได้เมื่อเชื่อมต่อ LLM (OPENAI_API_KEY). ขณะนี้ใช้โหมดแนะนำจาก pattern.`
+        const systemPrompt = `คุณเป็นผู้ช่วยเขียน Narrative สรุปสัญญาณการพัฒนา (DE) สำหรับส่งเขต/มูลนิธิ
+จากข้อมูลสัญญาณที่หนุนและถ่วง ให้เขียนเป็นย่อหน้าเชิงพัฒนา ภาษาไทย น้ำเสียง "เรียนรู้เชิงระบบ" ไม่กล่าวโทษคน ไม่ยาวเกิน 3-4 ประโยค`
+        const text = context + (conditions.length ? `\nรายการ: ${JSON.stringify(conditions)}` : '')
+        const aiText = await callOpenAI(systemPrompt, text || 'ยังไม่มีข้อมูล', false)
+        const narrative = aiText || `สรุปสัญญาณการพัฒนา: ${context}\n(กรุณาบันทึกสัญญาณก่อนใช้ฟีเจอร์ narrative)`
         return NextResponse.json<APIResponse>({ success: true, data: { narrative, conditionsCount: conditions?.length ?? 0 } })
       }
       default:
