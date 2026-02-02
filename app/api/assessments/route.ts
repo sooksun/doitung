@@ -145,6 +145,7 @@ const createAssessmentSchema = z.object({
   schoolId: z.string().min(1, 'กรุณาเลือกโรงเรียน'),
   academicYearId: z.string().min(1, 'กรุณาเลือกปีการศึกษา'),
   semesterId: z.string().optional(),
+  assessorId: z.string().min(1, 'กรุณาเลือกผู้ประเมิน'), // เพิ่ม assessorId
 })
 
 export async function POST(request: NextRequest) {
@@ -179,10 +180,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { schoolId, academicYearId, semesterId } = validationResult.data
+    const { schoolId, academicYearId, semesterId, assessorId } = validationResult.data
     
     // Debug logging
-    console.log('📝 Creating assessment with:', { schoolId, academicYearId, semesterId, userId: decoded.userId })
+    console.log('📝 Creating assessment with:', { schoolId, academicYearId, semesterId, assessorId, requestedBy: decoded.userId })
 
     // Check if user has permission to create assessment for this school
     if (decoded.role === 'SCHOOL_DIRECTOR' || decoded.role === 'TEACHER') {
@@ -192,16 +193,23 @@ export async function POST(request: NextRequest) {
           { status: 403 }
         )
       }
+      // Non-admin ต้องประเมินตัวเองเท่านั้น
+      if (assessorId !== decoded.userId) {
+        return NextResponse.json<APIResponse>(
+          { success: false, message: 'คุณสามารถสร้างแบบประเมินให้ตัวเองเท่านั้น' },
+          { status: 403 }
+        )
+      }
     }
 
-    // Check if assessment already exists for this user, school, year, and semester
-    // (รองรับหลายผู้ประเมินต่อโรงเรียน - ตรวจสอบเฉพาะของผู้ใช้คนนี้)
+    // Check if assessment already exists for this assessor, school, year, and semester
+    // (รองรับหลายผู้ประเมินต่อโรงเรียน - ตรวจสอบเฉพาะของผู้ประเมินคนนี้)
     const existingAssessment = await prisma.assessment.findFirst({
       where: {
         schoolId,
         academicYearId,
         semesterId: semesterId || null,
-        createdById: decoded.userId, // ตรวจสอบเฉพาะแบบประเมินของผู้ใช้คนนี้
+        createdById: assessorId, // ตรวจสอบเฉพาะแบบประเมินของผู้ประเมินคนนี้
       },
     })
 
@@ -223,7 +231,7 @@ export async function POST(request: NextRequest) {
         academicYearId,
         semesterId: semesterId || null,
         status: AssessmentStatus.DRAFT,
-        createdById: decoded.userId,
+        createdById: assessorId, // ใช้ assessorId ที่ส่งมา (รองรับ admin สร้างให้คนอื่น)
       },
       include: {
         school: {

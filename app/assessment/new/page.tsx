@@ -22,21 +22,38 @@ interface Semester {
   academicYearId?: string
 }
 
+interface User {
+  id: string
+  firstName: string
+  lastName: string
+  schoolId?: string | null
+  role: string
+}
+
+interface Assessor {
+  id: string
+  firstName: string
+  lastName: string
+  schoolName?: string
+}
+
 export default function CreateAssessmentPage() {
   const router = useRouter()
   const [schools, setSchools] = useState<School[]>([])
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([])
   const [semesters, setSemesters] = useState<Semester[]>([])
+  const [assessors, setAssessors] = useState<Assessor[]>([])
   
   const [formData, setFormData] = useState({
     schoolId: '',
     academicYearId: '',
     semesterId: '',
+    assessorId: '', // เพิ่ม assessorId
   })
   
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [user, setUser] = useState<{ schoolId?: string | null } | null>(null)
+  const [user, setUser] = useState<User | null>(null)
 
   useEffect(() => {
     fetchUserAndData()
@@ -62,7 +79,14 @@ export default function CreateAssessmentPage() {
         
         // If user has a school, pre-select it
         if (userData.data.schoolId) {
-          setFormData(prev => ({ ...prev, schoolId: userData.data.schoolId }))
+          setFormData(prev => ({ 
+            ...prev, 
+            schoolId: userData.data.schoolId,
+            assessorId: userData.data.id, // ตั้งค่าผู้ประเมินเป็นตัวเอง
+          }))
+        } else {
+          // Admin ไม่มี schoolId ก็ตั้งค่าผู้ประเมินเป็นตัวเอง
+          setFormData(prev => ({ ...prev, assessorId: userData.data.id }))
         }
       }
 
@@ -93,6 +117,20 @@ export default function CreateAssessmentPage() {
         )
         setSemesters(allSemesters)
       }
+
+      // Fetch assessors (users with TEACHER role or current user's school)
+      const assessorsResponse = await fetch('/api/admin/users?role=TEACHER', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const assessorsData = await assessorsResponse.json()
+      if (assessorsData.success && assessorsData.data?.users) {
+        setAssessors(assessorsData.data.users.map((u: { id: string; firstName: string; lastName: string; school?: { name: string } }) => ({
+          id: u.id,
+          firstName: u.firstName,
+          lastName: u.lastName,
+          schoolName: u.school?.name,
+        })))
+      }
     } catch (error) {
       console.warn('Fetch data warning:', error)
     }
@@ -102,8 +140,8 @@ export default function CreateAssessmentPage() {
     e.preventDefault()
     setError('')
     
-    if (!formData.schoolId || !formData.academicYearId) {
-      setError('กรุณาเลือกโรงเรียนและปีการศึกษา')
+    if (!formData.schoolId || !formData.academicYearId || !formData.assessorId) {
+      setError('กรุณาเลือกโรงเรียน ปีการศึกษา และผู้ประเมิน')
       return
     }
 
@@ -237,6 +275,41 @@ export default function CreateAssessmentPage() {
                     </option>
                   ))}
               </select>
+            </div>
+
+            {/* Assessor Selection */}
+            <div>
+              <label htmlFor="assessor" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                ผู้ประเมิน *
+              </label>
+              <select
+                id="assessor"
+                value={formData.assessorId}
+                onChange={(e) => setFormData({ ...formData, assessorId: e.target.value })}
+                disabled={user?.role !== 'ADMIN'}
+                className="w-full px-4 py-3 border border-gray-300 dark:border-dark-border rounded-xl bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-hover disabled:cursor-not-allowed transition-all"
+                required
+              >
+                <option value="">-- เลือกผู้ประเมิน --</option>
+                {assessors
+                  .filter(a => user?.role === 'ADMIN' || a.id === user?.id)
+                  .map((assessor) => (
+                    <option key={assessor.id} value={assessor.id}>
+                      {assessor.firstName} {assessor.lastName}
+                      {assessor.schoolName && ` (${assessor.schoolName})`}
+                    </option>
+                  ))}
+              </select>
+              {user?.role !== 'ADMIN' && (
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  ผู้ประเมินคือคุณ (ถูกกำหนดตามบัญชีผู้ใช้)
+                </p>
+              )}
+              {user?.role === 'ADMIN' && (
+                <p className="mt-1 text-sm text-purple-600 dark:text-purple-400">
+                  🔑 Admin สามารถเลือกผู้ประเมินคนอื่นได้
+                </p>
+              )}
             </div>
 
             {/* Info Box */}
