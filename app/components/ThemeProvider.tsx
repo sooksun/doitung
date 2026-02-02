@@ -36,11 +36,9 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       setThemeState(savedTheme)
       document.documentElement.classList.toggle('dark', savedTheme === 'dark')
     } else {
-      // Check system preference
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-      const defaultTheme = prefersDark ? 'dark' : 'light'
-      setThemeState(defaultTheme)
-      document.documentElement.classList.toggle('dark', prefersDark)
+      // Default: light mode (ไม่ใช้ system preference)
+      setThemeState('light')
+      document.documentElement.classList.toggle('dark', false)
     }
   }, [])
 
