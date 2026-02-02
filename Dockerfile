@@ -1,5 +1,5 @@
 # ==============================================
-# EQAP - EduQuality Assessment Platform
+# TSQM-n แม่ฟ้าหลวง
 # Docker Multi-stage Build (Debian Slim for Prisma compatibility)
 # App Port: 9901
 # ==============================================

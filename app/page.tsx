@@ -36,14 +36,14 @@ export default function Home() {
           </svg>
         </div>
 
-        <h1 className="text-6xl md:text-7xl font-bold gradient-text animate-fadeIn">
-          EQAP
+        <h1 className="text-5xl md:text-6xl font-bold gradient-text animate-fadeIn">
+          TSQM-n แม่ฟ้าหลวง
         </h1>
-        <p className="text-2xl md:text-3xl text-gray-700 dark:text-gray-200 animate-fadeIn" style={{ animationDelay: '0.1s' }}>
-          EduQuality Assessment Platform
+        <p className="text-xl md:text-2xl text-gray-700 dark:text-gray-200 animate-fadeIn" style={{ animationDelay: '0.1s' }}>
+          ระบบประเมินคุณภาพสถานศึกษา
         </p>
         <p className="text-lg text-gray-600 dark:text-gray-400 animate-fadeIn" style={{ animationDelay: '0.2s' }}>
-          ระบบประเมินคุณภาพสถานศึกษา
+          Developmental Evaluation · สัญญาณการพัฒนา
         </p>
         
         <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8 animate-fadeIn" style={{ animationDelay: '0.3s' }}>
@@ -108,7 +108,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="absolute bottom-4 text-center text-sm text-gray-500 dark:text-gray-500">
-        <p>EQAP v1.0 | EduQuality Assessment Platform</p>
+        <p>TSQM-n แม่ฟ้าหลวง v1.0</p>
       </footer>
     </main>
   )

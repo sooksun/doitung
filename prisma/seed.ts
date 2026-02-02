@@ -1,4 +1,4 @@
-// Seed data for EduQuality Assessment Platform (EQAP)
+// Seed data for TSQM-n แม่ฟ้าหลวง
 // Run: npx prisma db seed
 
 import { PrismaClient } from '@prisma/client';

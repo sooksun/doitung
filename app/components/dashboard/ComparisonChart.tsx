@@ -86,7 +86,7 @@ export default function ComparisonChart({
             formatter={(value: number) => [`${value.toFixed(2)} / 5.00`, 'คะแนน']}
           />
           <Bar dataKey="คะแนน" radius={[4, 4, 0, 0]} name="คะแนนเฉลี่ย">
-            {chartData.map((entry, index) => (
+            {chartData.map((entry) => (
               <Cell key={entry.name} fill={entry.fill} />
             ))}
           </Bar>

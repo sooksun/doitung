@@ -74,8 +74,8 @@ function transformToDE(raw: string, type: 'SUPPORTER' | 'BLOCKER'): { signalText
   }
 }
 
-// เสนอคำถาม DE 2–3 ข้อ
-function suggestQuestions(_signalText: string, _impactText: string): string[] {
+// เสนอคำถาม DE 2–3 ข้อ (rule-based fallback; OpenAI อาจใช้ signalText/impactText)
+function suggestQuestions(): string[] {
   return [
     'เงื่อนไขใดที่ทำให้ PLC มีพลังมากขึ้น',
     'ถ้าขยายการเปลี่ยนแปลงไปยังช่วงอื่น จะเกิดอะไร',
@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
 ให้ 2-3 คำถามที่ช่วยให้วง PLC คิดต่อยอดจากสัญญาณที่บันทึก (ภาษาไทย)`
         const userContent = `สัญญาณ: ${signalText}\nผลกระทบ: ${impactText}\nเสนอ 2-3 คำถาม DE สำหรับวง PLC (ตอบเป็น JSON เท่านั้น)`
         const aiJson = await callOpenAI(systemPrompt, userContent, true)
-        let questions = suggestQuestions(signalText, impactText)
+        let questions = suggestQuestions()
         if (aiJson) {
           try {
             const parsed = JSON.parse(aiJson) as { questions?: string[] }

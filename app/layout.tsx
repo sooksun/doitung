@@ -12,7 +12,7 @@ const sarabun = Sarabun({
 })
 
 export const metadata: Metadata = {
-  title: 'EQAP - EduQuality Assessment Platform',
+  title: 'TSQM-n แม่ฟ้าหลวง',
   description: 'ระบบประเมินคุณภาพสถานศึกษา',
   icons: {
     icon: '/favicon.svg',

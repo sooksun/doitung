@@ -1,7 +1,7 @@
 {
   "name": "eqap",
   "version": "1.0.0",
-  "description": "EduQuality Assessment Platform - ระบบประเมินคุณภาพสถานศึกษา",
+  "description": "TSQM-n แม่ฟ้าหลวง - ระบบประเมินคุณภาพสถานศึกษา",
   "private": true,
   "scripts": {
     "dev": "next dev",

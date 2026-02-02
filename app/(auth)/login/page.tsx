@@ -95,7 +95,7 @@ export default function LoginPage() {
           เข้าสู่ระบบ
         </h1>
         <p className="text-gray-600 dark:text-gray-400">
-          EduQuality Assessment Platform
+          TSQM-n แม่ฟ้าหลวง
         </p>
       </div>
 

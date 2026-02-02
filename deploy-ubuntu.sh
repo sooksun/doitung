@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==============================================
-# EQAP - EduQuality Assessment Platform
+# TSQM-n แม่ฟ้าหลวง
 # Deployment Script for Ubuntu 24.x.x
 # Application Path: /DATA/AppData/www/doitung
 # Application Port: 9901
@@ -27,7 +27,7 @@ REPO_URL="https://github.com/sooksun/doitung.git"
 print_header() {
     echo -e "${BLUE}"
     echo "=============================================="
-    echo "  EQAP - EduQuality Assessment Platform"
+    echo "  TSQM-n แม่ฟ้าหลวง"
     echo "  Deployment Script for Ubuntu 24.x.x"
     echo "=============================================="
     echo -e "${NC}"
@@ -278,7 +278,7 @@ create_systemd_service() {
     
     cat > /etc/systemd/system/eqap.service << EOF
 [Unit]
-Description=EQAP - EduQuality Assessment Platform
+Description=TSQM-n แม่ฟ้าหลวง
 Requires=docker.service
 After=docker.service
 
