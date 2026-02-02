@@ -208,8 +208,13 @@ export async function GET(request: NextRequest) {
         conditions: assessment.conditions.map((c) => ({
           id: c.id,
           type: c.type.toLowerCase() as 'supporter' | 'blocker',
-          description: c.description,
-          category: c.category || undefined,
+          signalText: c.signalText ?? undefined,
+          impactText: c.impactText ?? undefined,
+          reflectionNote: c.reflectionNote ?? undefined,
+          domain: (c.domain as 'Leadership' | 'PLC' | 'Student' | 'Data' | 'Culture') ?? undefined,
+          month: c.month ?? undefined,
+          description: c.description ?? undefined,
+          category: c.category ?? undefined,
           createdAt: c.createdAt,
         })),
       }

@@ -4,11 +4,25 @@ import prisma from '@/lib/prisma'
 import { getTokenFromHeader, verifyAccessToken } from '@/lib/auth'
 import { APIResponse } from '@/lib/types'
 
+const DOMAINS = ['Leadership', 'PLC', 'Student', 'Data', 'Culture'] as const
+
 const createConditionSchema = z.object({
   type: z.enum(['SUPPORTER', 'BLOCKER']),
-  description: z.string().min(1, 'กรุณาระบุรายละเอียด'),
+  signalText: z.string().optional(),
+  impactText: z.string().optional(),
+  reflectionNote: z.string().optional(),
+  domain: z.enum(DOMAINS).optional(),
+  month: z.string().optional(),
+  description: z.string().optional(),
   category: z.string().optional(),
-})
+}).refine(
+  (data) => {
+    const hasDe = data.signalText?.trim() && data.impactText?.trim()
+    const hasLegacy = data.description?.trim()
+    return !!hasDe || !!hasLegacy
+  },
+  { message: 'กรุณากรอกสิ่งที่เกิดขึ้น และส่งผลต่อการพัฒนาอย่างไร' }
+)
 
 // POST /api/assessments/[id]/conditions - Add condition
 export async function POST(
@@ -45,7 +59,7 @@ export async function POST(
       )
     }
 
-    const { type, description, category } = validationResult.data
+    const { type, signalText, impactText, reflectionNote, domain, month, description, category } = validationResult.data
 
     // Check if user has permission
     const assessment = await prisma.assessment.findUnique({
@@ -75,7 +89,12 @@ export async function POST(
       data: {
         assessmentId,
         type,
-        description,
+        signalText: signalText?.trim() || null,
+        impactText: impactText?.trim() || null,
+        reflectionNote: reflectionNote?.trim() || null,
+        domain: domain || null,
+        month: month || null,
+        description: description?.trim() || null,
         category: category || null,
       },
     })

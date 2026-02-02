@@ -137,11 +137,20 @@ export interface DomainScore {
   previousScore?: number     // คะแนนครั้งก่อน (สำหรับคำนวณ trend)
 }
 
+export type ConditionDomain = 'Leadership' | 'PLC' | 'Student' | 'Data' | 'Culture'
+
 export interface DevelopmentCondition {
   id?: string
   type: 'supporter' | 'blocker'
-  description: string
-  category?: string // 'time' | 'workload' | 'policy' | 'culture' | 'resource'
+  /** โครงสร้าง DE: สิ่งที่เกิดขึ้น → ส่งผลอย่างไร → ข้อสังเกต */
+  signalText?: string    // สิ่งที่เกิดขึ้น
+  impactText?: string    // ส่งผลต่อการพัฒนาอย่างไร
+  reflectionNote?: string // ข้อสังเกตเพื่อการพัฒนา (ไม่บังคับ)
+  domain?: ConditionDomain
+  month?: string
+  /** เลกาซี: รายการเก่า */
+  description?: string
+  category?: string
   createdAt?: Date
 }
 

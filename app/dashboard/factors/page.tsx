@@ -39,9 +39,18 @@ function FactorsContent() {
       const data = await res.json()
       if (data.success && data.data?.assessment) {
         const a = data.data.assessment
-        const conds = (a.conditions || []).map((c: { id: string; type: string; description: string; category?: string }) => ({
+        const conds = (a.conditions || []).map((c: {
+          id: string; type: string;
+          signalText?: string; impactText?: string; reflectionNote?: string;
+          domain?: string; month?: string; description?: string; category?: string;
+        }) => ({
           id: c.id,
           type: c.type.toLowerCase() as 'supporter' | 'blocker',
+          signalText: c.signalText,
+          impactText: c.impactText,
+          reflectionNote: c.reflectionNote,
+          domain: c.domain,
+          month: c.month,
           description: c.description,
           category: c.category,
         }))
@@ -113,7 +122,7 @@ function FactorsContent() {
             conditions={conditions}
             assessmentId={assessmentId}
             onUpdate={fetchConditions}
-            editable={false}
+            editable={true}
           />
         )}
       </main>

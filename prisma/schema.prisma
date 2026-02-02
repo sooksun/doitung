@@ -273,20 +273,28 @@ model Evidence {
 // DEVELOPMENTAL EVALUATION (DE)
 // ============================================
 
-// สิ่งที่หนุน/ถ่วง การพัฒนา (Conditions & Blockers)
+// สิ่งที่หนุน/ถ่วง การพัฒนา (DE-friendly: 1 รายการ = 1 สัญญาณ)
 model DevelopmentCondition {
-  id           String   @id @default(uuid())
+  id            String   @id @default(uuid())
   assessmentId String
-  type         ConditionType // supporter หรือ blocker
-  description  String   @db.Text
-  category     String?  @db.VarChar(50) // time, workload, policy, culture, resource
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  type         ConditionType // สิ่งที่หนุน / สิ่งที่ถ่วง
+  // โครงสร้าง DE: [สัญญาณ] → [ผลต่อระบบ/ผู้เรียน] → [ข้อสังเกต]
+  signalText    String?  @db.Text // สิ่งที่เกิดขึ้น (เล่าให้เพื่อนฟังได้)
+  impactText    String?  @db.Text // ส่งผลต่อการพัฒนาอย่างไร
+  reflectionNote String? @db.Text // ข้อสังเกต/คำถามเพื่อการพัฒนา (ไม่บังคับ)
+  domain        String?  @db.VarChar(50) // Leadership | PLC | Student | Data | Culture
+  month         String?  @db.VarChar(7)  // ปี-เดือน เช่น 2024-01
+  // เลกาซี: รายการเก่าอาจมีแค่ description
+  description   String?  @db.Text
+  category      String?  @db.VarChar(50)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
 
   @@index([assessmentId])
   @@index([type])
+  @@index([domain])
   @@map("development_conditions")
 }
 
