@@ -34,6 +34,7 @@ interface Assessor {
   id: string
   firstName: string
   lastName: string
+  schoolId?: string
   schoolName?: string
 }
 
@@ -138,10 +139,11 @@ export default function CreateAssessmentPage() {
           })
           const assessorsData = await assessorsResponse.json()
           if (assessorsData.success && assessorsData.data?.users) {
-            setAssessors(assessorsData.data.users.map((u: { id: string; firstName: string; lastName: string; school?: { name: string } }) => ({
+            setAssessors(assessorsData.data.users.map((u: { id: string; firstName: string; lastName: string; schoolId?: string; school?: { name: string } }) => ({
               id: u.id,
               firstName: u.firstName,
               lastName: u.lastName,
+              schoolId: u.schoolId,
               schoolName: u.school?.name,
             })))
           }
@@ -230,7 +232,7 @@ export default function CreateAssessmentPage() {
               <select
                 id="school"
                 value={formData.schoolId}
-                onChange={(e) => setFormData({ ...formData, schoolId: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, schoolId: e.target.value, assessorId: '' })}
                 disabled={user?.schoolId !== null}
                 className="w-full px-4 py-3 border border-gray-300 dark:border-dark-border rounded-xl bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-hover disabled:cursor-not-allowed transition-all"
                 required
@@ -264,7 +266,17 @@ export default function CreateAssessmentPage() {
               >
                 <option value="">-- เลือกผู้ประเมิน --</option>
                 {assessors
-                  .filter(a => user?.role === 'SUPER_ADMIN' || user?.role === 'OFFICE_ADMIN' || a.id === user?.id)
+                  .filter(a => {
+                    // Non-admin: แสดงเฉพาะตัวเอง
+                    if (user?.role !== 'SUPER_ADMIN' && user?.role !== 'OFFICE_ADMIN') {
+                      return a.id === user?.id
+                    }
+                    // Admin: กรองตามโรงเรียนที่เลือก
+                    if (formData.schoolId) {
+                      return a.schoolId === formData.schoolId
+                    }
+                    return true // ยังไม่เลือกโรงเรียน แสดงทุกคน
+                  })
                   .map((assessor) => (
                     <option key={assessor.id} value={assessor.id}>
                       {assessor.firstName} {assessor.lastName}
@@ -279,7 +291,7 @@ export default function CreateAssessmentPage() {
               )}
               {(user?.role === 'SUPER_ADMIN' || user?.role === 'OFFICE_ADMIN') && (
                 <p className="mt-1 text-sm text-purple-600 dark:text-purple-400">
-                  🔑 Admin สามารถเลือกผู้ประเมินคนอื่นได้
+                  🔑 Admin: {formData.schoolId ? 'แสดงเฉพาะผู้ประเมินในโรงเรียนที่เลือก' : 'เลือกโรงเรียนก่อนเพื่อกรองผู้ประเมิน'}
                 </p>
               )}
             </div>
