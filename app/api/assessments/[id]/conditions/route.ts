@@ -60,11 +60,11 @@ export async function POST(
       )
     }
 
-    if (
-      decoded.role !== 'ADMIN' &&
-      assessment.createdById !== decoded.userId &&
-      assessment.schoolId !== decoded.schoolId
-    ) {
+    // Check permission: creator or same school can add conditions
+    const isCreator = assessment.createdById === decoded.userId
+    const isSameSchool = assessment.schoolId === decoded.schoolId
+
+    if (!isCreator && !isSameSchool) {
       return NextResponse.json<APIResponse>(
         { success: false, message: 'คุณไม่มีสิทธิ์เพิ่มข้อมูลนี้' },
         { status: 403 }
