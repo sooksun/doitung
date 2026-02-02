@@ -127,7 +127,8 @@ export interface DomainScore {
   groupCode: string
   groupName: string
   groupNameEn: string | null
-  averageScore: number
+  averageScore: number       // คะแนนเฉลี่ยสภาพที่เป็นอยู่ (Current State)
+  averageDesiredScore: number // คะแนนเฉลี่ยสภาพที่พึงประสงค์ (Desired State)
   totalIndicators: number
   answeredIndicators: number
 }
@@ -149,7 +150,11 @@ export interface ComparisonData {
   domainScores: {
     [groupName: string]: number
   }
+  desiredDomainScores?: {
+    [groupName: string]: number
+  }
   overallScore: number
+  overallDesiredScore?: number
 }
 
 export interface DashboardFilters {

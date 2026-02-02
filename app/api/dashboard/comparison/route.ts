@@ -32,6 +32,8 @@ export async function GET(request: NextRequest) {
     const schoolId = searchParams.get('schoolId')
     const networkId = searchParams.get('networkId')
     const officeId = searchParams.get('officeId')
+    const academicYearId = searchParams.get('academicYearId')
+    const semesterId = searchParams.get('semesterId')
 
     // Build filter
     const where: Prisma.AssessmentWhereInput = {
@@ -61,6 +63,8 @@ export async function GET(request: NextRequest) {
 
     // Apply additional filters
     if (schoolId) where.schoolId = schoolId
+    if (academicYearId) where.academicYearId = academicYearId
+    if (semesterId) where.semesterId = semesterId
     if (networkId && !where.school) {
       where.school = { networkId }
     }
@@ -112,38 +116,54 @@ export async function GET(request: NextRequest) {
       yearSemesterMap.get(key)!.push(assessment)
     })
 
-    // Calculate average scores for each year/semester
+    // Calculate average scores for each year/semester (ทั้งสภาพที่เป็นอยู่ และพึงประสงค์)
     const comparisonData: ComparisonData[] = Array.from(yearSemesterMap.entries()).map(
       ([key, assessments]) => {
         const domainScores: { [groupName: string]: number } = {}
+        const desiredDomainScores: { [groupName: string]: number } = {}
 
         groups.forEach((group) => {
           const allGroupResponses = assessments.flatMap((a) =>
             a.responses.filter((r) => r.indicator.groupId === group.id)
           )
-
-          const averageScore =
+          const avgCurrent =
             allGroupResponses.length > 0
-              ? allGroupResponses.reduce((sum, r) => sum + r.score, 0) /
-                allGroupResponses.length
+              ? allGroupResponses.reduce((sum, r) => sum + r.score, 0) / allGroupResponses.length
+              : 0
+          const withDesired = allGroupResponses.filter(
+            (r) => r.desiredScore != null && r.desiredScore > 0
+          )
+          const avgDesired =
+            withDesired.length > 0
+              ? withDesired.reduce((sum, r) => sum + (r.desiredScore ?? 0), 0) / withDesired.length
               : 0
 
-          domainScores[group.name] = Math.round(averageScore * 100) / 100
+          domainScores[group.name] = Math.round(avgCurrent * 100) / 100
+          desiredDomainScores[group.name] = Math.round(avgDesired * 100) / 100
         })
 
         const overallScore =
           Object.keys(domainScores).length > 0
-            ? Object.values(domainScores).reduce((sum, score) => sum + score, 0) /
+            ? Object.values(domainScores).reduce((sum, s) => sum + s, 0) /
               Object.keys(domainScores).length
             : 0
+        const overallDesiredScore =
+          Object.keys(desiredDomainScores).length > 0
+            ? Object.values(desiredDomainScores).reduce((sum, s) => sum + s, 0) /
+              Object.keys(desiredDomainScores).length
+            : 0
 
-        const [year, semester] = key.split('-')
+        const firstDash = key.indexOf('-')
+        const year = firstDash >= 0 ? key.slice(0, firstDash) : key
+        const semester = firstDash >= 0 ? key.slice(firstDash + 1) : undefined
 
         return {
           year,
           semester,
           domainScores,
+          desiredDomainScores,
           overallScore: Math.round(overallScore * 100) / 100,
+          overallDesiredScore: Math.round(overallDesiredScore * 100) / 100,
         }
       }
     )

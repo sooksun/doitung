@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
     const networkId = searchParams.get('networkId')
     const officeId = searchParams.get('officeId')
     const academicYearId = searchParams.get('academicYearId')
+    const semesterId = searchParams.get('semesterId')
 
     // Build filter based on user role and query params
     const where: Prisma.AssessmentWhereInput = {}
@@ -73,6 +74,7 @@ export async function GET(request: NextRequest) {
       where.school.network.officeId = officeId
     }
     if (academicYearId) where.academicYearId = academicYearId
+    if (semesterId) where.semesterId = semesterId
 
     // Get total assessments
     const totalAssessments = await prisma.assessment.count({ where })

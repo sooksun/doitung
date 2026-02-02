@@ -5,20 +5,25 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import SummaryCards from '../components/dashboard/SummaryCards'
 import RadarChartComponent from '../components/dashboard/RadarChart'
+import BarChartComponent from '../components/dashboard/BarChart'
 import ComparisonChart from '../components/dashboard/ComparisonChart'
 import DashboardFilters from '../components/dashboard/DashboardFilters'
 import { DashboardStats, AssessmentSummary, ComparisonData } from '../lib/types'
 import { showInfo } from '@/lib/toast'
 import { ThemeToggle } from '@/components/ThemeToggle'
 
+type ChartType = 'spider' | 'bar'
+
 export default function DashboardPage() {
   const router = useRouter()
-  const [user, setUser] = useState<{ firstName?: string; lastName?: string; role?: string } | null>(null)
+  const [user, setUser] = useState<{ firstName?: string; lastName?: string; role?: string; schoolId?: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [summaries, setSummaries] = useState<AssessmentSummary[]>([])
   const [comparison, setComparison] = useState<ComparisonData[]>([])
   const [filters, setFilters] = useState<{ schoolId?: string; academicYearId?: string; semesterId?: string }>({})
+  const [chartType, setChartType] = useState<ChartType>('spider')
+  const isAdmin = user?.role && ['SUPER_ADMIN', 'OFFICE_ADMIN', 'NETWORK_ADMIN'].includes(user.role)
 
   useEffect(() => {
     fetchUserData()
@@ -170,7 +175,11 @@ export default function DashboardPage() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Filters */}
-        <DashboardFilters onFilterChange={setFilters} userRole={user?.role} />
+        <DashboardFilters
+          onFilterChange={setFilters}
+          userRole={user?.role}
+          userSchoolId={user?.schoolId}
+        />
 
         {/* Summary Cards */}
         {stats && (
@@ -179,14 +188,54 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Chart Type Toggle - Admin only */}
+        {isAdmin && summaries.length > 0 && (
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">รูปแบบกราฟ:</span>
+            <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
+              <button
+                onClick={() => setChartType('spider')}
+                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                  chartType === 'spider'
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-white dark:bg-dark-bg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                }`}
+              >
+                Spider (เรดาร์)
+              </button>
+              <button
+                onClick={() => setChartType('bar')}
+                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                  chartType === 'bar'
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-white dark:bg-dark-bg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                }`}
+              >
+                Bar (แท่ง)
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          {/* Radar Chart */}
+          {/* Chart - Spider or Bar (2 มิติ: สภาพที่เป็นอยู่ / สภาพที่พึงประสงค์) */}
           {summaries.length > 0 && (
-            <RadarChartComponent
-              domainScores={summaries[0].domainScores}
-              title="ผลการประเมินล่าสุด - 4 มิติ"
-            />
+            <>
+              {chartType === 'spider' ? (
+                <RadarChartComponent
+                  domainScores={summaries[0].domainScores}
+                  title="ผลการประเมินล่าสุด - 4 มิติ"
+                  showTwoDimensions
+                />
+              ) : (
+                <BarChartComponent
+                  domainScores={summaries[0].domainScores}
+                  title="คะแนนเฉลี่ยรายด้าน"
+                  showTwoDimensions
+                />
+              )}
+            </>
           )}
 
           {/* Latest Assessment Summary */}

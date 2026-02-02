@@ -112,15 +112,20 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    // Calculate domain scores for each assessment
+    // Calculate domain scores for each assessment (ทั้งสภาพที่เป็นอยู่ และสภาพที่พึงประสงค์)
     const summaries: AssessmentSummary[] = assessments.map((assessment) => {
       const domainScores: DomainScore[] = groups.map((group) => {
         const groupResponses = assessment.responses.filter(
           (r) => r.indicator.groupId === group.id
         )
-        const averageScore =
+        const avgCurrent =
           groupResponses.length > 0
             ? groupResponses.reduce((sum, r) => sum + r.score, 0) / groupResponses.length
+            : 0
+        const withDesired = groupResponses.filter((r) => r.desiredScore != null && r.desiredScore > 0)
+        const avgDesired =
+          withDesired.length > 0
+            ? withDesired.reduce((sum, r) => sum + (r.desiredScore ?? 0), 0) / withDesired.length
             : 0
 
         return {
@@ -128,7 +133,8 @@ export async function GET(request: NextRequest) {
           groupCode: group.code,
           groupName: group.name,
           groupNameEn: group.nameEn,
-          averageScore: Math.round(averageScore * 100) / 100,
+          averageScore: Math.round(avgCurrent * 100) / 100,
+          averageDesiredScore: Math.round(avgDesired * 100) / 100,
           totalIndicators: group.indicators.length,
           answeredIndicators: groupResponses.length,
         }
