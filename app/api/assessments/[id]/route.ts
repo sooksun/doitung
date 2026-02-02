@@ -89,6 +89,7 @@ export async function GET(
             },
           },
         },
+        conditions: true,
       },
     })
 

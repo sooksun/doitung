@@ -227,7 +227,10 @@ export default function DashboardPage() {
         {/* DE: System Signals Overview */}
         {summaries.length > 0 && (
           <div className="mb-8">
-            <SystemSignals domainScores={summaries[0].domainScores} />
+            <SystemSignals
+              domainScores={summaries[0].domainScores}
+              assessmentId={summaries[0].assessmentId}
+            />
           </div>
         )}
 

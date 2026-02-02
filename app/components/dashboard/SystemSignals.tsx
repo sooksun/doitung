@@ -1,9 +1,11 @@
 'use client'
 
+import Link from 'next/link'
 import { DomainScore, TrendIndicator } from '@/lib/types'
 
 interface SystemSignalsProps {
   domainScores: DomainScore[]
+  assessmentId?: string
 }
 
 const getTrendIcon = (trend?: TrendIndicator) => {
@@ -21,7 +23,7 @@ const getTrendIcon = (trend?: TrendIndicator) => {
   }
 }
 
-export default function SystemSignals({ domainScores }: SystemSignalsProps) {
+export default function SystemSignals({ domainScores, assessmentId }: SystemSignalsProps) {
   return (
     <div className="bg-white dark:bg-dark-card rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
       <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
@@ -68,9 +70,16 @@ export default function SystemSignals({ domainScores }: SystemSignalsProps) {
                   </p>
                 )}
               </div>
-              <button className="text-sm text-primary-600 dark:text-primary-400 hover:underline">
-                ดูเหตุ-ปัจจัย →
-              </button>
+              {assessmentId ? (
+                <Link
+                  href={`/dashboard/factors?assessmentId=${encodeURIComponent(assessmentId)}&domainId=${encodeURIComponent(domain.groupId)}&domainName=${encodeURIComponent(domain.groupName)}`}
+                  className="text-sm text-primary-600 dark:text-primary-400 hover:underline"
+                >
+                  ดูเหตุ-ปัจจัย →
+                </Link>
+              ) : (
+                <span className="text-sm text-gray-400 dark:text-gray-500">ดูเหตุ-ปัจจัย →</span>
+              )}
             </div>
           )
         })}
