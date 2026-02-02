@@ -64,8 +64,9 @@ services:
       PORT: 9901
       HOSTNAME: "0.0.0.0"
 
-      # Prisma DATABASE_URL (connect to db service in the same docker network)
-      DATABASE_URL: mysql://${DB_USER:-eqap_user}:${DB_PASSWORD:-eqap_password}@db:3306/${DB_NAME:-eqap_db}
+      # Prisma DATABASE_URL - ใช้ external host database
+      # เปลี่ยน casaos:casaos@192.168.1.4:3306 เป็นค่าของ server จริง
+      DATABASE_URL: mysql://casaos:casaos@192.168.1.4:3306/eqap_db
 
       JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-your-super-secret-refresh-key-change-in-production}
@@ -73,9 +74,10 @@ services:
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:9901}
 
-    depends_on:
-      db:
-        condition: service_healthy
+    # ไม่ต้อง depends_on db เพราะใช้ external database
+    # depends_on:
+    #   db:
+    #     condition: service_healthy
 
     networks:
       - eqap_network
