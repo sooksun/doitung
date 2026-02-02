@@ -120,20 +120,20 @@ export default function GroupRatingTable({
                 <tr
                   key={indicator.id}
                   className={`
-                    border-b border-gray-100 dark:border-gray-700 transition-colors
-                    hover:bg-gray-50 dark:hover:bg-gray-800
+                    group border-b border-gray-100 dark:border-gray-700 transition-colors
+                    hover:bg-purple-50 dark:hover:bg-purple-900/40
                     ${hasBothScores ? 'ring-1 ring-inset ring-green-200 dark:ring-green-800' : ''}
                   `}
                 >
                   {/* Indicator Title */}
-                  <td className="px-3 py-3 text-sm text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white leading-relaxed border-r border-gray-200 dark:border-gray-700 overflow-hidden">
+                  <td className="px-3 py-3 text-sm leading-relaxed border-r border-gray-200 dark:border-gray-700 overflow-hidden">
                     <div className="flex items-start gap-2 max-w-full">
                       {hasBothScores && (
                         <span className="flex-shrink-0 w-5 h-5 bg-green-500 text-white rounded-full flex items-center justify-center text-xs mt-0.5">
                           ✓
                         </span>
                       )}
-                      <span className={`break-words overflow-hidden ${hasBothScores ? 'text-gray-900 dark:text-white font-medium' : ''}`}>
+                      <span className={`break-words overflow-hidden text-gray-700 dark:text-gray-200 group-hover:text-purple-900 dark:group-hover:text-white ${hasBothScores ? 'font-medium' : ''}`}>
                         {indicator.title}
                       </span>
                     </div>
