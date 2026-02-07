@@ -63,9 +63,9 @@ RUN apt-get update \
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Create non-root user
+# Create non-root user with HOME directory
 RUN addgroup --system --gid 1001 nodejs \
-  && adduser --system --uid 1001 nextjs
+  && adduser --system --uid 1001 --home /home/nextjs nextjs
 
 # Copy necessary files from builder
 COPY --from=builder /app/public ./public
@@ -77,12 +77,17 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma/client ./nod
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/prisma ./prisma
 
+# Prisma CLI for migrations (needed for docker exec prisma migrate deploy)
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /app/node_modules/@prisma/engines ./node_modules/@prisma/engines
+
 # Create uploads directory with proper permissions
 RUN mkdir -p /app/public/uploads/evidence \
   && chown -R nextjs:nodejs /app/public/uploads
 
 # Switch to non-root user
 USER nextjs
+ENV HOME=/home/nextjs
 
 # Expose port
 EXPOSE 9901
