@@ -159,6 +159,17 @@ export default function DashboardPage() {
             <div className="flex items-center gap-3">
               <ThemeToggle />
               <Link
+                href="/de"
+                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg text-sm font-medium hover:from-purple-700 hover:to-indigo-700 transition-all shadow-sm"
+              >
+                <span className="flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  DE Hub
+                </span>
+              </Link>
+              <Link
                 href="/assessment"
                 className="btn-primary px-4 py-2"
               >
@@ -334,6 +345,37 @@ export default function DashboardPage() {
             />
           </div>
         )}
+
+        {/* DE Signals Quick View */}
+        <div className="mb-8 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-xl border border-purple-200 dark:border-purple-800 p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="text-lg font-semibold text-purple-700 dark:text-purple-400">DE - สัญญาณการพัฒนา</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">ใช้ผลประเมินเพื่อเรียนรู้ ไม่ใช่เพื่อตัดสิน</p>
+            </div>
+            <Link
+              href="/de"
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors"
+            >
+              เปิด DE Hub →
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            {[
+              { href: '/de/canvas', label: 'DE Canvas', icon: '🎯' },
+              { href: '/de/plc', label: 'PLC Sessions', icon: '👥' },
+              { href: '/de/learning', label: 'Learning', icon: '📚' },
+              { href: '/de/students', label: 'Student Signals', icon: '🧒' },
+              { href: '/de/experiments', label: 'Experiments', icon: '🔬' },
+              { href: '/de/reflection', label: 'Reflection', icon: '🪞' },
+            ].map((item) => (
+              <Link key={item.href} href={item.href} className="bg-white dark:bg-gray-800 rounded-lg p-3 text-center hover:shadow-md transition-shadow border border-gray-100 dark:border-gray-700">
+                <span className="text-2xl block mb-1">{item.icon}</span>
+                <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{item.label}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
 
         {/* Comparison Chart */}
         {comparison.length > 0 && (

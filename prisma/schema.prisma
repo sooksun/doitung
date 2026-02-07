@@ -60,6 +60,13 @@ model School {
   users    User[]
   assessments Assessment[]
 
+  // DE Relations
+  learningLogs       LearningLog[]
+  plcSessions        PLCSession[]
+  studentSignals     StudentSignal[]
+  experiments        Experiment[]
+  monthlyReflections MonthlyReflection[]
+
   @@index([networkId])
   @@map("schools")
 }
@@ -132,6 +139,13 @@ model User {
   network    Network?        @relation(fields: [networkId], references: [id], onDelete: SetNull)
   school     School?         @relation(fields: [schoolId], references: [id], onDelete: SetNull)
   assessments Assessment[]    // ผู้ใช้ที่สร้างแบบประเมิน
+
+  // DE Relations
+  learningLogs       LearningLog[]
+  plcSessions        PLCSession[]
+  studentSignals     StudentSignal[]
+  experiments        Experiment[]
+  monthlyReflections MonthlyReflection[]
 
   @@index([email])
   @@index([role])
@@ -301,4 +315,156 @@ model DevelopmentCondition {
 enum ConditionType {
   SUPPORTER // สิ่งที่หนุน
   BLOCKER   // สิ่งที่ถ่วง
+}
+
+// บันทึกการเรียนรู้รายเดือน (Learning Timeline)
+model LearningLog {
+  id        String   @id @default(uuid())
+  schoolId  String
+  month     String   @db.VarChar(7)  // YYYY-MM เช่น 2568-06
+  source    LearningSource @default(OTHER)
+  content   String   @db.Text        // สิ่งที่เรียนรู้
+  domain    String?  @db.VarChar(50) // Leadership | PLC | Student | Data | Culture
+  createdById String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school    School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  createdBy User   @relation(fields: [createdById], references: [id])
+
+  @@index([schoolId])
+  @@index([month])
+  @@index([createdById])
+  @@map("learning_logs")
+}
+
+enum LearningSource {
+  PLC         // จากวง PLC
+  SUPERVISION // จากการนิเทศ
+  EXPERIMENT  // จากการทดลอง
+  OTHER       // อื่น ๆ
+}
+
+// บันทึกวง PLC พร้อม Quality Signals
+model PLCSession {
+  id              String   @id @default(uuid())
+  schoolId        String
+  sessionDate     DateTime
+  month           String   @db.VarChar(7)  // YYYY-MM
+  participants    Int      @default(0)     // จำนวนผู้เข้าร่วม
+  deQuestionUsed  String?  @db.Text        // คำถาม DE ที่ใช้ในวง
+  keyInsight      String?  @db.Text        // สิ่งที่ได้เรียนรู้จากวง
+
+  // Quality Signals (4 มิติ, 1-5)
+  safetyLevel       Int?  // ความปลอดภัยในการพูด
+  questionDepth     Int?  // ความลึกของคำถาม
+  studentConnection Int?  // การเชื่อมกับผู้เรียน
+  actionFollowUp    Int?  // การนำไปทดลองจริงหลัง PLC
+
+  // Reflection สั้น ๆ
+  deeperThinking  Boolean? // วันนี้วงช่วยให้คิดลึกขึ้นไหม
+  nextTry         String?  @db.Text // มีอะไรอยากลองหลังจากนี้
+
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  school    School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  createdBy User   @relation(fields: [createdById], references: [id])
+
+  @@index([schoolId])
+  @@index([month])
+  @@index([createdById])
+  @@map("plc_sessions")
+}
+
+// เรื่องเล่าการเปลี่ยนแปลงของผู้เรียน (Story Cards)
+model StudentSignal {
+  id                String   @id @default(uuid())
+  schoolId          String
+  month             String   @db.VarChar(7)  // YYYY-MM
+  studentCode       String   @db.VarChar(50) // รหัสย่อ ไม่ระบุชื่อจริง
+  signalDescription String   @db.Text        // สัญญาณที่เห็น
+  changeDescription String?  @db.Text        // การเปลี่ยนแปลงที่เกิดขึ้น
+  teacherAction     String?  @db.Text        // สิ่งที่ครูปรับ
+  createdById       String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  school    School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  createdBy User   @relation(fields: [createdById], references: [id])
+
+  @@index([schoolId])
+  @@index([month])
+  @@index([createdById])
+  @@map("student_signals")
+}
+
+// การทดลองพัฒนา (Prototypes / Experiments)
+model Experiment {
+  id            String   @id @default(uuid())
+  schoolId      String
+  month         String   @db.VarChar(7)  // YYYY-MM เริ่มต้น
+  title         String   @db.VarChar(255)
+  description   String?  @db.Text
+  domain        String?  @db.VarChar(50) // Leadership | PLC | Student | Data | Culture
+  duration      String?  @db.VarChar(50) // เช่น "4 สัปดาห์", "8 สัปดาห์"
+  status        ExperimentStatus @default(PLANNED)
+  lessonLearned String?  @db.Text        // บทเรียนที่ได้
+  willContinue  Boolean? // ทำต่อหรือไม่
+  createdById   String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  school    School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  createdBy User   @relation(fields: [createdById], references: [id])
+
+  @@index([schoolId])
+  @@index([month])
+  @@index([status])
+  @@index([createdById])
+  @@map("experiments")
+}
+
+enum ExperimentStatus {
+  PLANNED      // วางแผนไว้
+  IN_PROGRESS  // กำลังทดลอง
+  COMPLETED    // เสร็จแล้ว
+}
+
+// สะท้อนประจำเดือน (Monthly Reflection + Adaptation)
+model MonthlyReflection {
+  id               String   @id @default(uuid())
+  schoolId         String
+  month            String   @db.VarChar(7)  // YYYY-MM
+  systemReflection String?  @db.Text        // เรียนรู้อะไรเกี่ยวกับระบบของโรงเรียน
+  continueItems    String?  @db.Text        // สิ่งที่ควรทำต่อ
+  stopItems        String?  @db.Text        // สิ่งที่ควรหยุด
+  expandItems      String?  @db.Text        // สิ่งที่ควรขยาย
+  nextSteps        String?  @db.Text        // ก้าวถัดไปเล็ก ๆ
+  createdById      String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  school    School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  createdBy User   @relation(fields: [createdById], references: [id])
+
+  @@unique([schoolId, month]) // 1 โรงเรียน 1 เดือน = 1 Reflection
+  @@index([schoolId])
+  @@index([month])
+  @@index([createdById])
+  @@map("monthly_reflections")
+}
+
+// คำถาม DE ประจำเดือน (Seed data — 12 ชุด)
+model DEQuestion {
+  id              String   @id @default(uuid())
+  monthNumber     Int      @unique // 1-12
+  focus           String   @db.VarChar(255) // โฟกัสของเดือนนั้น
+  questions       String   @db.Text        // JSON array ของคำถาม
+  expectedOutcome String?  @db.Text        // ผลลัพธ์ที่อยากเห็น
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("de_questions")
 }
