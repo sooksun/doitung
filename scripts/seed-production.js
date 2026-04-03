@@ -62,7 +62,7 @@ async function main() {
     where: { code: 'SCH-001' },
     update: {},
     create: {
-      code: 'SCH-001', nameTh: 'โรงเรียนดอยตุง', nameEn: 'Doitung School',
+      code: 'SCH-001', name: 'Doitung School', nameTh: 'โรงเรียนดอยตุง',
       province: 'เชียงราย', district: 'แม่ฟ้าหลวง', isActive: true,
     },
   });
@@ -71,7 +71,7 @@ async function main() {
     where: { code: 'SCH-002' },
     update: {},
     create: {
-      code: 'SCH-002', nameTh: 'โรงเรียนแม่ฟ้าหลวง', nameEn: 'Mae Fah Luang School',
+      code: 'SCH-002', name: 'Mae Fah Luang School', nameTh: 'โรงเรียนแม่ฟ้าหลวง',
       province: 'เชียงราย', district: 'แม่ฟ้าหลวง', isActive: true,
     },
   });
