@@ -1,0 +1,181 @@
+// app/live-dashboard/components/ScopeSelector.tsx
+// Scope filter: school | network | district + year/term selectors
+
+'use client';
+
+interface School {
+  id: number;
+  nameTh: string;
+}
+interface Network {
+  id: number;
+  name: string;
+}
+interface AcademicYear {
+  id: number;
+  year: string;
+}
+interface Term {
+  id: number;
+  termNumber: number;
+  academicYearId: number;
+}
+
+interface ScopeSelectorProps {
+  scope: 'school' | 'network' | 'district';
+  schoolId?: number;
+  networkId?: number;
+  academicYearId?: number;
+  termId?: number;
+  schools: School[];
+  networks: Network[];
+  academicYears: AcademicYear[];
+  terms: Term[];
+  onScopeChange: (scope: 'school' | 'network' | 'district') => void;
+  onSchoolChange: (id?: number) => void;
+  onNetworkChange: (id?: number) => void;
+  onYearChange: (id?: number) => void;
+  onTermChange: (id?: number) => void;
+}
+
+const selectStyle: React.CSSProperties = {
+  background: 'rgba(255,255,255,0.1)',
+  color: '#e2e8f0',
+  border: '1px solid rgba(255,255,255,0.2)',
+  borderRadius: '0.4rem',
+  padding: '0.35rem 0.75rem',
+  fontSize: '0.85rem',
+  fontFamily: 'Kanit, sans-serif',
+  cursor: 'pointer',
+  outline: 'none',
+  minWidth: '140px',
+};
+
+const btnBase: React.CSSProperties = {
+  padding: '0.4rem 1rem',
+  borderRadius: '0.4rem',
+  border: 'none',
+  cursor: 'pointer',
+  fontSize: '0.85rem',
+  fontFamily: 'Kanit, sans-serif',
+  fontWeight: 600,
+  transition: 'all 0.15s',
+};
+
+export default function ScopeSelector({
+  scope,
+  schoolId,
+  networkId,
+  academicYearId,
+  termId,
+  schools,
+  networks,
+  academicYears,
+  terms,
+  onScopeChange,
+  onSchoolChange,
+  onNetworkChange,
+  onYearChange,
+  onTermChange,
+}: ScopeSelectorProps) {
+  const filteredTerms = academicYearId
+    ? terms.filter((t) => t.academicYearId === academicYearId)
+    : terms;
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '0.5rem',
+        alignItems: 'center',
+      }}
+    >
+      {/* Scope buttons */}
+      <div style={{ display: 'flex', gap: '0.25rem' }}>
+        {(['school', 'network', 'district'] as const).map((s) => {
+          const label = s === 'school' ? 'รายโรงเรียน' : s === 'network' ? 'กลุ่มโรงเรียน' : 'เขตพื้นที่';
+          const active = scope === s;
+          return (
+            <button
+              key={s}
+              onClick={() => onScopeChange(s)}
+              style={{
+                ...btnBase,
+                background: active ? '#818cf8' : 'rgba(255,255,255,0.1)',
+                color: active ? '#fff' : '#cbd5e1',
+                boxShadow: active ? '0 0 10px #818cf880' : 'none',
+              }}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Conditional dropdowns */}
+      {scope === 'school' && (
+        <select
+          value={schoolId ?? ''}
+          onChange={(e) => onSchoolChange(e.target.value ? parseInt(e.target.value) : undefined)}
+          style={selectStyle}
+        >
+          <option value="">-- เลือกโรงเรียน --</option>
+          {schools.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.nameTh}
+            </option>
+          ))}
+        </select>
+      )}
+
+      {scope === 'network' && (
+        <select
+          value={networkId ?? ''}
+          onChange={(e) => onNetworkChange(e.target.value ? parseInt(e.target.value) : undefined)}
+          style={selectStyle}
+        >
+          <option value="">-- เลือกกลุ่มโรงเรียน --</option>
+          {networks.map((n) => (
+            <option key={n.id} value={n.id}>
+              {n.name}
+            </option>
+          ))}
+        </select>
+      )}
+
+      {/* Year filter */}
+      <select
+        value={academicYearId ?? ''}
+        onChange={(e) => {
+          onYearChange(e.target.value ? parseInt(e.target.value) : undefined);
+          onTermChange(undefined);
+        }}
+        style={selectStyle}
+      >
+        <option value="">ทุกปีการศึกษา</option>
+        {academicYears.map((y) => (
+          <option key={y.id} value={y.id}>
+            ปีการศึกษา {y.year}
+          </option>
+        ))}
+      </select>
+
+      {/* Term filter */}
+      {academicYearId && filteredTerms.length > 0 && (
+        <select
+          value={termId ?? ''}
+          onChange={(e) => onTermChange(e.target.value ? parseInt(e.target.value) : undefined)}
+          style={selectStyle}
+        >
+          <option value="">ทุกเทอม</option>
+          {filteredTerms.map((t) => (
+            <option key={t.id} value={t.id}>
+              เทอม {t.termNumber}
+            </option>
+          ))}
+        </select>
+      )}
+    </div>
+  );
+}

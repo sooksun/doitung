@@ -1,0 +1,545 @@
+// schema.prisma
+// Core schema for School QA + RBM system
+// Supports: DERS, Thai P.1-3, Q-Model (Q-Leadership, Q-PLC, Q-Learning, Q-Goal, Q-Info, Q-Network)
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+  // For Laragon MySQL 8.0: mysql://root:@localhost:3306/okrsdoitung
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+//
+// ENUMS
+//
+
+enum RoleType {
+  ADMIN
+  SCHOOL_LEADER
+  TEACHER
+  SUPERVISOR
+}
+
+enum InstrumentType {
+  DERS
+  THAI_P1_3
+  Q_MODEL
+  OTHER
+}
+
+enum ScaleType {
+  LIKERT_1_4
+  LIKERT_1_5
+  BINARY
+  CUSTOM
+}
+
+enum EvaluationStatus {
+  DRAFT
+  SUBMITTED
+  REVIEWED
+  ARCHIVED
+}
+
+enum Quarter {
+  Q1
+  Q2
+  Q3
+  Q4
+}
+
+enum ActionStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  ON_HOLD
+}
+
+enum OKRStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+//
+// CORE USERS & ROLES
+//
+
+model User {
+  id        Int        @id @default(autoincrement())
+  email     String     @unique
+  password  String
+  name      String
+  isActive  Boolean    @default(true)
+
+  roles     UserRole[]
+  teacher   Teacher?
+
+  // Relations
+  actionRatings      OKRActionRating[]    @relation("ActionRatingEvaluator")
+  evaluationSessions EvaluationSession[]  @relation("Evaluator")
+  objectives         OKRObjective[]       @relation("OKRObjectiveOwner")
+  keyResults         OKRKeyResult[]       @relation("OKRKeyResultOwner")
+  actions            OKRAction[]          @relation("OKRActionOwner")
+
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Role {
+  id    Int       @id @default(autoincrement())
+  name  RoleType  @unique
+
+  users UserRole[]
+}
+
+model UserRole {
+  userId Int
+  roleId Int
+
+  user   User @relation(fields: [userId], references: [id])
+  role   Role @relation(fields: [roleId], references: [id])
+
+  @@id([userId, roleId])
+}
+
+//
+// SCHOOL & ACADEMIC STRUCTURE
+//
+
+model School {
+  id        Int        @id @default(autoincrement())
+  code      String?    @unique
+  name      String
+  nameTh    String?    // ชื่อโรงเรียนภาษาไทย
+  address   String?
+  province  String?
+  district  String?
+  isActive  Boolean    @default(true)
+
+  teachers  Teacher[]
+  students  Student[]
+  objectives OKRObjective[]
+  dashboardConfigs DashboardConfig[]
+
+  evaluationSessions EvaluationSession[]
+  networkMemberships SchoolNetworkMember[]
+  actionRatings      OKRActionRating[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([code])
+  @@index([isActive])
+}
+
+model SchoolNetwork {
+  id          Int                  @id @default(autoincrement())
+  code        String?              @unique
+  name        String
+  nameTh      String?              // ชื่อเครือข่ายภาษาไทย
+  description String?
+  isActive    Boolean              @default(true)
+
+  members     SchoolNetworkMember[]
+  objectives  OKRObjective[]       @relation("NetworkOKRs")
+
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([code])
+  @@index([isActive])
+}
+
+model SchoolNetworkMember {
+  id              Int           @id @default(autoincrement())
+  schoolId        Int
+  networkId       Int
+  joinedAt        DateTime      @default(now())
+  isActive        Boolean       @default(true)
+
+  school          School        @relation(fields: [schoolId], references: [id])
+  network         SchoolNetwork @relation(fields: [networkId], references: [id])
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([schoolId, networkId])
+  @@index([schoolId])
+  @@index([networkId])
+  @@index([isActive])
+}
+
+model AcademicYear {
+  id        Int       @id @default(autoincrement())
+  year      String    // e.g. "2568"
+
+  terms     Term[]
+  sessions  EvaluationSession[]
+  objectives OKRObjective[]
+  actionRatings OKRActionRating[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Term {
+  id             Int            @id @default(autoincrement())
+  name           String         // e.g. "1/2568"
+  startDate      DateTime?
+  endDate        DateTime?
+
+  academicYearId Int
+  academicYear   AcademicYear   @relation(fields: [academicYearId], references: [id])
+
+  sessions       EvaluationSession[]
+  actionRatings  OKRActionRating[]
+
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+model Teacher {
+  id        Int       @id @default(autoincrement())
+  userId    Int       @unique
+  schoolId  Int
+
+  user      User      @relation(fields: [userId], references: [id])
+  school    School    @relation(fields: [schoolId], references: [id])
+
+  // Evaluation sessions where this teacher is the target
+  targetSessions EvaluationSession[] @relation("TargetTeacherSessions")
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Student {
+  id          Int       @id @default(autoincrement())
+  schoolId    Int
+  studentCode String?
+  firstName   String
+  lastName    String
+
+  school      School    @relation(fields: [schoolId], references: [id])
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+//
+// INSTRUMENT & INDICATORS (DEFINITION LAYER)
+//
+
+model Instrument {
+  id          Int                 @id @default(autoincrement())
+  code        String              @unique
+  nameTh      String
+  nameEn      String?
+  description String?
+  type        InstrumentType
+  version     String?
+  isActive    Boolean             @default(true)
+
+  sections    InstrumentSection[]
+  indicators  Indicator[]
+  sessions    EvaluationSession[]
+
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+}
+
+model InstrumentSection {
+  id           Int          @id @default(autoincrement())
+  instrumentId Int
+  nameTh       String
+  nameEn       String?
+  description  String?
+  order        Int
+
+  instrument   Instrument   @relation(fields: [instrumentId], references: [id])
+  indicators   Indicator[]
+
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([instrumentId])
+}
+
+model Indicator {
+  id              Int                @id @default(autoincrement())
+  instrumentId    Int
+  sectionId       Int?
+  itemCode        String?           // e.g. "DERS-01", "THAI-1.1", "Q-L-1"
+  textTh          String
+  textEn          String?
+  scaleType       ScaleType
+  minScore        Int                @default(1)
+  maxScore        Int                @default(5)
+  levelDescriptors Json?             // JSON of level descriptions (1–5 or 1–4)
+  isActive        Boolean            @default(true)
+
+  instrument      Instrument         @relation(fields: [instrumentId], references: [id])
+  section         InstrumentSection? @relation(fields: [sectionId], references: [id])
+
+  responses       EvaluationResponse[]
+  okrKeyResults   OKRKeyResultIndicator[]
+
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([instrumentId])
+  @@index([sectionId])
+}
+
+//
+// EVALUATION (DATA LAYER)
+//
+
+model EvaluationSession {
+  id              Int               @id @default(autoincrement())
+
+  instrumentId    Int
+  schoolId        Int
+  academicYearId  Int
+  termId          Int?
+
+  evaluatorId     Int               // User who evaluates
+  targetTeacherId Int?              // optional: for teacher-focused instruments
+  targetSchoolId  Int?              // reserved: for school-level evaluations (Q-Model)
+
+  status          EvaluationStatus  @default(DRAFT)
+  note            String?
+
+  createdAt       DateTime          @default(now())
+  submittedAt     DateTime?
+
+  instrument      Instrument        @relation(fields: [instrumentId], references: [id])
+  school          School            @relation(fields: [schoolId], references: [id])
+  academicYear    AcademicYear      @relation(fields: [academicYearId], references: [id])
+  term            Term?             @relation(fields: [termId], references: [id])
+
+  evaluator       User              @relation("Evaluator", fields: [evaluatorId], references: [id])
+  targetTeacher   Teacher?          @relation("TargetTeacherSessions", fields: [targetTeacherId], references: [id])
+
+  responses       EvaluationResponse[]
+  evidence        Evidence[]
+
+  @@index([instrumentId])
+  @@index([schoolId])
+  @@index([academicYearId])
+  @@index([termId])
+  @@index([evaluatorId])
+  @@index([targetTeacherId])
+}
+
+model EvaluationResponse {
+  id                 Int               @id @default(autoincrement())
+  evaluationSessionId Int
+  indicatorId        Int
+  score              Int               // เป้าหมายการพัฒนา (Desired State / Target)
+  score2             Int?              // สภาพที่เป็นอยู่ (Current State) - สำหรับ Q-Model
+  comment            String?
+  evidenceUrl        String?
+
+  createdAt          DateTime          @default(now())
+
+  evaluationSession  EvaluationSession @relation(fields: [evaluationSessionId], references: [id])
+  indicator          Indicator         @relation(fields: [indicatorId], references: [id])
+
+  @@unique([evaluationSessionId, indicatorId])
+  @@index([indicatorId])
+}
+
+//
+// OKR & RBM
+//
+
+model OKRObjective {
+  id             Int           @id @default(autoincrement())
+  code           String?
+  title          String
+  description    String?
+  dimension      String?       // e.g. "Q-Leadership", "Q-Learning"
+  status         OKRStatus     @default(DRAFT)
+
+  schoolId       Int?
+  networkId      Int?          // Optional: for network-level OKRs
+  academicYearId Int?
+  ownerId        Int?
+  quarter        Quarter?
+
+  school         School?         @relation(fields: [schoolId], references: [id])
+  network        SchoolNetwork?  @relation("NetworkOKRs", fields: [networkId], references: [id])
+  academicYear   AcademicYear?   @relation(fields: [academicYearId], references: [id])
+  owner          User?           @relation("OKRObjectiveOwner", fields: [ownerId], references: [id])
+
+  keyResults     OKRKeyResult[]
+
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([schoolId])
+  @@index([networkId])
+  @@index([academicYearId])
+  @@index([ownerId])
+  @@index([status])
+  @@index([dimension])
+}
+
+model OKRKeyResult {
+  id           Int        @id @default(autoincrement())
+  objectiveId  Int
+  title        String
+  description  String?
+
+  baseline     Float?
+  target       Float?
+  current      Float?
+  unit         String?    // e.g. "%", "score"
+
+  quarter      Quarter?
+  ownerId      Int?
+
+  objective    OKRObjective @relation(fields: [objectiveId], references: [id])
+  owner        User?        @relation("OKRKeyResultOwner", fields: [ownerId], references: [id])
+
+  actions      OKRAction[]
+  indicators   OKRKeyResultIndicator[]
+
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([objectiveId])
+  @@index([ownerId])
+}
+
+model OKRKeyResultIndicator {
+  keyResultId Int
+  indicatorId Int
+  weight      Float?
+
+  keyResult   OKRKeyResult @relation(fields: [keyResultId], references: [id])
+  indicator   Indicator    @relation(fields: [indicatorId], references: [id])
+
+  @@id([keyResultId, indicatorId])
+  @@index([indicatorId])
+}
+
+model OKRAction {
+  id          Int        @id @default(autoincrement())
+  keyResultId Int
+  title       String
+  description String?
+  order       Int        @default(0)  // For ordering actions
+
+  ownerId     Int?
+  startDate   DateTime?
+  endDate     DateTime?
+  status      ActionStatus @default(PENDING)
+
+  // Action Plan details
+  requiredResources String?  // JSON or text: ทรัพยากรที่ต้องการ
+  risks             String?  // JSON or text: ความเสี่ยง
+  mitigation        String?  // JSON or text: การบรรเทาเสี่ยง
+  expectedOutputs   String?  // JSON or text: ผลลัพธ์ที่คาดหวัง (Outputs)
+  expectedOutcomes  String?  // JSON or text: ผลกระทบที่คาดหวัง (Outcomes)
+  evidenceOfSuccess String?  // JSON or text: หลักฐานความสำเร็จ
+  
+  // Goal/Target for Action Rating (Set Goal)
+  targetCurrentState Int?   // ค่าเป้าหมายสำหรับ Current State (1-5)
+  targetDesiredState Int?   // ค่าเป้าหมายสำหรับ Desired State (1-5)
+
+  keyResult   OKRKeyResult @relation(fields: [keyResultId], references: [id])
+  owner       User?        @relation("OKRActionOwner", fields: [ownerId], references: [id])
+
+  evidence    Evidence[]
+  ratings     OKRActionRating[]
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([keyResultId])
+  @@index([ownerId])
+  @@index([status])
+}
+
+//
+// OKR ACTION RATING (การประเมินแต่ละ Key Action)
+//
+
+model OKRActionRating {
+  id          Int       @id @default(autoincrement())
+  actionId    Int       // FK to OKRAction
+  
+  // การประเมินสภาพที่เป็นอยู่ (Current State / Before)
+  currentState Int      // Rating 1-5: สภาพที่เป็นอยู่ก่อนดำเนินการ
+  
+  // การประเมินสภาพที่คาดหมาย (Desired State / After)
+  desiredState Int      // Rating 1-5: สภาพที่คาดหมายหลังดำเนินการ
+  
+  comment     String?   // ข้อความเพิ่มเติม (optional)
+  
+  // Context
+  evaluatorId Int       // User ที่ประเมิน
+  schoolId    Int?      // โรงเรียนที่ประเมิน (optional)
+  academicYearId Int?   // ปีการศึกษา (optional)
+  termId      Int?      // ภาคเรียน (optional)
+  
+  evaluatedAt DateTime  @default(now()) // วันที่ประเมิน
+  
+  // Relations
+  action      OKRAction      @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  evaluator   User           @relation("ActionRatingEvaluator", fields: [evaluatorId], references: [id])
+  school      School?        @relation(fields: [schoolId], references: [id])
+  academicYear AcademicYear? @relation(fields: [academicYearId], references: [id])
+  term        Term?          @relation(fields: [termId], references: [id])
+  
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  
+  @@index([actionId])
+  @@index([evaluatorId])
+  @@index([schoolId])
+  @@index([academicYearId])
+  @@index([termId])
+  @@index([evaluatedAt])
+}
+
+//
+// EVIDENCE & DASHBOARD CONFIG
+//
+
+model Evidence {
+  id                 Int               @id @default(autoincrement())
+  evaluationSessionId Int?
+  okrActionId        Int?
+  url                String?
+  description        String?
+
+  createdAt          DateTime          @default(now())
+
+  evaluationSession  EvaluationSession? @relation(fields: [evaluationSessionId], references: [id])
+  okrAction          OKRAction?         @relation(fields: [okrActionId], references: [id])
+
+  @@index([evaluationSessionId])
+  @@index([okrActionId])
+}
+
+model DashboardConfig {
+  id        Int      @id @default(autoincrement())
+  schoolId  Int?
+  config    Json
+
+  school    School?  @relation(fields: [schoolId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId])
+}

@@ -1,0 +1,524 @@
+// app/evaluations/new/page.tsx
+// Create new evaluation page
+
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+
+interface Instrument {
+  id: number;
+  code: string;
+  nameTh: string;
+  type: string;
+}
+
+interface School {
+  id: number;
+  code: string;
+  nameTh: string | null;
+}
+
+interface AcademicYear {
+  id: number;
+  year: number;
+}
+
+interface Term {
+  id: number;
+  name: string;
+}
+
+export default function NewEvaluationPage() {
+  const router = useRouter();
+  const [token, setToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+
+  const [instruments, setInstruments] = useState<Instrument[]>([]);
+  const [schools, setSchools] = useState<School[]>([]);
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
+  const [terms, setTerms] = useState<Term[]>([]);
+
+  const [formData, setFormData] = useState({
+    instrumentId: '',
+    schoolId: '',
+    academicYearId: '',
+    termId: '',
+    note: '',
+  });
+
+  useEffect(() => {
+    const storedToken = localStorage.getItem('token');
+    if (!storedToken) {
+      router.push('/login');
+      return;
+    }
+    setToken(storedToken);
+    fetchInitialData(storedToken);
+  }, [router]);
+
+  const fetchInitialData = async (authToken: string) => {
+    try {
+      // Fetch instruments, schools, academic years, terms, and current user in parallel
+      const [instrumentsRes, schoolsRes, academicYearsRes, meRes] = await Promise.all([
+        fetch('/api/instruments', {
+          headers: { 'Authorization': `Bearer ${authToken}` },
+        }),
+        fetch('/api/schools?isActive=true', {
+          headers: { 'Authorization': `Bearer ${authToken}` },
+        }),
+        fetch('/api/academic-years', {
+          headers: { 'Authorization': `Bearer ${authToken}` },
+        }),
+        fetch('/api/auth/me', {
+          headers: { 'Authorization': `Bearer ${authToken}` },
+        }),
+      ]);
+
+      // Get current user ID
+      if (meRes.ok) {
+        const meData = await meRes.json();
+        if (meData.success && meData.data?.id) {
+          setCurrentUserId(meData.data.id);
+        }
+      }
+
+      // Parse responses
+      if (instrumentsRes.ok) {
+        const instrumentsData = await instrumentsRes.json();
+        if (instrumentsData.success && instrumentsData.data?.items) {
+          setInstruments(instrumentsData.data.items);
+        } else if (Array.isArray(instrumentsData)) {
+          setInstruments(instrumentsData);
+        }
+      }
+
+      if (schoolsRes.ok) {
+        const schoolsData = await schoolsRes.json();
+        if (schoolsData.success) {
+          setSchools(schoolsData.data || []);
+        } else if (Array.isArray(schoolsData)) {
+          setSchools(schoolsData);
+        }
+      }
+
+      if (academicYearsRes.ok) {
+        const academicYearsData = await academicYearsRes.json();
+        const years = academicYearsData.success ? (academicYearsData.data || []) : (Array.isArray(academicYearsData) ? academicYearsData : []);
+        
+        if (years.length > 0) {
+          setAcademicYears(years);
+          // Set default academic year
+          setFormData((prev) => ({ ...prev, academicYearId: years[0].id.toString() }));
+          
+          // Fetch terms for the first academic year
+          const firstYearId = years[0].id;
+          try {
+            const termsRes = await fetch(`/api/academic-years/${firstYearId}/terms`, {
+              headers: { 'Authorization': `Bearer ${authToken}` },
+            });
+            if (termsRes.ok) {
+              const termsData = await termsRes.json();
+              // Parse response - handle different response structures
+              let terms = [];
+              if (termsData.success && termsData.data !== undefined) {
+                terms = Array.isArray(termsData.data) ? termsData.data : [];
+                console.log(`Terms response (initial) - Year ID: ${firstYearId}, Found ${terms.length} terms:`, terms);
+              } else if (Array.isArray(termsData)) {
+                terms = termsData;
+                console.log(`Terms response (initial) - Year ID: ${firstYearId}, Array response, Found ${terms.length} terms:`, terms);
+              } else if (termsData.data && Array.isArray(termsData.data)) {
+                terms = termsData.data;
+                console.log(`Terms response (initial) - Year ID: ${firstYearId}, Nested data, Found ${terms.length} terms:`, terms);
+              } else {
+                console.warn('Terms response (initial) - Unexpected structure:', JSON.stringify(termsData, null, 2));
+              }
+              
+              setTerms(terms);
+              if (terms.length === 0) {
+                console.warn(`⚠️ No terms found for academic year ID: ${firstYearId}. Please create terms for this academic year in the database.`);
+              }
+            } else {
+              const errorText = await termsRes.text();
+              console.error('Failed to fetch terms (initial):', termsRes.status, errorText);
+              setTerms([]);
+            }
+          } catch (err) {
+            console.error('Error fetching terms:', err);
+          }
+        } else {
+          setAcademicYears([]);
+        }
+      }
+    } catch (err) {
+      setError('เกิดข้อผิดพลาดในการโหลดข้อมูล');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token || !currentUserId) {
+      setError('กรุณาเข้าสู่ระบบใหม่');
+      return;
+    }
+
+    setError('');
+    setSubmitting(true);
+
+    try {
+      const res = await fetch('/api/evaluations', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          instrumentId: parseInt(formData.instrumentId, 10),
+          schoolId: parseInt(formData.schoolId, 10),
+          academicYearId: parseInt(formData.academicYearId, 10),
+          termId: formData.termId ? parseInt(formData.termId, 10) : null,
+          evaluatorId: currentUserId,
+          note: formData.note || null,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        setError(data.error || 'สร้างการประเมินไม่สำเร็จ');
+        setSubmitting(false);
+        return;
+      }
+
+      // Redirect to evaluation detail page
+      if (data.data?.id) {
+        router.push(`/evaluations/${data.data.id}`);
+      } else {
+        router.push('/evaluations');
+      }
+    } catch (err) {
+      setError('เกิดข้อผิดพลาดในการสร้างการประเมิน');
+      setSubmitting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div style={{ padding: '2rem', textAlign: 'center' }}>
+        <p>กำลังโหลดข้อมูล...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ minHeight: '100vh', padding: '2rem', background: '#f5f5f5' }}>
+      <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+        {/* Header */}
+        <div style={{ marginBottom: '2rem' }}>
+          <Link
+            href="/evaluations"
+            style={{
+              padding: '0.5rem 1rem',
+              background: '#667eea',
+              color: 'white',
+              borderRadius: '0.5rem',
+              textDecoration: 'none',
+              display: 'inline-block',
+              marginBottom: '1rem'
+            }}
+          >
+            ← กลับ
+          </Link>
+          <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#333', marginBottom: '0.5rem' }}>
+            สร้างการประเมินใหม่
+          </h1>
+          <p style={{ color: '#666' }}>สร้าง Evaluation Session ใหม่</p>
+        </div>
+
+        {/* Form */}
+        <div style={{
+          background: 'white',
+          padding: '2rem',
+          borderRadius: '0.5rem',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+        }}>
+          <form onSubmit={handleSubmit}>
+            {error && (
+              <div style={{
+                padding: '1rem',
+                background: '#fee',
+                color: '#c33',
+                borderRadius: '0.5rem',
+                marginBottom: '1.5rem'
+              }}>
+                {error}
+              </div>
+            )}
+
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{
+                display: 'block',
+                marginBottom: '0.5rem',
+                color: '#333',
+                fontWeight: '500'
+              }}>
+                เครื่องมือประเมิน *
+              </label>
+              <select
+                value={formData.instrumentId}
+                onChange={(e) => setFormData({ ...formData, instrumentId: e.target.value })}
+                required
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '1px solid #ddd',
+                  borderRadius: '0.5rem',
+                  fontSize: '1rem',
+                  boxSizing: 'border-box'
+                }}
+              >
+                <option value="">เลือกเครื่องมือประเมิน</option>
+                {instruments.map((inst) => (
+                  <option key={inst.id} value={inst.id}>
+                    {inst.nameTh} ({inst.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{
+                display: 'block',
+                marginBottom: '0.5rem',
+                color: '#333',
+                fontWeight: '500'
+              }}>
+                โรงเรียน *
+              </label>
+              <select
+                value={formData.schoolId}
+                onChange={(e) => setFormData({ ...formData, schoolId: e.target.value })}
+                required
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '1px solid #ddd',
+                  borderRadius: '0.5rem',
+                  fontSize: '1rem',
+                  boxSizing: 'border-box'
+                }}
+              >
+                <option value="">เลือกโรงเรียน</option>
+                {schools.map((school) => (
+                  <option key={school.id} value={school.id}>
+                    {school.nameTh || school.code}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{
+                display: 'block',
+                marginBottom: '0.5rem',
+                color: '#333',
+                fontWeight: '500'
+              }}>
+                ปีการศึกษา *
+              </label>
+              <select
+                value={formData.academicYearId}
+                onChange={async (e) => {
+                  const newYearId = e.target.value;
+                  setFormData({ ...formData, academicYearId: newYearId, termId: '' });
+                  // Fetch terms for selected academic year
+                  if (newYearId && token) {
+                    try {
+                      const termsRes = await fetch(`/api/academic-years/${newYearId}/terms`, {
+                        headers: { 'Authorization': `Bearer ${token}` },
+                      });
+                      if (termsRes.ok) {
+                        const termsData = await termsRes.json();
+                        // Parse response - handle different response structures
+                        let terms = [];
+                        if (termsData.success && termsData.data !== undefined) {
+                          terms = Array.isArray(termsData.data) ? termsData.data : [];
+                          console.log(`Terms response (on change) - Year ID: ${newYearId}, Found ${terms.length} terms:`, terms);
+                        } else if (Array.isArray(termsData)) {
+                          terms = termsData;
+                          console.log(`Terms response (on change) - Year ID: ${newYearId}, Array response, Found ${terms.length} terms:`, terms);
+                        } else if (termsData.data && Array.isArray(termsData.data)) {
+                          terms = termsData.data;
+                          console.log(`Terms response (on change) - Year ID: ${newYearId}, Nested data, Found ${terms.length} terms:`, terms);
+                        } else {
+                          console.warn('Terms response (on change) - Unexpected structure:', JSON.stringify(termsData, null, 2));
+                        }
+                        
+                        setTerms(terms);
+                        if (terms.length === 0) {
+                          console.warn(`⚠️ No terms found for academic year ID: ${newYearId}. Please create terms for this academic year in the database.`);
+                        }
+                      } else {
+                        const errorText = await termsRes.text();
+                        console.error('Failed to fetch terms (on change):', termsRes.status, errorText, 'For year:', newYearId);
+                        setTerms([]);
+                      }
+                    } catch (err) {
+                      console.error('Error fetching terms:', err);
+                      setTerms([]);
+                    }
+                  } else {
+                    setTerms([]);
+                  }
+                }}
+                required
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '1px solid #ddd',
+                  borderRadius: '0.5rem',
+                  fontSize: '1rem',
+                  boxSizing: 'border-box'
+                }}
+              >
+                <option value="">เลือกปีการศึกษา</option>
+                {academicYears.map((year) => (
+                  <option key={year.id} value={year.id}>
+                    {year.year}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{
+                display: 'block',
+                marginBottom: '0.5rem',
+                color: '#333',
+                fontWeight: '500'
+              }}>
+                ภาคเรียน
+              </label>
+              <select
+                value={formData.termId}
+                onChange={(e) => setFormData({ ...formData, termId: e.target.value })}
+                disabled={terms.length === 0}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '1px solid #ddd',
+                  borderRadius: '0.5rem',
+                  fontSize: '1rem',
+                  boxSizing: 'border-box',
+                  backgroundColor: terms.length === 0 ? '#f5f5f5' : 'white',
+                  cursor: terms.length === 0 ? 'not-allowed' : 'pointer'
+                }}
+              >
+                <option value="">
+                  {terms.length === 0 ? 'ไม่มีภาคเรียนสำหรับปีการศึกษานี้' : 'เลือกภาคเรียน (ไม่บังคับ)'}
+                </option>
+                {terms.map((term) => (
+                  <option key={term.id} value={term.id.toString()}>
+                    {term.name}
+                  </option>
+                ))}
+              </select>
+              {terms.length === 0 && formData.academicYearId && (
+                <div style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: '#666' }}>
+                  ⚠️ ไม่พบภาคเรียนสำหรับปีการศึกษาที่เลือก
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{
+                display: 'block',
+                marginBottom: '0.5rem',
+                color: '#333',
+                fontWeight: '500'
+              }}>
+                หมายเหตุ
+              </label>
+              <textarea
+                value={formData.note}
+                onChange={(e) => setFormData({ ...formData, note: e.target.value })}
+                rows={3}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '1px solid #ddd',
+                  borderRadius: '0.5rem',
+                  fontSize: '1rem',
+                  fontFamily: 'inherit',
+                  boxSizing: 'border-box'
+                }}
+                placeholder="หมายเหตุเพิ่มเติม (ไม่บังคับ)"
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button
+                type="submit"
+                disabled={submitting}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  background: submitting ? '#ccc' : '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  fontSize: '1rem',
+                  fontWeight: 'bold',
+                  cursor: submitting ? 'not-allowed' : 'pointer',
+                  transition: 'background 0.2s'
+                }}
+              >
+                {submitting ? 'กำลังสร้าง...' : 'สร้างการประเมิน'}
+              </button>
+              <Link
+                href="/evaluations"
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  background: '#e5e7eb',
+                  color: '#333',
+                  borderRadius: '0.5rem',
+                  textDecoration: 'none',
+                  fontSize: '1rem',
+                  fontWeight: '500',
+                  display: 'inline-block'
+                }}
+              >
+                ยกเลิก
+              </Link>
+            </div>
+          </form>
+        </div>
+
+        <div style={{
+          marginTop: '1.5rem',
+          padding: '1rem',
+          background: '#f9fafb',
+          borderRadius: '0.5rem',
+          fontSize: '0.875rem',
+          color: '#666'
+        }}>
+          <p style={{ margin: 0, marginBottom: '0.5rem' }}>
+            <strong>หมายเหตุ:</strong> ระบบโหลดข้อมูล instruments, schools, academic years, และ terms อัตโนมัติแล้ว
+          </p>
+          {terms.length === 0 && formData.academicYearId && (
+            <p style={{ margin: 0, color: '#ef4444' }}>
+              ⚠️ <strong>คำเตือน:</strong> ไม่พบภาคเรียนสำหรับปีการศึกษาที่เลือก กรุณาสร้างภาคเรียนในระบบก่อน
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
