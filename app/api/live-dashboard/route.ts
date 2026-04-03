@@ -265,7 +265,7 @@ export async function GET(request: NextRequest) {
         where: { instrumentId: qModelInstrument.id },
         orderBy: { id: 'asc' },
         take: 8,
-        select: { id: true, nameTh: true, nameEn: true, minScore: true, maxScore: true },
+        select: { id: true, textTh: true, textEn: true, minScore: true, maxScore: true },
       });
 
       for (const ind of topIndicators) {
@@ -282,8 +282,8 @@ export async function GET(request: NextRequest) {
         const progress = range > 0 ? Math.round(((avg - ind.minScore) / range) * 100) : 0;
 
         indicatorHealth.push({
-          name: ind.nameEn || ind.nameTh,
-          nameTh: ind.nameTh,
+          name: ind.textEn || ind.textTh,
+          nameTh: ind.textTh,
           score: Math.round(avg * 10) / 10,
           max: ind.maxScore,
           progress: Math.max(0, Math.min(100, progress)),
