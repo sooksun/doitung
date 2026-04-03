@@ -197,9 +197,9 @@ export default function NewEvaluationPage() {
         return;
       }
 
-      // Redirect to evaluation detail page
+      // Redirect to assessment form
       if (data.data?.id) {
-        router.push(`/evaluations/${data.data.id}`);
+        router.push(`/assessment/${data.data.id}`);
       } else {
         router.push('/evaluations');
       }

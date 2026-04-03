@@ -195,7 +195,22 @@ export default function EvaluationsPage() {
                     <td style={{ padding: '1rem', color: '#666', fontSize: '0.875rem' }}>
                       {new Date(evaluation.createdAt).toLocaleDateString('th-TH')}
                     </td>
-                    <td style={{ padding: '1rem' }}>
+                    <td style={{ padding: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      {evaluation.status === 'DRAFT' && (
+                        <Link
+                          href={`/assessment/${evaluation.id}`}
+                          style={{
+                            padding: '0.25rem 0.75rem',
+                            background: '#7c3aed',
+                            color: 'white',
+                            borderRadius: '0.25rem',
+                            textDecoration: 'none',
+                            fontSize: '0.875rem'
+                          }}
+                        >
+                          กรอกแบบประเมิน
+                        </Link>
+                      )}
                       <Link
                         href={`/evaluations/${evaluation.id}`}
                         style={{
