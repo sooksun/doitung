@@ -1,0 +1,204 @@
+# Cursor Rules for EQAP Project
+## EduQuality Assessment Platform
+
+---
+
+## 🚫 Critical Rules
+
+### 1. DO NOT DELETE EXISTING FILES
+- **NEVER** delete files that already exist in the project
+- **NEVER** delete documentation files (PRD.md, context.md, plan.md, task.md, etc.)
+- **NEVER** delete database schema or seed files
+- If you need to modify, use search_replace or edit tools, not delete
+
+### 2. CONTINUE CODING EVEN IF CONTEXT RESETS
+- Always read `context.md` before starting any coding task
+- Always read `plan.md` to understand the development phases
+- Always read `task.md` to see what tasks are pending
+- Continue from where the previous session left off
+- Update `context.md`, `plan.md`, and `task.md` after completing tasks
+
+### 3. NEVER USE MOCK DATA
+- **ALWAYS** use Prisma for all database operations
+- **ALWAYS** use seed data from `prisma/seed.ts` for development
+- **NEVER** create mock data in components or API routes
+- **NEVER** use hardcoded data arrays
+
+### 4. USE PRISMA FOR ALL DB OPERATIONS
+- **ALWAYS** use Prisma Client for database queries
+- **ALWAYS** use Prisma types (generated from schema)
+- **NEVER** write raw SQL queries
+- **NEVER** use other ORMs or database libraries
+
+---
+
+## 📋 Development Guidelines
+
+### Code Structure
+- Follow the structure defined in `project-structure.md`
+- Use Next.js 15 App Router (not Pages Router)
+- Use TypeScript (.tsx files only, no .js files)
+- Use Tailwind CSS for styling
+- Keep components modular and reusable
+
+### File Organization
+- Place components in `app/components/` directory
+- Place API routes in `app/api/` directory
+- Place utilities in `app/lib/` directory
+- Place types in `app/types/` directory
+- Place hooks in `app/hooks/` directory
+
+### Naming Conventions
+- Components: PascalCase (e.g., `AssessmentForm.tsx`)
+- Files: kebab-case for pages, PascalCase for components
+- Variables: camelCase
+- Constants: UPPER_SNAKE_CASE
+- API routes: lowercase with hyphens
+
+### TypeScript
+- Use TypeScript strict mode
+- Define types in `app/types/` directory
+- Use Prisma generated types
+- Avoid `any` type
+
+### Styling
+- Use Tailwind CSS classes
+- Follow the color theme: Purple, Blue, White
+- Mobile-first responsive design
+- Use Tailwind utility classes, avoid custom CSS when possible
+
+---
+
+## 🔄 Continuity Workflow
+
+### Before Starting Any Task
+1. **Read `context.md`** - Understand current phase and status
+2. **Read `plan.md`** - Understand the development plan
+3. **Read `task.md`** - See what tasks are pending
+4. **Read `PRD.md`** - Understand system requirements
+5. **Read `project-structure.md`** - Understand file structure
+
+### During Development
+1. Follow the task list in `task.md`
+2. Work on one task at a time
+3. Test your code before moving to next task
+4. Update `context.md` when completing major milestones
+
+### After Completing Tasks
+1. Mark completed tasks in `task.md`
+2. Update `context.md` with last completed items
+3. Update `plan.md` if phase changes
+4. Commit changes with clear commit messages
+
+---
+
+## 🛠️ Technology Stack (STRICT)
+
+### Frontend
+- **Framework:** Next.js 15.0.5 (App Router)
+- **Language:** TypeScript (.tsx only)
+- **Styling:** Tailwind CSS
+- **Charts:** Recharts
+
+### Backend
+- **Runtime:** Node.js
+- **API:** Next.js API Routes
+- **ORM:** Prisma
+- **Database:** MySQL
+
+### Authentication
+- **Method:** Custom JWT
+- **Library:** jsonwebtoken
+- **Password:** bcryptjs
+
+### OS
+- **Target:** Linux Ubuntu
+
+---
+
+## 📝 Code Quality
+
+### Best Practices
+- Write clean, readable code
+- Add comments for complex logic
+- Use meaningful variable names
+- Keep functions small and focused
+- Handle errors properly
+- Validate user inputs
+
+### Error Handling
+- Always use try-catch for async operations
+- Return proper error responses from API routes
+- Show user-friendly error messages
+- Log errors for debugging
+
+### Security
+- Never expose sensitive data
+- Validate all inputs
+- Use parameterized queries (Prisma handles this)
+- Hash passwords with bcrypt
+- Use JWT for authentication
+- Check user permissions before operations
+
+---
+
+## 🧪 Testing Guidelines
+
+### Before Committing
+- Test authentication flow
+- Test API endpoints
+- Test form submissions
+- Test error handling
+- Test responsive design
+
+### Test Data
+- Use seed data from `prisma/seed.ts`
+- Test accounts are documented in `context.md`
+- Never use production data for testing
+
+---
+
+## 📚 Documentation
+
+### Code Documentation
+- Add JSDoc comments for functions
+- Document complex algorithms
+- Explain business logic in comments
+
+### Update Documentation
+- Update `context.md` when completing milestones
+- Update `task.md` when completing tasks
+- Update `plan.md` when changing phases
+- Keep `PRD.md` as reference (don't modify unless necessary)
+
+---
+
+## 🚨 Common Mistakes to Avoid
+
+1. **Don't delete existing files** - Always modify, never delete
+2. **Don't use mock data** - Always use Prisma and seed data
+3. **Don't skip reading context files** - Always read before coding
+4. **Don't use Pages Router** - Use App Router only
+5. **Don't use .js files** - Use .tsx only
+6. **Don't write raw SQL** - Use Prisma always
+7. **Don't hardcode values** - Use environment variables
+8. **Don't ignore errors** - Always handle errors properly
+
+---
+
+## ✅ Checklist Before Submitting Code
+
+- [ ] Read `context.md` before starting
+- [ ] Follow the structure in `project-structure.md`
+- [ ] Use Prisma for all DB operations
+- [ ] No mock data used
+- [ ] TypeScript types defined
+- [ ] Error handling implemented
+- [ ] Responsive design checked
+- [ ] Updated `context.md` if needed
+- [ ] Updated `task.md` if task completed
+- [ ] Code tested and working
+
+---
+
+**Remember:** The goal is to create a maintainable, scalable, and well-documented system that can be continued seamlessly even if Cursor AI stops or restarts.
