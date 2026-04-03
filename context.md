@@ -40,31 +40,29 @@ Student (linked to School)
 ### Assessment Instruments
 ```
 Instrument (type: DERS | THAI_P1_3 | Q_MODEL | OTHER)
-  └── InstrumentSection
-        └── Indicator (minScore, maxScore, levelDescriptors JSON)
+  └── InstrumentSection (nameEn ใช้เป็น dimension key: Q-Leadership | Q-PLC | Q-Learning | Q-Students)
+        └── Indicator (textTh, textEn, code, minScore=1, maxScore=5, scaleType=LIKERT_1_5)
 ```
+
+Q-Model มี 4 sections, 47 indicators:
+- Q-Leadership (L1-L12): 12 ตัวชี้วัด
+- Q-PLC (PLC1-PLC10): 10 ตัวชี้วัด
+- Q-Learning (T1-T12): 12 ตัวชี้วัด
+- Q-Students (S1-S13): 13 ตัวชี้วัด
 
 ### Evaluation Data
 ```
 EvaluationSession (status: DRAFT → SUBMITTED → REVIEWED → ARCHIVED)
   └── EvaluationResponse
-        ├── score  — สภาพที่เป็นอยู่ (Current State)
-        └── score2 — เป้าหมายการพัฒนา (Desired State, Q-Model only)
+        ├── score  — สภาพที่พึงประสงค์ (Desired State) แสดงด้วยสีน้ำเงิน
+        └── score2 — สภาพที่เป็นอยู่ (Current State) แสดงด้วยสีม่วง
 ```
-
-### OKR / RBM
-```
-OKRObjective (dimension: Q-Leadership | Q-PLC | Q-Learning | Q-Goal | Q-Info | Q-Network)
-  └── OKRKeyResult (baseline, target, current)
-        ├── OKRKeyResultIndicator ─── Indicator (weighted link)
-        └── OKRAction (targetDesiredState)
-              └── OKRActionRating (currentState, evaluatedAt)
-```
+⚠️ หมายเหตุ: score = พึงประสงค์ (เป้าหมาย), score2 = เป็นอยู่ (ปัจจุบัน) — อย่าสับสน
 
 ### Configuration
 ```
 DashboardConfig (per-school JSON customization)
-Evidence (attachments for EvaluationSession | OKRAction)
+Evidence (attachments for EvaluationSession)
 ```
 
 ---
@@ -96,33 +94,6 @@ POST /api/evaluations/:id/responses   — Save/update responses
 GET  /api/evaluations/:id/responses   — Get responses
 ```
 
-### OKRs
-```
-GET  /api/okrs/objectives                        — List
-POST /api/okrs/objectives                        — Create
-GET  /api/okrs/objectives/:id                    — Detail
-POST /api/okrs/objectives/:id/key-results        — Create KR
-GET  /api/okrs/objectives/:id/key-results        — List KRs
-GET  /api/okrs/key-results/:id                   — KR detail
-POST /api/okrs/key-results/:id/indicators        — Link indicators
-GET  /api/okrs/key-results/:id/indicators        — Linked indicators
-GET  /api/okrs/key-results/:id/actions           — Actions for KR
-POST /api/okrs/actions/:id                       — Create/update action
-GET  /api/okrs/actions/:id                       — Action detail
-POST /api/okrs/actions/:id/ratings               — Create rating
-GET  /api/okrs/actions/:id/ratings               — Ratings list
-GET  /api/okrs/actions/:id/ratings/:rId          — Specific rating
-GET  /api/indicators/:id/goal-progress           — Goal progress calc
-```
-
-### Dashboard
-```
-GET /api/dashboard/summary      — KPI cards (completion rate, quality index)
-GET /api/dashboard/q-model      — Q-Model progress by dimension
-GET /api/dashboard/okr-progress — OKR progress tracking
-GET /api/dashboard/spider-graph — Spider chart data (current vs target)
-```
-
 ### Networks & Reference
 ```
 GET  /api/networks              — List networks
@@ -148,50 +119,26 @@ GET /api/live-dashboard
 
 ---
 
-## Core Calculation Logic (lib/rbm-calculator.ts)
+## Core Calculation Logic (Live Dashboard)
 
-### 1. Indicator Percentage
+### Indicator Percentage
 ```
 percent = ((avgScore - minScore) / (maxScore - minScore)) * 100
 Clipped to [0, 100]
 ```
 
-### 2. KR Current Value
+### Traffic Light Status
 ```
-current = SUM(weight_i * percent_i) / SUM(weight_i)
-Weight defaults to 1.0 if not set
-```
-
-### 3. KR Progress
-```
-progress = ((current - baseline) / (target - baseline)) * 100
-Clipped to [0, 120]
+Green  → percent >= 90%
+Yellow → percent >= 70%
+Red    → percent < 70%
 ```
 
-### 4. Traffic Light Status
-```
-Green  → progress >= 90%
-Yellow → progress >= 70%
-Red    → progress < 70%
-```
-
-### 5. Objective Progress
-```
-objectiveProgress = AVG(progress of all KRs)
-```
-
-### 6. Spider Graph Data (Q-Model)
-- ดึง OKRObjective แต่ละ dimension
-- หา OKRAction → OKRActionRating ล่าสุด
-- AVG(currentState) per dimension = สภาพที่เป็นอยู่
-- AVG(targetDesiredState) per dimension = เป้าหมายการพัฒนา
-- Scale: 1-5
-
-### 7. Q-Model Dimension Progress
-- ดึง Q_MODEL instrument → sections → indicators
-- Batch aggregate avgScore per indicator
-- normalize ต่อ indicator → AVG per dimension = current
-- Target มาจาก OKR Key Results
+### Q-Model Dimension Score (Live Dashboard)
+- ดึง Q_MODEL instrument → sections (match by nameEn) → indicators
+- Aggregate avgScore per indicator จาก EvaluationResponse (SUBMITTED sessions)
+- normalize → AVG per dimension = percent score
+- overallQualityIndex = AVG ของทุก dimension
 
 ---
 
@@ -236,16 +183,10 @@ objectiveProgress = AVG(progress of all KRs)
 | `/live-dashboard` | **[ใหม่]** Real-time display screen for projector/TV |
 | `/evaluations` | List evaluation sessions |
 | `/evaluations/new` | Create new evaluation session |
-| `/evaluations/:id` | Enter responses for session |
+| `/evaluations/:id` | Detail view of session |
+| `/assessment/:id` | **[ใหม่]** กรอกแบบประเมิน Q-Model (Likert 1-5, tabs per section, auto-save) |
 | `/instruments` | List assessment instruments |
 | `/instruments/:id` | Instrument detail with sections/indicators |
-| `/okrs` | OKR objectives list |
-| `/okrs/new` | Create objective |
-| `/okrs/:id` | Objective with key results |
-| `/okrs/kr/:id` | Key result with actions |
-| `/okrs/kr/:id/set-goal` | Set target values |
-| `/okrs/actions/:id` | Action with rating history |
-| `/reports` | Summary reports |
 
 ---
 
@@ -316,7 +257,8 @@ NODE_ENV="development"
 - Inline CSS ใช้ทั่วทั้งระบบ (ไม่มี CSS files แยก)
 - Thai font: Kanit (Google Fonts) ใช้ใน layout.tsx
 - Spider chart domain: [0, 5] (คะแนน 1-5)
-- Q-Model Dimensions: Q-Leadership, Q-PLC, Q-Learning, Q-Goal, Q-Info, Q-Network
+- Q-Model Dimensions (ที่ใช้จริง 4 มิติ): Q-Leadership, Q-PLC, Q-Learning, Q-Students
+  (Q-Goal, Q-Info, Q-Network เป็นมิติเก่าที่ไม่ใช้แล้ว — ลบออกจาก instrument แล้ว)
 - **schema.prisma อยู่ที่ root level** ไม่ใช่ `prisma/schema.prisma` — ต้องระบุ `--schema /app/schema.prisma` เสมอเมื่อรัน prisma commands ใน Docker
 - Indicator model ใช้ field `textTh` / `textEn` (ไม่ใช่ `nameTh` / `nameEn`)
 - Indicator model ไม่มี field `orderIndex` — ใช้ `id` แทนเมื่อ orderBy
@@ -350,13 +292,13 @@ Host:     eqap_db (Docker internal hostname)
 Database: okrsdoitung
 User:     doitung_user
 Password: doitung_pass
-Root PW:  rootpassword
+Root PW:  l6-lyo9N  ← รหัสจริงบน server (ไม่ใช่ rootpassword)
 DATABASE_URL: mysql://doitung_user:doitung_pass@eqap_db:3306/okrsdoitung
 ```
 
-> **สำคัญ:** เชื่อมต่อ MariaDB ต้องใช้ `-h 127.0.0.1` (TCP) ไม่ใช่ `localhost` (Unix socket)
+> **สำคัญ:** ใช้ `mariadb` ไม่ใช่ `mysql` (Alpine-based container)
 > ```bash
-> docker exec eqap_db mariadb -h 127.0.0.1 -u root -prootpassword -e "SHOW DATABASES;"
+> docker exec eqap_db mariadb -u root -pl6-lyo9N okrsdoitung -e "SHOW TABLES;"
 > ```
 
 ### Network
@@ -399,21 +341,39 @@ bash deploy.sh
 | `Authentication failed` | Volume เก่ายังอยู่ ไม่มี user ใหม่ | รัน `CREATE USER` / `GRANT` ผ่าน mariadb CLI |
 | `Access denied for root@localhost` | Unix socket auth | ใช้ `-h 127.0.0.1` (TCP) |
 | `schema.prisma: file not found` | schema อยู่ที่ root ไม่ใช่ prisma/ | copy ใน Dockerfile + `--schema /app/schema.prisma` |
+| 103 indicators (ซ้ำ) | seed รันหลายครั้ง + code เปลี่ยน (Q-Leadership-01 → L1) ทำให้ findFirst ไม่เจอ | SQL cleanup ตรงๆ แล้ว re-seed: ดู "SQL Cleanup" ด้านล่าง |
+| `mysql: command not found` | Container ใช้ MariaDB ไม่ใช่ MySQL | ใช้ `mariadb` แทน `mysql` |
+| `Table 'eqap_db.Instrument' does not exist` | Database จริงชื่อ `okrsdoitung` ไม่ใช่ `eqap_db` | ระบุ `okrsdoitung` ใน SQL command |
+
+### SQL Cleanup (กรณี indicators ซ้ำ)
+```bash
+# ลบ instrument Q_MODEL ทั้งหมดพร้อม cascade
+docker exec eqap_db mariadb -u root -pl6-lyo9N okrsdoitung -e "
+SET FOREIGN_KEY_CHECKS=0;
+DELETE er FROM EvaluationResponse er
+  JOIN EvaluationSession es ON er.evaluationSessionId = es.id
+  WHERE es.instrumentId IN (SELECT id FROM Instrument WHERE type='Q_MODEL');
+DELETE FROM EvaluationSession WHERE instrumentId IN (SELECT id FROM Instrument WHERE type='Q_MODEL');
+DELETE FROM Indicator WHERE instrumentId IN (SELECT id FROM Instrument WHERE type='Q_MODEL');
+DELETE FROM InstrumentSection WHERE instrumentId IN (SELECT id FROM Instrument WHERE type='Q_MODEL');
+DELETE FROM Instrument WHERE type='Q_MODEL';
+SET FOREIGN_KEY_CHECKS=1;
+"
+# แล้ว re-seed
+docker exec eqap_app node scripts/seed-production.js
+```
 
 ---
 
 ## แผนพัฒนาต่อ (Roadmap)
 
-### Phase ปัจจุบัน: Live Dashboard ✅ Deploy แล้ว
+### Phase ปัจจุบัน: Assessment + Live Dashboard ✅ Deploy แล้ว
 - [x] วิเคราะห์ระบบและเขียน context.md
 - [x] สร้าง `/api/live-dashboard` endpoint (รองรับ scope filter)
 - [x] สร้าง `/live-dashboard` page (Spider chart ใหญ่ + real-time polling)
 - [x] Components: LiveSpiderChart, ScopeSelector, AnimatedNumber, LiveIndicator
 - [x] Deploy บน production server (https://doitung.cnppai.com)
+- [x] สร้าง `/assessment/[id]` page — กรอกแบบประเมิน Q-Model (Likert 1-5, auto-save, tabs per section)
+- [x] Seed script ใช้ 47 indicators จริงจาก SQL dump (4 groups: L1-L12, PLC1-PLC10, T1-T12, S1-S13)
+- [x] แก้ปัญหา 103 indicators ซ้ำด้วย SQL cleanup + force-clean ใน seed script
 
-### Phase ถัดไป (Future)
-- เพิ่ม WebSocket สำหรับ push notification เมื่อมีการ submit
-- Export รายงานเป็น PDF
-- Mobile-responsive สำหรับครูประเมินบน tablet
-- Multi-language support (TH/EN)
-- Role-based dashboard customization
