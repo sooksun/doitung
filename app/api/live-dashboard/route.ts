@@ -7,12 +7,10 @@ import { prisma } from '@/lib/prisma';
 import { successResponse, handleApiError, parseIntParam } from '@/lib/api-utils';
 
 const Q_DIMENSIONS = [
-  { dimension: 'Q-Leadership', labelTh: 'Q-Leadership (ภาวะผู้นำ)', order: 1 },
+  { dimension: 'Q-Leadership', labelTh: 'Q-Leadership (ผู้บริหาร)', order: 1 },
   { dimension: 'Q-PLC', labelTh: 'Q-PLC (ชุมชนแห่งการเรียนรู้)', order: 2 },
   { dimension: 'Q-Learning', labelTh: 'Q-Learning (การจัดการเรียนรู้)', order: 3 },
-  { dimension: 'Q-Goal', labelTh: 'Q-Goal (เป้าหมายโรงเรียน)', order: 4 },
-  { dimension: 'Q-Info', labelTh: 'Q-Info (ระบบสารสนเทศ)', order: 5 },
-  { dimension: 'Q-Network', labelTh: 'Q-Network (เครือข่าย)', order: 6 },
+  { dimension: 'Q-Students', labelTh: 'Q-Students (ด้านนักเรียน)', order: 4 },
 ];
 
 export async function GET(request: NextRequest) {
@@ -188,7 +186,7 @@ export async function GET(request: NextRequest) {
       });
 
       for (const dim of Q_DIMENSIONS) {
-        const section = qModelInstrument.sections.find((s) => s.nameTh.includes(dim.dimension));
+        const section = qModelInstrument.sections.find((s) => s.nameEn === dim.dimension || s.nameTh.includes(dim.dimension));
         if (!section) {
           dimensionScores.push({ dimension: dim.dimension, labelTh: dim.labelTh, percent: 0, status: 'red' });
           continue;
