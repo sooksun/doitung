@@ -28,7 +28,7 @@ done
 echo "  Database is reachable!"
 
 echo "[2/4] Running database migrations..."
-npx prisma db push --accept-data-loss 2>&1 || echo "  Migration warning (continuing)"
+npx prisma db push --schema /app/schema.prisma --accept-data-loss 2>&1 || echo "  Migration warning (continuing)"
 
 echo "[3/4] Checking seed data..."
 SEED_CHECK=$(node -e "
