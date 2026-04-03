@@ -79,7 +79,7 @@ async function main() {
 
   // Network members
   await prisma.schoolNetworkMember.upsert({
-    where: { networkId_schoolId: { networkId: network1.id, schoolId: school1.id } },
+    where: { schoolId_networkId: { schoolId: school1.id, networkId: network1.id } },
     update: {},
     create: { networkId: network1.id, schoolId: school1.id, isActive: true },
   });
