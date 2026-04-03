@@ -263,7 +263,7 @@ export async function GET(request: NextRequest) {
     if (qModelInstrument) {
       const topIndicators = await prisma.indicator.findMany({
         where: { instrumentId: qModelInstrument.id },
-        orderBy: { orderIndex: 'asc' },
+        orderBy: { id: 'asc' },
         take: 8,
         select: { id: true, nameTh: true, nameEn: true, minScore: true, maxScore: true },
       });
