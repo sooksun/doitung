@@ -113,16 +113,20 @@ async function main() {
   });
 
   // --- Q-MODEL INSTRUMENT ---
-  // Clear old Q-MODEL data if no evaluation sessions exist (fresh setup)
-  const oldQModel = await prisma.instrument.findFirst({ where: { type: 'Q_MODEL' } });
-  if (oldQModel) {
-    const sessionCount = await prisma.evaluationSession.count({ where: { instrumentId: oldQModel.id } });
-    if (sessionCount === 0) {
-      await prisma.indicator.deleteMany({ where: { instrumentId: oldQModel.id } });
-      await prisma.instrumentSection.deleteMany({ where: { instrumentId: oldQModel.id } });
-      await prisma.instrument.delete({ where: { id: oldQModel.id } });
+  // Force-clean ALL Q-MODEL data (cascade: responses → sessions → indicators → sections → instrument)
+  const oldQModels = await prisma.instrument.findMany({ where: { type: 'Q_MODEL' } });
+  for (const old of oldQModels) {
+    const sessions = await prisma.evaluationSession.findMany({ where: { instrumentId: old.id }, select: { id: true } });
+    const sessionIds = sessions.map(s => s.id);
+    if (sessionIds.length > 0) {
+      await prisma.evaluationResponse.deleteMany({ where: { evaluationSessionId: { in: sessionIds } } });
+      await prisma.evaluationSession.deleteMany({ where: { id: { in: sessionIds } } });
     }
+    await prisma.indicator.deleteMany({ where: { instrumentId: old.id } });
+    await prisma.instrumentSection.deleteMany({ where: { instrumentId: old.id } });
+    await prisma.instrument.delete({ where: { id: old.id } });
   }
+  console.log('✓ Cleaned old Q-MODEL data');
 
   const qInstrument = await prisma.instrument.upsert({
     where: { code: 'Q-MODEL-2568' },
