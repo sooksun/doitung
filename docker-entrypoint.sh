@@ -30,34 +30,8 @@ echo "  Database is reachable!"
 echo "[2/4] Running database migrations..."
 npx prisma db push --schema /app/schema.prisma --accept-data-loss 2>&1 || echo "  Migration warning (continuing)"
 
-echo "[3/4] Checking seed data..."
-SEED_CHECK=$(node -e "
-  const { PrismaClient } = require('@prisma/client');
-  const p = new PrismaClient();
-  p.user.count().then(n => { console.log(n); p.\$disconnect(); }).catch(() => { console.log('0'); p.\$disconnect(); });
-" 2>/dev/null || echo "0")
-
-if [ -z "$SEED_CHECK" ] || [ "$SEED_CHECK" = "0" ]; then
-  echo "  Seeding initial data..."
-  node -e "
-    const { PrismaClient } = require('@prisma/client');
-    const bcrypt = require('bcryptjs');
-    const prisma = new PrismaClient();
-    async function seed() {
-      const hash = await bcrypt.hash('Admin123', 10);
-      await prisma.user.upsert({
-        where: { email: 'admin@local' },
-        update: {},
-        create: { email: 'admin@local', password: hash, name: 'Administrator', isActive: true }
-      });
-      console.log('Default admin created: admin@local / Admin123');
-      await prisma.\$disconnect();
-    }
-    seed().catch(e => { console.error(e); process.exit(1); });
-  " || echo "  Seed skipped"
-else
-  echo "  Data exists ($SEED_CHECK users), skipping seed"
-fi
+echo "[3/4] Seeding initial data..."
+node /app/scripts/seed-production.js || echo "  Seed warning (continuing)"
 
 echo "[4/4] Starting Next.js on port ${PORT:-9901}..."
 echo "====================================="
