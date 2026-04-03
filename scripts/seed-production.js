@@ -89,7 +89,7 @@ async function main() {
   let academicYear = await prisma.academicYear.findFirst({ where: { year: '2568' } });
   if (!academicYear) {
     academicYear = await prisma.academicYear.create({
-      data: { year: '2568', startDate: new Date('2025-05-01'), endDate: new Date('2026-04-30'), isActive: true },
+      data: { year: '2568' },
     });
   }
 
