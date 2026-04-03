@@ -85,31 +85,31 @@ async function main() {
   });
 
   // --- ACADEMIC YEAR & TERM ---
-  const academicYear = await prisma.academicYear.upsert({
-    where: { year: '2568' },
-    update: {},
-    create: { year: '2568', startDate: new Date('2025-05-01'), endDate: new Date('2026-04-30'), isActive: true },
-  });
+  // AcademicYear.year is not @unique, so use findFirst + create
+  let academicYear = await prisma.academicYear.findFirst({ where: { year: '2568' } });
+  if (!academicYear) {
+    academicYear = await prisma.academicYear.create({
+      data: { year: '2568', startDate: new Date('2025-05-01'), endDate: new Date('2026-04-30'), isActive: true },
+    });
+  }
 
-  const term1 = await prisma.term.upsert({
-    where: { academicYearId_termNumber: { academicYearId: academicYear.id, termNumber: 1 } },
-    update: {},
-    create: {
-      academicYearId: academicYear.id, termNumber: 1,
-      startDate: new Date('2025-05-16'), endDate: new Date('2025-10-10'), isActive: true,
-    },
-  });
+  // Term has no termNumber field — use name as identifier
+  let term1 = await prisma.term.findFirst({ where: { academicYearId: academicYear.id, name: '1/2568' } });
+  if (!term1) {
+    term1 = await prisma.term.create({
+      data: {
+        academicYearId: academicYear.id, name: '1/2568',
+        startDate: new Date('2025-05-16'), endDate: new Date('2025-10-10'),
+      },
+    });
+  }
   console.log('✓ Academic year and term created');
 
   // --- TEACHER (linked to user + school) ---
   const teacher = await prisma.teacher.upsert({
     where: { userId: adminUser.id },
     update: {},
-    create: {
-      userId: adminUser.id, schoolId: school1.id,
-      teacherCode: 'T-001', titleTh: 'นาย', firstNameTh: 'ผู้ดูแล', lastNameTh: 'ระบบ',
-      isActive: true,
-    },
+    create: { userId: adminUser.id, schoolId: school1.id },
   });
 
   // --- Q-MODEL INSTRUMENT ---
@@ -134,11 +134,14 @@ async function main() {
 
   for (let d = 0; d < dimensions.length; d++) {
     const dim = dimensions[d];
-    const section = await prisma.instrumentSection.upsert({
-      where: { instrumentId_nameTh: { instrumentId: qInstrument.id, nameTh: dim.th } },
-      update: {},
-      create: { instrumentId: qInstrument.id, nameTh: dim.th, nameEn: dim.key, order: d + 1 },
+    let section = await prisma.instrumentSection.findFirst({
+      where: { instrumentId: qInstrument.id, nameTh: dim.th },
     });
+    if (!section) {
+      section = await prisma.instrumentSection.create({
+        data: { instrumentId: qInstrument.id, nameTh: dim.th, nameEn: dim.key, order: d + 1 },
+      });
+    }
 
     for (let i = 0; i < dim.items.length; i++) {
       const itemCode = `${dim.key}-${String(i + 1).padStart(2, '0')}`;
