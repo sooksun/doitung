@@ -1,0 +1,90 @@
+name: doitung
+
+networks:
+  eqap_network:
+    name: doitung_eqap_network
+    driver: bridge
+
+volumes:
+  mysql_data:
+    name: doitung_mysql_data
+    driver: local
+  uploads_data:
+    name: doitung_uploads_data
+    driver: local
+
+services:
+
+  # ─── MariaDB Database ───────────────────────────────────────────
+  db:
+    image: mariadb:11.4
+    container_name: eqap_db
+    hostname: eqap_db
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+    environment:
+      MARIADB_ROOT_PASSWORD: rootpassword
+      MARIADB_DATABASE: okrsdoitung
+      MARIADB_USER: doitung_user
+      MARIADB_PASSWORD: doitung_pass
+      TZ: Asia/Bangkok
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - eqap_network
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping -h 127.0.0.1 -u root -prootpassword --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    cpu_shares: 90
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ─── Next.js Application ────────────────────────────────────────
+  app:
+    build:
+      context: /DATA/AppData/www/doitung
+      dockerfile: Dockerfile
+    container_name: eqap_app
+    hostname: eqap_app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql://doitung_user:doitung_pass@eqap_db:3306/okrsdoitung
+      JWT_SECRET: 5f2b8c1b49e3f6ab7d9c0e4dfe1a92c13af4b8a2de76c9f05d17bc403fb9217a
+      JWT_EXPIRES_IN: 7d
+      NEXT_PUBLIC_APP_URL: https://doitung.cnppai.com
+      NODE_ENV: production
+      PORT: 9901
+      HOSTNAME: 0.0.0.0
+      TZ: Asia/Bangkok
+    ports:
+      - "9901:9901"
+    volumes:
+      - uploads_data:/app/public/uploads
+    networks:
+      - eqap_network
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    cpu_shares: 90
+    deploy:
+      resources:
+        limits:
+          memory: 1024M

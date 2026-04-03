@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Server Actions are enabled by default in Next.js 14+
+  output: 'standalone', // Required for Docker deployment
 }
 
 module.exports = nextConfig
