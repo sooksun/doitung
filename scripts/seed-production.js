@@ -151,7 +151,7 @@ async function main() {
           data: {
             instrumentId: qInstrument.id, sectionId: section.id, itemCode,
             textTh: dim.items[i], textEn: dim.items[i],
-            scaleType: 'LIKERT_5', minScore: 1, maxScore: 5, isActive: true,
+            scaleType: 'LIKERT_1_5', minScore: 1, maxScore: 5, isActive: true,
           },
         });
       }
