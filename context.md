@@ -317,16 +317,99 @@ NODE_ENV="development"
 - Thai font: Kanit (Google Fonts) ใช้ใน layout.tsx
 - Spider chart domain: [0, 5] (คะแนน 1-5)
 - Q-Model Dimensions: Q-Leadership, Q-PLC, Q-Learning, Q-Goal, Q-Info, Q-Network
+- **schema.prisma อยู่ที่ root level** ไม่ใช่ `prisma/schema.prisma` — ต้องระบุ `--schema /app/schema.prisma` เสมอเมื่อรัน prisma commands ใน Docker
+- Indicator model ใช้ field `textTh` / `textEn` (ไม่ใช่ `nameTh` / `nameEn`)
+- Indicator model ไม่มี field `orderIndex` — ใช้ `id` แทนเมื่อ orderBy
+
+---
+
+## Production Server
+
+| รายละเอียด | ค่า |
+|-----------|-----|
+| OS | Linux Ubuntu |
+| Server IP | 203.172.184.47 |
+| App Path | `/DATA/AppData/www/doitung` |
+| Public URL | https://doitung.cnppai.com |
+| Alt URL | http://203.172.184.47:9901 |
+| Port | 9901 |
+
+---
+
+## Docker Deployment
+
+### Containers
+| Container | Image | Port | Status |
+|-----------|-------|------|--------|
+| `eqap_app` | `doitung-app` | 9901 | Next.js app |
+| `eqap_db` | `mariadb:11.4` | 3306 (internal) | Database |
+
+### Database Credentials (Production)
+```
+Host:     eqap_db (Docker internal hostname)
+Database: okrsdoitung
+User:     doitung_user
+Password: doitung_pass
+Root PW:  rootpassword
+DATABASE_URL: mysql://doitung_user:doitung_pass@eqap_db:3306/okrsdoitung
+```
+
+> **สำคัญ:** เชื่อมต่อ MariaDB ต้องใช้ `-h 127.0.0.1` (TCP) ไม่ใช่ `localhost` (Unix socket)
+> ```bash
+> docker exec eqap_db mariadb -h 127.0.0.1 -u root -prootpassword -e "SHOW DATABASES;"
+> ```
+
+### Network
+```
+Network name: doitung_eqap_network
+Driver: bridge
+```
+
+### Volumes
+```
+doitung_mysql_data   — MariaDB data
+doitung_uploads_data — App file uploads (/app/public/uploads)
+```
+
+### Deploy Script
+```bash
+cd /DATA/AppData/www/doitung
+git checkout -- docker-entrypoint.sh   # reset local changes
+git pull origin main
+bash deploy.sh
+```
+
+### ไฟล์ Docker
+| ไฟล์ | หน้าที่ |
+|------|---------|
+| `Dockerfile` | Multi-stage build: deps → builder → runner (node:20-alpine) |
+| `docker-entrypoint.sh` | Startup: TCP DB check → prisma db push → seed → node server.js |
+| `docker-compose.yml` | Services: app + MariaDB + networks + volumes |
+| `deploy.sh` | One-command: git pull → stop → remove image → build → up |
+| `.dockerignore` | Exclude node_modules/.next/.env (ลด context จาก 700MB → <10MB) |
+
+### Known Issues & Fixes ที่เคยพบ
+| ปัญหา | สาเหตุ | วิธีแก้ |
+|-------|--------|---------|
+| Build context 700MB | ไม่มี `.dockerignore` | เพิ่ม `.dockerignore` exclude node_modules |
+| `orderIndex does not exist` | field ไม่มีใน Indicator schema | ใช้ `id` แทน |
+| `nameTh does not exist` | field ชื่อผิด | ใช้ `textTh`/`textEn` |
+| `syntax error: unexpected redirection` | `<<<` ใช้ไม่ได้ใน Alpine sh | ใช้ `echo \| pipe` แทน |
+| `Cannot connect to database` | Prisma `db execute` ใช้เป็น health check ไม่ดี | ใช้ Node.js TCP socket check แทน |
+| `Authentication failed` | Volume เก่ายังอยู่ ไม่มี user ใหม่ | รัน `CREATE USER` / `GRANT` ผ่าน mariadb CLI |
+| `Access denied for root@localhost` | Unix socket auth | ใช้ `-h 127.0.0.1` (TCP) |
+| `schema.prisma: file not found` | schema อยู่ที่ root ไม่ใช่ prisma/ | copy ใน Dockerfile + `--schema /app/schema.prisma` |
 
 ---
 
 ## แผนพัฒนาต่อ (Roadmap)
 
-### Phase ปัจจุบัน: Live Dashboard
+### Phase ปัจจุบัน: Live Dashboard ✅ Deploy แล้ว
 - [x] วิเคราะห์ระบบและเขียน context.md
 - [x] สร้าง `/api/live-dashboard` endpoint (รองรับ scope filter)
 - [x] สร้าง `/live-dashboard` page (Spider chart ใหญ่ + real-time polling)
 - [x] Components: LiveSpiderChart, ScopeSelector, AnimatedNumber, LiveIndicator
+- [x] Deploy บน production server (https://doitung.cnppai.com)
 
 ### Phase ถัดไป (Future)
 - เพิ่ม WebSocket สำหรับ push notification เมื่อมีการ submit
