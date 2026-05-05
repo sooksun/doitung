@@ -1,12 +1,14 @@
 // app/dashboard/page.tsx
-// Dashboard page - Overview and statistics
+// Dashboard page - Overview and statistics with real-time polling (5s)
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import SpiderChart, { SpiderChartDataPoint } from './components/SpiderChart';
+
+const POLL_INTERVAL = 5000;
 
 interface DashboardSummary {
   completionRate: number;
@@ -38,53 +40,78 @@ export default function DashboardPage() {
   const [spiderData, setSpiderData] = useState<SpiderChartDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [paused, setPaused] = useState(false);
+  const [secondsAgo, setSecondsAgo] = useState(0);
+  const lastFetchRef = useRef<number>(Date.now());
+  const pollRef = useRef<NodeJS.Timeout | null>(null);
+  const tickRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    const storedToken = localStorage.getItem('token');
-    if (!storedToken) {
-      router.push('/login');
-      return;
-    }
-    setToken(storedToken);
-    fetchDashboardData(storedToken);
-  }, [router]);
-
-  const fetchDashboardData = async (authToken: string) => {
+  const fetchDashboardData = useCallback(async (authToken: string, isInitial = false) => {
     try {
       const [summaryRes, qModelRes, spiderRes] = await Promise.all([
-        fetch('/api/dashboard/summary', {
-          headers: { 'Authorization': `Bearer ${authToken}` },
-        }),
-        fetch('/api/dashboard/q-model', {
-          headers: { 'Authorization': `Bearer ${authToken}` },
-        }),
-        fetch('/api/dashboard/spider-graph', {
-          headers: { 'Authorization': `Bearer ${authToken}` },
-        }),
+        fetch('/api/dashboard/summary', { headers: { Authorization: `Bearer ${authToken}` } }),
+        fetch('/api/dashboard/q-model', { headers: { Authorization: `Bearer ${authToken}` } }),
+        fetch('/api/dashboard/spider-graph', { headers: { Authorization: `Bearer ${authToken}` } }),
       ]);
 
+      if (summaryRes.status === 401 || qModelRes.status === 401 || spiderRes.status === 401) {
+        localStorage.removeItem('token');
+        router.push('/login');
+        return;
+      }
+
       if (!summaryRes.ok || !qModelRes.ok || !spiderRes.ok) {
-        if (summaryRes.status === 401 || qModelRes.status === 401 || spiderRes.status === 401) {
-          localStorage.removeItem('token');
-          router.push('/login');
-          return;
-        }
         throw new Error('Failed to fetch dashboard data');
       }
 
       const summaryData = await summaryRes.json();
       const qModelData = await qModelRes.json();
-      const spiderData = await spiderRes.json();
+      const spiderJson = await spiderRes.json();
 
       if (summaryData.success) setSummary(summaryData.data);
       if (qModelData.success) setQModel(qModelData.data);
-      if (spiderData.success) setSpiderData(spiderData.data.dataPoints || []);
+      if (spiderJson.success) setSpiderData(spiderJson.data.dataPoints || []);
+
+      lastFetchRef.current = Date.now();
+      setSecondsAgo(0);
+      if (isInitial) setError('');
     } catch (err) {
-      setError('เกิดข้อผิดพลาดในการโหลดข้อมูล');
+      if (isInitial) setError('เกิดข้อผิดพลาดในการโหลดข้อมูล');
+      // silent on poll — keep showing last good data
     } finally {
-      setLoading(false);
+      if (isInitial) setLoading(false);
     }
-  };
+  }, [router]);
+
+  // Auth + initial fetch
+  useEffect(() => {
+    const stored = localStorage.getItem('token');
+    if (!stored) {
+      router.push('/login');
+      return;
+    }
+    setToken(stored);
+    fetchDashboardData(stored, true);
+  }, [router, fetchDashboardData]);
+
+  // Polling
+  useEffect(() => {
+    if (!token || paused) return;
+    pollRef.current = setInterval(() => fetchDashboardData(token), POLL_INTERVAL);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [token, paused, fetchDashboardData]);
+
+  // "X seconds ago" ticker
+  useEffect(() => {
+    tickRef.current = setInterval(() => {
+      setSecondsAgo(Math.floor((Date.now() - lastFetchRef.current) / 1000));
+    }, 1000);
+    return () => {
+      if (tickRef.current) clearInterval(tickRef.current);
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -107,14 +134,48 @@ export default function DashboardPage() {
       <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
         {/* Header */}
         <div style={{ marginBottom: '2rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
             <div>
               <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#333', marginBottom: '0.5rem' }}>
                 📊 Dashboard
               </h1>
-              <p style={{ color: '#666' }}>ภาพรวมและสถิติระบบ</p>
+              <p style={{ color: '#666' }}>ภาพรวมและสถิติระบบ — อัปเดตแบบเรียลไทม์</p>
             </div>
-            <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              {/* LIVE indicator */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span
+                  style={{
+                    width: '10px',
+                    height: '10px',
+                    borderRadius: '50%',
+                    background: paused ? '#fbbf24' : '#ef4444',
+                    boxShadow: paused ? 'none' : '0 0 8px #ef4444',
+                    display: 'inline-block',
+                    animation: paused ? 'none' : 'pulse 1.5s infinite',
+                  }}
+                />
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: paused ? '#fbbf24' : '#ef4444' }}>
+                  {paused ? 'PAUSED' : 'LIVE'}
+                </span>
+              </div>
+              <span style={{ fontSize: '0.8rem', color: '#666' }}>
+                อัปเดต {secondsAgo}s ที่แล้ว
+              </span>
+              <button
+                onClick={() => setPaused((p) => !p)}
+                style={{
+                  padding: '0.4rem 0.75rem',
+                  background: '#f3f4f6',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '0.4rem',
+                  color: '#333',
+                  cursor: 'pointer',
+                  fontSize: '0.85rem',
+                }}
+              >
+                {paused ? '▶ Resume' : '⏸ Pause'}
+              </button>
               <Link
                 href="/"
                 style={{
@@ -123,7 +184,6 @@ export default function DashboardPage() {
                   color: 'white',
                   borderRadius: '0.5rem',
                   textDecoration: 'none',
-                  marginRight: '0.5rem'
                 }}
               >
                 หน้าหลัก
@@ -139,7 +199,7 @@ export default function DashboardPage() {
                   color: 'white',
                   border: 'none',
                   borderRadius: '0.5rem',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
                 }}
               >
                 ออกจากระบบ
@@ -272,20 +332,6 @@ export default function DashboardPage() {
             ✅ การประเมิน
           </Link>
           <Link
-            href="/okrs"
-            style={{
-              padding: '1rem',
-              background: 'white',
-              borderRadius: '0.5rem',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-              textDecoration: 'none',
-              color: '#333',
-              textAlign: 'center'
-            }}
-          >
-            🎯 OKRs
-          </Link>
-          <Link
             href="/reports"
             style={{
               padding: '1rem',
@@ -317,7 +363,13 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.5; transform: scale(1.2); }
+        }
+      `}</style>
     </div>
   );
 }
-

@@ -36,6 +36,9 @@ interface Session {
   id: number;
   status: string;
   instrumentId: number;
+  schoolId: number;
+  academicYearId: number;
+  termId: number | null;
   school: { nameTh: string | null; name: string };
   evaluator: { name: string };
   academicYear: { year: string };
@@ -43,7 +46,20 @@ interface Session {
   instrument: { id: number; nameTh: string };
 }
 
+interface SchoolAggregate {
+  totalSessions: number;
+  completionRate: number;
+  overallQualityIndex: number;
+  dimensionScores: Array<{
+    dimension: string;
+    labelTh: string;
+    percent: number;
+    status: 'green' | 'yellow' | 'red';
+  }>;
+}
+
 const SCALE_LABELS: Record<number, string> = { 5: 'ดีมาก', 4: 'ดี', 3: 'ปานกลาง', 2: 'พอใช้', 1: 'ปรับปรุง' };
+const AGG_POLL_INTERVAL = 5000;
 
 export default function AssessmentPage() {
   const router = useRouter();
@@ -62,6 +78,7 @@ export default function AssessmentPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [schoolAggregate, setSchoolAggregate] = useState<SchoolAggregate | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem('token');
@@ -113,6 +130,33 @@ export default function AssessmentPage() {
       setLoading(false);
     }
   };
+
+  // Real-time school-wide aggregate (polls /api/live-dashboard scoped to this session's school)
+  useEffect(() => {
+    if (!token || !session) return;
+    const fetchAggregate = async () => {
+      try {
+        const params = new URLSearchParams({
+          scope: 'school',
+          schoolId: String(session.schoolId),
+        });
+        if (session.academicYearId) params.set('academicYearId', String(session.academicYearId));
+        if (session.termId) params.set('termId', String(session.termId));
+        const res = await fetch(`/api/live-dashboard?${params}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success) setSchoolAggregate(json.data);
+        }
+      } catch {
+        // silent — keep showing last good data
+      }
+    };
+    fetchAggregate();
+    const id = setInterval(fetchAggregate, AGG_POLL_INTERVAL);
+    return () => clearInterval(id);
+  }, [token, session]);
 
   const saveResponse = useCallback(async (indicatorId: number, field: 'score' | 'score2', value: number) => {
     if (!token || submitted) return;
@@ -311,6 +355,69 @@ export default function AssessmentPage() {
               }} />
             </div>
           </div>
+
+          {/* School-wide aggregate (real-time, polls every 5s) */}
+          {schoolAggregate && (
+            <div style={{
+              marginTop: '0.6rem',
+              paddingTop: '0.55rem',
+              borderTop: `1px dashed ${borderColor}`,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              flexWrap: 'wrap',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap' }}>
+                <span style={{
+                  width: '8px', height: '8px', borderRadius: '50%',
+                  background: '#ef4444',
+                  boxShadow: '0 0 6px #ef4444',
+                  display: 'inline-block',
+                  animation: 'pulse 1.5s infinite',
+                }} />
+                <span style={{ fontSize: '0.78rem', fontWeight: 600, color: textColor }}>
+                  ภาพรวมทั้งโรงเรียน
+                </span>
+                <span style={{ fontSize: '0.75rem', color: subText }}>
+                  · ครู {schoolAggregate.totalSessions} คน · ส่งแล้ว {schoolAggregate.completionRate}% · ดัชนีคุณภาพ {schoolAggregate.overallQualityIndex}%
+                </span>
+              </div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                gap: '0.5rem',
+                flex: 1,
+                minWidth: '300px',
+              }}>
+                {schoolAggregate.dimensionScores.map((d) => {
+                  const color = d.status === 'green' ? '#10b981' : d.status === 'yellow' ? '#f59e0b' : '#ef4444';
+                  return (
+                    <div key={d.dimension}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: subText, marginBottom: '0.15rem' }}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {d.labelTh}
+                        </span>
+                        <span style={{ fontWeight: 600, color }}>{d.percent}%</span>
+                      </div>
+                      <div style={{
+                        height: '4px',
+                        background: darkMode ? '#2d3748' : '#e5e7eb',
+                        borderRadius: '2px',
+                        overflow: 'hidden',
+                      }}>
+                        <div style={{
+                          width: `${Math.min(d.percent, 100)}%`,
+                          height: '100%',
+                          background: color,
+                          transition: 'width 0.4s',
+                        }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -421,7 +528,7 @@ export default function AssessmentPage() {
                     </tr>
                     <tr style={{ background: darkMode ? 'rgba(0,0,0,0.1)' : '#fafafa' }}>
                       <th style={{ borderBottom: `1px solid ${borderColor}` }} />
-                      {[5, 4, 3, 2, 1].map((v) => (
+                      {[1, 2, 3, 4, 5].map((v) => (
                         <th key={v} style={{
                           textAlign: 'center', padding: '0.4rem 0.5rem', width: '44px',
                           color: '#7c3aed', fontWeight: '600', fontSize: '0.8rem',
@@ -429,7 +536,7 @@ export default function AssessmentPage() {
                           background: purpleLight,
                         }}>{v}</th>
                       ))}
-                      {[5, 4, 3, 2, 1].map((v) => (
+                      {[1, 2, 3, 4, 5].map((v) => (
                         <th key={v} style={{
                           textAlign: 'center', padding: '0.4rem 0.5rem', width: '44px',
                           color: '#2563eb', fontWeight: '600', fontSize: '0.8rem',
@@ -464,7 +571,7 @@ export default function AssessmentPage() {
                           </td>
 
                           {/* สภาพที่เป็นอยู่ — score2 — purple */}
-                          {[5, 4, 3, 2, 1].map((v) => (
+                          {[1, 2, 3, 4, 5].map((v) => (
                             <td key={v} style={{
                               textAlign: 'center', padding: '0.75rem 0',
                               borderBottom: `1px solid ${borderColor}`,
@@ -486,7 +593,7 @@ export default function AssessmentPage() {
                           ))}
 
                           {/* สภาพที่พึงประสงค์ — score — blue */}
-                          {[5, 4, 3, 2, 1].map((v) => (
+                          {[1, 2, 3, 4, 5].map((v) => (
                             <td key={v} style={{
                               textAlign: 'center', padding: '0.75rem 0',
                               borderBottom: `1px solid ${borderColor}`,
@@ -522,7 +629,7 @@ export default function AssessmentPage() {
           border: `1px solid ${borderColor}`, marginBottom: '5rem',
           display: 'flex', flexWrap: 'wrap', gap: '0.5rem 2rem', alignItems: 'center',
         }}>
-          {[5, 4, 3, 2, 1].map((v) => (
+          {[1, 2, 3, 4, 5].map((v) => (
             <span key={v} style={{ color: textColor, fontSize: '0.875rem' }}>
               <strong>{v}</strong> = {SCALE_LABELS[v]}
             </span>
@@ -573,6 +680,13 @@ export default function AssessmentPage() {
           </button>
         </div>
       </div>
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.5; transform: scale(1.2); }
+        }
+      `}</style>
     </div>
   );
 }

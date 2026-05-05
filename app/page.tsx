@@ -59,12 +59,6 @@ export default function HomePage() {
             icon="✅"
           />
           <Card
-            title="OKRs"
-            description="จัดการ Objectives, Key Results และ Actions"
-            href="/okrs"
-            icon="🎯"
-          />
-          <Card
             title="รายงาน"
             description="ดูรายงานและสถิติ"
             href="/reports"
@@ -101,11 +95,6 @@ export default function HomePage() {
             <li style={{ marginBottom: '0.5rem' }}>
               <Link href="/api/instruments" style={{ color: '#fff', textDecoration: 'underline' }}>
                 🔗 /api/instruments
-              </Link>
-            </li>
-            <li style={{ marginBottom: '0.5rem' }}>
-              <Link href="/api/okrs/objectives" style={{ color: '#fff', textDecoration: 'underline' }}>
-                🔗 /api/okrs/objectives
               </Link>
             </li>
             <li style={{ marginBottom: '0.5rem' }}>

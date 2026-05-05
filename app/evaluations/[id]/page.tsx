@@ -67,7 +67,6 @@ export default function EvaluationDetailPage() {
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [responses, setResponses] = useState<Record<number, { score: number; score2: number | null; comment: string }>>({});
-  const [indicatorGoals, setIndicatorGoals] = useState<Record<number, { targetDesiredState: number | null; krProgress: { progress: number; current: number | null; target: number | null; evaluatedAt?: Date } | null }>>({});
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
@@ -155,67 +154,6 @@ export default function EvaluationDetailPage() {
         }
       }
 
-      // Fetch goals and progress for all indicators
-      if (instrument && instrument.sections) {
-        const goalsData: Record<number, { targetDesiredState: number | null; krProgress: { progress: number; current: number | null; target: number | null; evaluatedAt?: Date } | null }> = {};
-        const schoolId = evalData.schoolId;
-        const academicYearId = evalData.academicYearId;
-        
-        for (const section of instrument.sections) {
-          for (const indicator of section.indicators) {
-            try {
-              const goalRes = await fetch(
-                `/api/indicators/${indicator.id}/goal-progress?schoolId=${schoolId}&academicYearId=${academicYearId}`,
-                { headers: { 'Authorization': `Bearer ${authToken}` } }
-              );
-              if (goalRes.ok) {
-                const goalData = await goalRes.json();
-                console.log(`[DEBUG] Indicator ${indicator.id} goal data:`, goalData);
-                if (goalData.success && goalData.data) {
-                  const targetDesiredState = goalData.data.targetDesiredState ?? null;
-                  console.log(`[DEBUG] Indicator ${indicator.id} targetDesiredState:`, targetDesiredState);
-                  goalsData[indicator.id] = {
-                    targetDesiredState: targetDesiredState,
-                    krProgress: goalData.data.krProgress ?? null,
-                  };
-                  // Set score from goal if available
-                  if (targetDesiredState && !responses[indicator.id]?.score) {
-                    setResponses(prev => ({
-                      ...prev,
-                      [indicator.id]: {
-                        ...(prev[indicator.id] || { score2: null, comment: '' }),
-                        score: targetDesiredState,
-                      },
-                    }));
-                  }
-                } else {
-                  // If API returns but no data, still set empty values
-                  console.log(`[DEBUG] Indicator ${indicator.id} - API returned but no data`);
-                  goalsData[indicator.id] = {
-                    targetDesiredState: null,
-                    krProgress: null,
-                  };
-                }
-              } else {
-                // If API fails, set empty values
-                console.log(`[DEBUG] Indicator ${indicator.id} - API failed with status:`, goalRes.status);
-                goalsData[indicator.id] = {
-                  targetDesiredState: null,
-                  krProgress: null,
-                };
-              }
-            } catch (err) {
-              console.error(`Failed to fetch goal for indicator ${indicator.id}:`, err);
-              // Set empty values on error
-              goalsData[indicator.id] = {
-                targetDesiredState: null,
-                krProgress: null,
-              };
-            }
-          }
-        }
-        setIndicatorGoals(goalsData);
-      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -336,13 +274,10 @@ export default function EvaluationDetailPage() {
 
   const renderIndicatorInput = (indicator: Section['indicators'][0]) => {
     const isReadOnly = evaluation?.status === 'SUBMITTED';
-    const goalData = indicatorGoals[indicator.id];
-    const targetDesiredState = goalData?.targetDesiredState ?? null;
-    const krProgress = goalData?.krProgress ?? null;
-    const response = responses[indicator.id] || { 
-      score: targetDesiredState || 0, 
-      score2: null, 
-      comment: '' 
+    const response = responses[indicator.id] || {
+      score: 0,
+      score2: null,
+      comment: ''
     };
 
     return (
@@ -378,46 +313,7 @@ export default function EvaluationDetailPage() {
           </div>
         </div>
 
-        {/* Progress Bar - แสดงจาก KR Rating ล่าสุด */}
-        <div style={{ marginBottom: '1rem', padding: '0.75rem', background: '#fef3c7', borderRadius: '0.5rem', border: '1px solid #fbbf24' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-            <div style={{ fontSize: '0.875rem', fontWeight: '600', color: '#92400e' }}>
-              Progress (จาก KR Rating ล่าสุด)
-            </div>
-            <div style={{ fontSize: '0.875rem', fontWeight: '600', color: '#92400e' }}>
-              {krProgress ? `${krProgress.progress.toFixed(1)}%` : 'ไม่มีข้อมูล'}
-            </div>
-          </div>
-          <div style={{
-            width: '100%',
-            height: '0.75rem',
-            background: '#e5e7eb',
-            borderRadius: '0.375rem',
-            overflow: 'hidden'
-          }}>
-            {krProgress && (
-              <div style={{
-                width: `${Math.min(100, Math.max(0, krProgress.progress))}%`,
-                height: '100%',
-                background: krProgress.progress >= 80 ? '#10b981' : krProgress.progress >= 50 ? '#f59e0b' : '#ef4444',
-                transition: 'width 0.3s ease',
-                borderRadius: '0.375rem'
-              }} />
-            )}
-          </div>
-          {krProgress && krProgress.current !== null && krProgress.target !== null && (
-            <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '0.25rem' }}>
-              Current: {krProgress.current.toFixed(1)} / Target: {krProgress.target.toFixed(1)}
-            </div>
-          )}
-          {!krProgress && (
-            <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '0.25rem', fontStyle: 'italic' }}>
-              ยังไม่มีข้อมูลการประเมิน KR สำหรับ indicator นี้
-            </div>
-          )}
-        </div>
-
-        {/* Rating Input - สภาพที่เป็นอยู่ (score2) เท่านั้น */}
+        {/* Rating Input - สภาพที่เป็นอยู่ (score2) */}
         <div style={{ marginBottom: '1rem' }}>
           <label style={{ 
             display: 'block', 
@@ -473,27 +369,60 @@ export default function EvaluationDetailPage() {
           </div>
         </div>
 
-        {/* เป้าหมายการพัฒนา - แสดงจาก Set Goal (อ่านอย่างเดียว) */}
-        <div style={{ marginBottom: '1rem', padding: '0.75rem', background: '#e0e7ff', borderRadius: '0.5rem', border: '1px solid #667eea' }}>
-          <div style={{ fontSize: '0.875rem', fontWeight: '600', color: '#4338ca', marginBottom: '0.25rem' }}>
-            เป้าหมายการพัฒนา (จาก Set Goal)
+        {/* Rating Input - เป้าหมายการพัฒนา (score) */}
+        <div style={{ marginBottom: '1rem' }}>
+          <label style={{
+            display: 'block',
+            marginBottom: '0.5rem',
+            color: '#666',
+            fontSize: '0.875rem',
+            fontWeight: '600'
+          }}>
+            เป้าหมายการพัฒนา ({indicator.minScore} - {indicator.maxScore})
+          </label>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {Array.from({ length: indicator.maxScore - indicator.minScore + 1 }, (_, i) => {
+              const score = indicator.minScore + i;
+              const isSelected = response.score === score;
+              return (
+                <label
+                  key={score}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    border: `2px solid ${isSelected ? '#2563eb' : '#ddd'}`,
+                    borderRadius: '0.5rem',
+                    background: isSelected ? '#2563eb' : 'white',
+                    color: isSelected ? 'white' : '#333',
+                    cursor: isReadOnly ? 'default' : 'pointer',
+                    fontSize: '0.875rem',
+                    fontWeight: isSelected ? 'bold' : 'normal',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name={`indicator-${indicator.id}-score`}
+                    value={score}
+                    checked={isSelected}
+                    onChange={(e) => {
+                      if (!isReadOnly) {
+                        setResponses({
+                          ...responses,
+                          [indicator.id]: {
+                            ...response,
+                            score: parseInt(e.target.value, 10)
+                          }
+                        });
+                      }
+                    }}
+                    disabled={isReadOnly}
+                    style={{ display: 'none' }}
+                  />
+                  {score}
+                </label>
+              );
+            })}
           </div>
-          {(() => {
-            // Use targetDesiredState from Set Goal if available, otherwise use response.score if exists
-            const displayValue = targetDesiredState !== null && targetDesiredState !== undefined 
-              ? targetDesiredState 
-              : (response.score && response.score > 0 ? response.score : null);
-            
-            return displayValue !== null ? (
-              <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#4338ca' }}>
-                {displayValue}
-              </div>
-            ) : (
-              <div style={{ fontSize: '0.875rem', color: '#666', fontStyle: 'italic' }}>
-                ยังไม่ได้ตั้งค่าเป้าหมาย
-              </div>
-            );
-          })()}
         </div>
 
         {/* Comment Input */}

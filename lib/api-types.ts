@@ -1,7 +1,7 @@
 // lib/api-types.ts
 // TypeScript types for API requests and responses
 
-import { InstrumentType, ScaleType, EvaluationStatus, Quarter, ActionStatus, OKRStatus, RoleType } from '@prisma/client';
+import { InstrumentType, ScaleType, EvaluationStatus, RoleType } from '@prisma/client';
 
 // Common types
 export interface ApiResponse<T> {
@@ -88,107 +88,6 @@ export interface EvaluationResponseDto {
   comment: string | null;
   evidenceUrl: string | null;
   indicator?: IndicatorDto;
-}
-
-// OKR types
-export interface OKRObjectiveDto {
-  id: number;
-  code: string | null;
-  title: string;
-  description: string | null;
-  dimension: string | null;
-  status: OKRStatus;
-  schoolId: number | null;
-  networkId: number | null;
-  academicYearId: number | null;
-  ownerId: number | null;
-  quarter: Quarter | null;
-  keyResultsCount?: number;
-  progress?: number; // Calculated progress %
-}
-
-export interface OKRKeyResultDto {
-  id: number;
-  objectiveId: number;
-  title: string;
-  description: string | null;
-  baseline: number | null;
-  target: number | null;
-  current: number | null;
-  unit: string | null;
-  quarter: Quarter | null;
-  ownerId: number | null;
-  progress?: number; // Calculated progress %
-  status?: 'green' | 'yellow' | 'red'; // Traffic light status
-  indicatorsCount?: number;
-  actionsCount?: number;
-}
-
-export interface OKRActionDto {
-  id: number;
-  keyResultId: number;
-  title: string;
-  description: string | null;
-  order: number;
-  ownerId: number | null;
-  startDate: Date | null;
-  endDate: Date | null;
-  status: ActionStatus;
-  requiredResources: string | null;
-  risks: string | null;
-  mitigation: string | null;
-  expectedOutputs: string | null;
-  expectedOutcomes: string | null;
-  evidenceOfSuccess: string | null;
-  ratingsCount?: number;
-  averageCurrentState?: number;
-  averageDesiredState?: number;
-  targetCurrentState?: number | null; // ค่าเป้าหมายสำหรับ Current State
-  targetDesiredState?: number | null; // ค่าเป้าหมายสำหรับ Desired State
-  objective?: {
-    id: number;
-    title: string;
-    description: string | null;
-    dimension: string | null;
-  };
-  keyResult?: {
-    id: number;
-    title: string;
-    description: string | null;
-  };
-}
-
-// OKR Action Rating types
-export interface OKRActionRatingDto {
-  id: number;
-  actionId: number;
-  currentState: number; // 1-5: สภาพที่เป็นอยู่ก่อนดำเนินการ
-  desiredState: number; // 1-5: สภาพที่คาดหมายหลังดำเนินการ
-  comment: string | null;
-  evaluatorId: number;
-  schoolId: number | null;
-  academicYearId: number | null;
-  termId: number | null;
-  evaluatedAt: Date;
-  evaluator?: {
-    id: number;
-    name: string;
-    email: string;
-  };
-  school?: {
-    id: number;
-    code: string | null;
-    name: string;
-    nameTh: string | null;
-  };
-  academicYear?: {
-    id: number;
-    year: string;
-  };
-  term?: {
-    id: number;
-    name: string;
-  };
 }
 
 // Dashboard types

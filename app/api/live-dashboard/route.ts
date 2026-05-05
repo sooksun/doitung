@@ -1,28 +1,28 @@
 // app/api/live-dashboard/route.ts
 // GET /api/live-dashboard - Real-time aggregated data for Live Display Dashboard
-// Supports scope: school | network | district
+// Supports scope: school | network | district. Counts non-ARCHIVED sessions (DRAFT included).
 
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { successResponse, handleApiError, parseIntParam } from '@/lib/api-utils';
 
 const Q_DIMENSIONS = [
-  { dimension: 'Q-Leadership', labelTh: 'Q-Leadership (ผู้บริหาร)', order: 1 },
-  { dimension: 'Q-PLC', labelTh: 'Q-PLC (ชุมชนแห่งการเรียนรู้)', order: 2 },
-  { dimension: 'Q-Learning', labelTh: 'Q-Learning (การจัดการเรียนรู้)', order: 3 },
-  { dimension: 'Q-Students', labelTh: 'Q-Students (ด้านนักเรียน)', order: 4 },
+  { key: 'Q-Leadership', labelTh: 'Q-Leadership ผู้บริหาร', order: 1 },
+  { key: 'Q-PLC',        labelTh: 'Q-PLC ชุมชนแห่งการเรียนรู้', order: 2 },
+  { key: 'Q-Learning',   labelTh: 'Q-Learning การจัดการเรียนรู้', order: 3 },
+  { key: 'Q-Students',   labelTh: 'Q-Students ด้านนักเรียน', order: 4 },
 ];
 
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const scope = searchParams.get('scope') || 'district'; // school | network | district
-    const schoolId = parseIntParam(searchParams, 'schoolId');
-    const networkId = parseIntParam(searchParams, 'networkId');
-    const academicYearId = parseIntParam(searchParams, 'academicYearId');
-    const termId = parseIntParam(searchParams, 'termId');
+    const sp = request.nextUrl.searchParams;
+    const scope = sp.get('scope') || 'district'; // school | network | district
+    const schoolId = parseIntParam(sp, 'schoolId');
+    const networkId = parseIntParam(sp, 'networkId');
+    const academicYearId = parseIntParam(sp, 'academicYearId');
+    const termId = parseIntParam(sp, 'termId');
 
-    // Build school filter based on scope
+    // Resolve scope → school filter
     let schoolFilter: { schoolId?: number | { in: number[] } } = {};
     let participatingSchools = 0;
     let scopeLabel = 'เขตพื้นที่การศึกษาทั้งหมด';
@@ -36,16 +36,16 @@ export async function GET(request: NextRequest) {
       });
       scopeLabel = school?.nameTh || 'โรงเรียน';
     } else if (scope === 'network' && networkId) {
-      const networkMembers = await prisma.schoolNetworkMember.findMany({
+      const members = await prisma.schoolNetworkMember.findMany({
         where: { networkId, isActive: true },
         select: { schoolId: true },
       });
-      const schoolIds = networkMembers.map((m) => m.schoolId);
-      if (schoolIds.length > 0) {
-        schoolFilter = { schoolId: { in: schoolIds } };
-        participatingSchools = schoolIds.length;
+      const ids = members.map((m) => m.schoolId);
+      if (ids.length) {
+        schoolFilter = { schoolId: { in: ids } };
+        participatingSchools = ids.length;
       } else {
-        schoolFilter = { schoolId: -1 }; // No schools
+        schoolFilter = { schoolId: -1 };
       }
       const network = await prisma.schoolNetwork.findUnique({
         where: { id: networkId },
@@ -53,124 +53,59 @@ export async function GET(request: NextRequest) {
       });
       scopeLabel = network?.name || 'กลุ่มโรงเรียน';
     } else {
-      // district — all schools
-      const allSchools = await prisma.school.count({ where: { isActive: true } });
-      participatingSchools = allSchools;
-      scopeLabel = 'เขตพื้นที่การศึกษาทั้งหมด';
+      participatingSchools = await prisma.school.count({ where: { isActive: true } });
     }
 
-    // Build session filter
     const sessionWhere: any = {
-      status: 'SUBMITTED',
+      status: { not: 'ARCHIVED' },
       ...schoolFilter,
     };
     if (academicYearId) sessionWhere.academicYearId = academicYearId;
     if (termId) sessionWhere.termId = termId;
 
-    // 1. Completion Rate
+    // 1. Session counts → completion rate
     const totalSessions = await prisma.evaluationSession.count({ where: sessionWhere });
-    const completionRate = totalSessions > 0 ? 100 : 0; // all fetched are SUBMITTED
+    const submittedSessions = await prisma.evaluationSession.count({
+      where: { ...sessionWhere, status: { in: ['SUBMITTED', 'REVIEWED'] } },
+    });
+    const completionRate = totalSessions > 0
+      ? Math.round((submittedSessions / totalSessions) * 100)
+      : 0;
 
-    // Count total responses
     const totalResponses = await prisma.evaluationResponse.count({
       where: { evaluationSession: sessionWhere },
     });
 
-    // Count active evaluators (users who submitted within last 1 hour)
+    // Active evaluators = sessions with activity in the last hour (count distinct evaluators)
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-    const recentSessions = await prisma.evaluationSession.count({
+    const recentSessions = await prisma.evaluationSession.findMany({
       where: {
         ...sessionWhere,
-        updatedAt: { gte: oneHourAgo },
+        OR: [
+          { submittedAt: { gte: oneHourAgo } },
+          { responses: { some: { createdAt: { gte: oneHourAgo } } } },
+        ],
       },
+      select: { evaluatorId: true },
     });
+    const activeEvaluators = new Set(recentSessions.map((s) => s.evaluatorId)).size;
 
-    // 2. Spider Graph Data (from OKRActionRatings per dimension)
-    const spiderData: Array<{
-      dimension: string;
-      labelTh: string;
-      current: number;
-      target: number;
-    }> = [];
-
-    const okrWhere: any = {
-      status: { not: 'ARCHIVED' },
-    };
-    if (scope === 'school' && schoolId) okrWhere.schoolId = schoolId;
-    if (scope === 'network' && networkId) okrWhere.networkId = networkId;
-    if (academicYearId) okrWhere.academicYearId = academicYearId;
-
-    for (const dim of Q_DIMENSIONS) {
-      const objectives = await prisma.oKRObjective.findMany({
-        where: { ...okrWhere, dimension: dim.dimension },
-        include: {
-          keyResults: {
-            include: {
-              actions: {
-                select: {
-                  id: true,
-                  targetDesiredState: true,
-                  ratings: {
-                    where: {
-                      ...(scope === 'school' && schoolId ? { schoolId } : {}),
-                      ...(academicYearId ? { academicYearId } : {}),
-                      ...(termId ? { termId } : {}),
-                    },
-                    orderBy: { evaluatedAt: 'desc' },
-                    take: 1,
-                    select: { currentState: true },
-                  },
-                },
-              },
-            },
-          },
-        },
-      });
-
-      const allActions: Array<{
-        targetDesiredState: number | null;
-        latestCurrentState: number | null;
-      }> = [];
-
-      for (const obj of objectives) {
-        for (const kr of obj.keyResults) {
-          for (const action of kr.actions) {
-            const latestRating = action.ratings.length > 0 ? action.ratings[0] : null;
-            allActions.push({
-              targetDesiredState: action.targetDesiredState,
-              latestCurrentState: latestRating ? latestRating.currentState : null,
-            });
-          }
-        }
-      }
-
-      const withCurrent = allActions.filter((a) => a.latestCurrentState !== null);
-      const withTarget = allActions.filter((a) => a.targetDesiredState !== null);
-
-      const avgCurrent =
-        withCurrent.length > 0
-          ? withCurrent.reduce((s, a) => s + (a.latestCurrentState || 0), 0) / withCurrent.length
-          : 0;
-      const avgTarget =
-        withTarget.length > 0
-          ? withTarget.reduce((s, a) => s + (a.targetDesiredState || 0), 0) / withTarget.length
-          : 0;
-
-      spiderData.push({
-        dimension: dim.dimension,
-        labelTh: dim.labelTh,
-        current: Math.round(avgCurrent * 10) / 10,
-        target: Math.round(avgTarget * 10) / 10,
-      });
-    }
-
-    // 3. Dimension progress (percent-based from EvaluationResponses)
-    const qModelInstrument = await prisma.instrument.findFirst({
+    // Q-Model instrument
+    const qModel = await prisma.instrument.findFirst({
       where: { type: 'Q_MODEL' },
       include: {
         sections: true,
+        indicators: { select: { id: true, sectionId: true, minScore: true, maxScore: true, textTh: true, textEn: true } },
       },
     });
+
+    // 2. Spider data + 3. Dimension scores per Q-Model dimension
+    const spiderData: Array<{
+      dimension: string;
+      labelTh: string;
+      current: number;        // avg score2 (1-5)
+      target: number;         // avg score (1-5)
+    }> = [];
 
     const dimensionScores: Array<{
       dimension: string;
@@ -179,77 +114,87 @@ export async function GET(request: NextRequest) {
       status: 'green' | 'yellow' | 'red';
     }> = [];
 
-    if (qModelInstrument) {
-      const allIndicators = await prisma.indicator.findMany({
-        where: { instrumentId: qModelInstrument.id },
-        select: { id: true, sectionId: true, minScore: true, maxScore: true },
-      });
-
+    if (!qModel) {
       for (const dim of Q_DIMENSIONS) {
-        const section = qModelInstrument.sections.find((s) => s.nameEn === dim.dimension || s.nameTh.includes(dim.dimension));
-        if (!section) {
-          dimensionScores.push({ dimension: dim.dimension, labelTh: dim.labelTh, percent: 0, status: 'red' });
-          continue;
-        }
+        spiderData.push({ dimension: dim.key, labelTh: dim.labelTh, current: 0, target: 0 });
+        dimensionScores.push({ dimension: dim.key, labelTh: dim.labelTh, percent: 0, status: 'red' });
+      }
+    } else {
+      for (const dim of Q_DIMENSIONS) {
+        const section = qModel.sections.find((s) => s.nameEn === dim.key);
+        const indicators = section
+          ? qModel.indicators.filter((i) => i.sectionId === section.id)
+          : [];
 
-        const indicators = allIndicators.filter((ind) => ind.sectionId === section.id);
         if (indicators.length === 0) {
-          dimensionScores.push({ dimension: dim.dimension, labelTh: dim.labelTh, percent: 0, status: 'red' });
+          spiderData.push({ dimension: dim.key, labelTh: dim.labelTh, current: 0, target: 0 });
+          dimensionScores.push({ dimension: dim.key, labelTh: dim.labelTh, percent: 0, status: 'red' });
           continue;
         }
 
-        const avgResults = await Promise.all(
+        const indicatorIds = indicators.map((i) => i.id);
+
+        // Aggregate score + score2 across all indicators in this section in one query
+        const agg = await prisma.evaluationResponse.aggregate({
+          where: {
+            indicatorId: { in: indicatorIds },
+            evaluationSession: { ...sessionWhere, instrumentId: qModel.id },
+          },
+          _avg: { score: true, score2: true },
+        });
+
+        const avgScore2 = agg._avg.score2 ?? 0;
+        const avgScore = agg._avg.score ?? 0;
+
+        spiderData.push({
+          dimension: dim.key,
+          labelTh: dim.labelTh,
+          current: Math.round(avgScore2 * 10) / 10,
+          target: Math.round(avgScore * 10) / 10,
+        });
+
+        // Per-indicator percent for this section, then average → dimension percent
+        const perIndAggs = await Promise.all(
           indicators.map((ind) =>
             prisma.evaluationResponse.aggregate({
               where: {
                 indicatorId: ind.id,
-                evaluationSession: { ...sessionWhere, instrumentId: qModelInstrument.id },
+                evaluationSession: { ...sessionWhere, instrumentId: qModel.id },
               },
-              _avg: { score: true },
+              _avg: { score2: true },
             })
           )
         );
-
         const percents: number[] = [];
         for (let i = 0; i < indicators.length; i++) {
-          const avg = avgResults[i]._avg.score;
-          if (!avg) continue;
           const ind = indicators[i];
+          const avg = perIndAggs[i]._avg.score2;
+          if (avg === null) continue;
           const range = ind.maxScore - ind.minScore;
-          if (range > 0) {
-            percents.push(Math.max(0, Math.min(100, ((avg - ind.minScore) / range) * 100)));
-          }
+          if (range <= 0) continue;
+          percents.push(Math.max(0, Math.min(100, ((avg - ind.minScore) / range) * 100)));
         }
-
-        const percent = percents.length > 0
-          ? percents.reduce((a, b) => a + b, 0) / percents.length
+        const percent = percents.length
+          ? Math.round(percents.reduce((a, b) => a + b, 0) / percents.length)
           : 0;
-
         let status: 'green' | 'yellow' | 'red' = 'red';
         if (percent >= 90) status = 'green';
         else if (percent >= 70) status = 'yellow';
 
-        dimensionScores.push({
-          dimension: dim.dimension,
-          labelTh: dim.labelTh,
-          percent: Math.round(percent),
-          status,
-        });
+        dimensionScores.push({ dimension: dim.key, labelTh: dim.labelTh, percent, status });
       }
     }
 
-    // 4. Overall quality index
+    // 4. Overall quality index — average non-zero dimensions
     let overallQualityIndex = 0;
-    if (dimensionScores.length > 0) {
-      const nonZero = dimensionScores.filter((d) => d.percent > 0);
-      if (nonZero.length > 0) {
-        overallQualityIndex = Math.round(
-          nonZero.reduce((s, d) => s + d.percent, 0) / nonZero.length
-        );
-      }
+    const nonZero = dimensionScores.filter((d) => d.percent > 0);
+    if (nonZero.length > 0) {
+      overallQualityIndex = Math.round(
+        nonZero.reduce((s, d) => s + d.percent, 0) / nonZero.length
+      );
     }
 
-    // 5. Indicator Health (top-level indicators from Q_MODEL)
+    // 5. Indicator health — top 8 Q-Model indicators (by id) showing current state
     const indicatorHealth: Array<{
       name: string;
       nameTh: string;
@@ -258,33 +203,27 @@ export async function GET(request: NextRequest) {
       progress: number;
     }> = [];
 
-    if (qModelInstrument) {
-      const topIndicators = await prisma.indicator.findMany({
-        where: { instrumentId: qModelInstrument.id },
-        orderBy: { id: 'asc' },
-        take: 8,
-        select: { id: true, textTh: true, textEn: true, minScore: true, maxScore: true },
-      });
-
+    if (qModel) {
+      const topIndicators = qModel.indicators.slice(0, 8);
       for (const ind of topIndicators) {
-        const avgResult = await prisma.evaluationResponse.aggregate({
+        const agg = await prisma.evaluationResponse.aggregate({
           where: {
             indicatorId: ind.id,
-            evaluationSession: { ...sessionWhere, instrumentId: qModelInstrument.id },
+            evaluationSession: { ...sessionWhere, instrumentId: qModel.id },
           },
-          _avg: { score: true },
+          _avg: { score2: true },
         });
-
-        const avg = avgResult._avg.score || 0;
+        const avg = agg._avg.score2 ?? 0;
         const range = ind.maxScore - ind.minScore;
-        const progress = range > 0 ? Math.round(((avg - ind.minScore) / range) * 100) : 0;
-
+        const progress = range > 0
+          ? Math.max(0, Math.min(100, Math.round(((avg - ind.minScore) / range) * 100)))
+          : 0;
         indicatorHealth.push({
           name: ind.textEn || ind.textTh,
           nameTh: ind.textTh,
           score: Math.round(avg * 10) / 10,
           max: ind.maxScore,
-          progress: Math.max(0, Math.min(100, progress)),
+          progress,
         });
       }
     }
@@ -295,7 +234,7 @@ export async function GET(request: NextRequest) {
       participatingSchools,
       totalSessions,
       totalResponses,
-      activeEvaluators: recentSessions,
+      activeEvaluators,
       completionRate,
       overallQualityIndex,
       spiderData,
