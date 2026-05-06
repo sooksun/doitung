@@ -5,7 +5,7 @@
 
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { successResponse, errorResponse, handleApiError } from '@/lib/api-utils';
+import { successResponse, errorResponse, handleApiError, requireAuth, hasRole } from '@/lib/api-utils';
 import { EvaluationStatus } from '@prisma/client';
 import { EvaluationSessionDto } from '@/lib/api-types';
 
@@ -137,9 +137,19 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    const me = await requireAuth(request);
     const id = parseInt(params.id, 10);
     if (isNaN(id)) {
       return errorResponse('Invalid evaluation ID', 400);
+    }
+
+    const existing = await prisma.evaluationSession.findUnique({
+      where: { id },
+      select: { evaluatorId: true },
+    });
+    if (!existing) return errorResponse('ไม่พบการประเมินที่ต้องการ', 404);
+    if (existing.evaluatorId !== me.id && !hasRole(me, 'ADMIN')) {
+      return errorResponse('คุณสามารถแก้ไขได้เฉพาะการประเมินของตนเองเท่านั้น', 403);
     }
 
     const body = await request.json();
@@ -176,7 +186,8 @@ export async function PATCH(
       } as EvaluationSessionDto,
       'อัปเดตการประเมินสำเร็จ'
     );
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.message?.startsWith('Unauthorized')) return errorResponse(error.message, 401);
     return handleApiError(error);
   }
 }
@@ -186,9 +197,19 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const me = await requireAuth(request);
     const id = parseInt(params.id, 10);
     if (isNaN(id)) {
       return errorResponse('Invalid evaluation ID', 400);
+    }
+
+    const existing = await prisma.evaluationSession.findUnique({
+      where: { id },
+      select: { evaluatorId: true },
+    });
+    if (!existing) return errorResponse('ไม่พบการประเมินที่ต้องการ', 404);
+    if (existing.evaluatorId !== me.id && !hasRole(me, 'ADMIN')) {
+      return errorResponse('คุณสามารถลบได้เฉพาะการประเมินของตนเองเท่านั้น', 403);
     }
 
     // Delete related data (cascade)
@@ -201,7 +222,8 @@ export async function DELETE(
     });
 
     return successResponse(null, 'ลบการประเมินสำเร็จ');
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.message?.startsWith('Unauthorized')) return errorResponse(error.message, 401);
     return handleApiError(error);
   }
 }

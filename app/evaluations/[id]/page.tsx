@@ -48,6 +48,7 @@ interface Evaluation {
   id: number;
   instrumentId: number;
   schoolId: number;
+  evaluatorId: number;
   status: string;
   note: string | null;
   createdAt: string;
@@ -70,6 +71,11 @@ export default function EvaluationDetailPage() {
   const [aiEnabled, setAiEnabled] = useState(false);
   const [latestRunId, setLatestRunId] = useState<number | null>(null);
   const [startingRun, setStartingRun] = useState(false);
+  const [meId, setMeId] = useState<number | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Anyone can view this page; only the creator (or ADMIN) can save/submit edits.
+  const canEdit = !!evaluation && (isAdmin || meId === evaluation.evaluatorId);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
@@ -84,6 +90,17 @@ export default function EvaluationDetailPage() {
       .then((r) => r.json())
       .then((j) => {
         if (j.success && j.data?.flags?.aiEnabled) setAiEnabled(true);
+      })
+      .catch(() => {});
+
+    // Identify current user for the canEdit gate
+    fetch('/api/auth/me', { headers: { Authorization: `Bearer ${storedToken}` } })
+      .then((r) => r.json())
+      .then((j) => {
+        if (j?.success && j.data) {
+          setMeId(j.data.id);
+          setIsAdmin(Array.isArray(j.data.roles) && j.data.roles.includes('ADMIN'));
+        }
       })
       .catch(() => {});
 
@@ -285,7 +302,8 @@ export default function EvaluationDetailPage() {
   };
 
   const renderIndicatorInput = (indicator: Section['indicators'][0]) => {
-    const isReadOnly = evaluation?.status === 'SUBMITTED';
+    // Read-only when SUBMITTED, or when current user is not the owner / not an ADMIN.
+    const isReadOnly = evaluation?.status === 'SUBMITTED' || !canEdit;
     const response = responses[indicator.id] || {
       score: 0,
       score2: null,
@@ -585,8 +603,23 @@ export default function EvaluationDetailPage() {
               </div>
             ))}
 
+            {/* Read-only banner for non-owners */}
+            {!canEdit && evaluation.status !== 'SUBMITTED' && (
+              <div style={{
+                padding: '1rem',
+                background: '#fef3c7',
+                color: '#92400e',
+                borderRadius: '0.5rem',
+                marginTop: '2rem',
+                textAlign: 'center',
+                fontSize: '0.9rem',
+              }}>
+                👁 คุณกำลังดูการประเมินของผู้อื่น — แก้ไขได้เฉพาะเจ้าของเท่านั้น
+              </div>
+            )}
+
             {/* Action Buttons */}
-            {evaluation.status !== 'SUBMITTED' && (
+            {evaluation.status !== 'SUBMITTED' && canEdit && (
               <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem', paddingTop: '2rem', borderTop: '2px solid #e5e7eb' }}>
                 <button
                   onClick={handleSaveDraft}

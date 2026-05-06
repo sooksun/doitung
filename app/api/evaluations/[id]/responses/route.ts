@@ -4,7 +4,7 @@
 
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { successResponse, errorResponse, handleApiError } from '@/lib/api-utils';
+import { successResponse, errorResponse, handleApiError, requireAuth, hasRole } from '@/lib/api-utils';
 import { EvaluationResponseDto } from '@/lib/api-types';
 
 export async function GET(
@@ -82,18 +82,23 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    const me = await requireAuth(request);
     const evaluationSessionId = parseInt(params.id, 10);
     if (isNaN(evaluationSessionId)) {
       return errorResponse('Invalid evaluation ID', 400);
     }
 
-    // Verify evaluation session exists
+    // Verify evaluation session exists + ownership
     const evaluationSession = await prisma.evaluationSession.findUnique({
       where: { id: evaluationSessionId },
     });
 
     if (!evaluationSession) {
       return errorResponse('ไม่พบการประเมินที่ต้องการ', 404);
+    }
+
+    if (evaluationSession.evaluatorId !== me.id && !hasRole(me, 'ADMIN')) {
+      return errorResponse('คุณสามารถบันทึกคำตอบได้เฉพาะการประเมินของตนเองเท่านั้น', 403);
     }
 
     const body = await request.json();
@@ -181,7 +186,8 @@ export async function POST(
       })),
       `บันทึกคำตอบสำเร็จ ${createdResponses.length} ข้อ`
     );
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.message?.startsWith('Unauthorized')) return errorResponse(error.message, 401);
     return handleApiError(error);
   }
 }

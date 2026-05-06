@@ -37,6 +37,8 @@ export default function EvaluationsPage() {
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [meId, setMeId] = useState<number | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
@@ -45,6 +47,16 @@ export default function EvaluationsPage() {
       return;
     }
     setToken(storedToken);
+    // Identify the current user so we can decide whose row gets the edit button.
+    fetch('/api/auth/me', { headers: { Authorization: `Bearer ${storedToken}` } })
+      .then((r) => r.json())
+      .then((j) => {
+        if (j?.success && j.data) {
+          setMeId(j.data.id);
+          setIsAdmin(Array.isArray(j.data.roles) && j.data.roles.includes('ADMIN'));
+        }
+      })
+      .catch(() => {});
     fetchEvaluations(storedToken);
   }, [router]);
 
@@ -205,7 +217,7 @@ export default function EvaluationsPage() {
                       {new Date(evaluation.createdAt).toLocaleDateString('th-TH')}
                     </td>
                     <td style={{ padding: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      {evaluation.status === 'DRAFT' && (
+                      {evaluation.status === 'DRAFT' && (meId === evaluation.evaluatorId || isAdmin) && (
                         <Link
                           href={`/assessment/${evaluation.id}`}
                           style={{

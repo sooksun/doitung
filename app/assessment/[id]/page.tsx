@@ -39,8 +39,9 @@ interface Session {
   schoolId: number;
   academicYearId: number;
   termId: number | null;
+  evaluatorId: number;
   school: { nameTh: string | null; name: string };
-  evaluator: { name: string };
+  evaluator: { id: number; name: string };
   academicYear: { year: string };
   term: { name: string } | null;
   instrument: { id: number; nameTh: string };
@@ -89,9 +90,10 @@ export default function AssessmentPage() {
 
   const loadAll = async (authToken: string) => {
     try {
-      const [sessionRes, responsesRes] = await Promise.all([
+      const [sessionRes, responsesRes, meRes] = await Promise.all([
         fetch(`/api/evaluations/${sessionId}`, { headers: { Authorization: `Bearer ${authToken}` } }),
         fetch(`/api/evaluations/${sessionId}/responses`, { headers: { Authorization: `Bearer ${authToken}` } }),
+        fetch(`/api/auth/me`, { headers: { Authorization: `Bearer ${authToken}` } }),
       ]);
 
       if (!sessionRes.ok) { setError('ไม่พบแบบประเมินนี้'); setLoading(false); return; }
@@ -99,6 +101,21 @@ export default function AssessmentPage() {
       const sess: Session = sessionData.data || sessionData;
       setSession(sess);
       if (sess.status === 'SUBMITTED') setSubmitted(true);
+
+      // Ownership gate: this page edits responses, so block non-owners (admins still allowed).
+      // Bounce them to the read-only detail page so they can still view the evaluation.
+      if (meRes.ok) {
+        const meJson = await meRes.json();
+        const me = meJson?.data;
+        if (me) {
+          const isOwner = me.id === sess.evaluatorId;
+          const isAdmin = Array.isArray(me.roles) && me.roles.includes('ADMIN');
+          if (!isOwner && !isAdmin) {
+            router.replace(`/evaluations/${sessionId}`);
+            return;
+          }
+        }
+      }
 
       // Load sections and indicators
       const [sectionsRes, indicatorsRes] = await Promise.all([
