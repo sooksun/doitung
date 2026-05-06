@@ -24,6 +24,11 @@ interface Evaluation {
   school?: {
     nameTh: string | null;
   };
+  evaluator?: {
+    id: number;
+    name: string;
+    email: string | null;
+  };
 }
 
 export default function EvaluationsPage() {
@@ -164,6 +169,7 @@ export default function EvaluationsPage() {
                 <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>ID</th>
                 <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>เครื่องมือ</th>
                 <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>โรงเรียน</th>
+                <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>ผู้กรอกแบบประเมิน</th>
                 <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>สถานะ</th>
                 <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>วันที่สร้าง</th>
                 <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>จัดการ</th>
@@ -180,6 +186,9 @@ export default function EvaluationsPage() {
                     </td>
                     <td style={{ padding: '1rem', color: '#666' }}>
                       {evaluation.school?.nameTh || 'N/A'}
+                    </td>
+                    <td style={{ padding: '1rem', color: '#333', fontSize: '0.9rem' }}>
+                      {evaluation.evaluator?.name || '—'}
                     </td>
                     <td style={{ padding: '1rem' }}>
                       <span style={{

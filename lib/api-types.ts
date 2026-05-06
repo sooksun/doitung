@@ -76,6 +76,7 @@ export interface EvaluationSessionDto {
   school?: { id: number; code: string | null; name: string; nameTh: string | null };
   academicYear?: { id: number; year: string };
   term?: { id: number; name: string };
+  evaluator?: { id: number; name: string; email: string | null };
   responsesCount?: number;
 }
 

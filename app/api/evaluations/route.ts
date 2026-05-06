@@ -155,6 +155,13 @@ export async function GET(request: NextRequest) {
           }
         : undefined,
       term: evaluation.term || undefined,
+      evaluator: evaluation.evaluator
+        ? {
+            id: evaluation.evaluator.id,
+            name: evaluation.evaluator.name,
+            email: evaluation.evaluator.email,
+          }
+        : undefined,
       responsesCount: evaluation._count.responses,
     }));
 
