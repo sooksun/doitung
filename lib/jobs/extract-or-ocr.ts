@@ -145,70 +145,133 @@ export async function extractOrOcr(documentId: number): Promise<void> {
     return;
   }
 
+  const hasFile = !!doc.filePath;
+  const trimmedBody = doc.bodyText?.trim() || '';
+  const hasText = trimmedBody.length > 0;
+
+  if (!hasFile && !hasText) {
+    await prisma.sarDocument.update({
+      where: { id: documentId },
+      data: { status: 'UPLOADED', errorMessage: 'ไม่มีข้อมูล: ต้องมี PDF หรือข้อความอย่างน้อยหนึ่งอย่าง' },
+    });
+    return;
+  }
+
   await prisma.sarDocument.update({
     where: { id: documentId },
     data: { status: 'EXTRACTING', errorMessage: null },
   });
 
-  const fullPath = path.join(process.cwd(), 'public', doc.filePath.replace(/^\//, ''));
-  if (!fs.existsSync(fullPath)) {
-    await prisma.sarDocument.update({
-      where: { id: documentId },
-      data: { status: 'UPLOADED', errorMessage: `File missing on disk: ${fullPath}` },
-    });
-    return;
-  }
-
   try {
-    // 1. Native extract
-    const native = await nativeExtract(fullPath);
-    let extractMethod: 'pdf-parse' | 'ai' = 'pdf-parse';
-    let pages = native.pages;
-    let pageCount = native.pageCount;
-    let confidences: number[] | null = null;
-    let quality = native.quality;
+    let pdfPages: PdfParsePage[] = [];
+    let pdfExtractMethod: 'pdf-parse' | 'ai' = 'pdf-parse';
+    let pdfConfidences: number[] | null = null;
+    let pdfQuality = 0;
+    let pdfFileMissing = false;
 
-    // 2. Decide fallback
-    if (!native.ok || native.pages.every((p) => p.text.length < 20)) {
-      console.log(`[extractOrOcr] doc=${documentId} native quality low (${quality.toFixed(2)}, pages=${native.pageCount}), falling back to AI`);
-      const g = await aiExtract(fullPath, native.pageCount);
-      if (g.pages.length > 0) {
-        extractMethod = 'ai';
-        pages = g.pages;
-        pageCount = g.pageCount;
-        confidences = g.confidences;
-        // Re-measure quality on extracted text
-        quality = thaiCharRatio(g.pages.map((p) => p.text).join('\n'));
+    if (hasFile) {
+      const fullPath = path.join(process.cwd(), 'public', doc.filePath!.replace(/^\//, ''));
+      if (!fs.existsSync(fullPath)) {
+        if (!hasText) {
+          await prisma.sarDocument.update({
+            where: { id: documentId },
+            data: { status: 'UPLOADED', errorMessage: `File missing on disk: ${fullPath}` },
+          });
+          return;
+        }
+        // Text exists — degrade gracefully and proceed with text only
+        console.warn('[extractOrOcr] file missing on disk, proceeding with bodyText only', documentId, fullPath);
+        pdfFileMissing = true;
+      } else {
+        const native = await nativeExtract(fullPath);
+        pdfPages = native.pages;
+        pdfQuality = native.quality;
+
+        if (!native.ok || native.pages.every((p) => p.text.length < 20)) {
+          console.log(`[extractOrOcr] doc=${documentId} native quality low (${pdfQuality.toFixed(2)}, pages=${native.pageCount}), falling back to AI`);
+          const g = await aiExtract(fullPath, native.pageCount);
+          if (g.pages.length > 0) {
+            pdfExtractMethod = 'ai';
+            pdfPages = g.pages;
+            pdfConfidences = g.confidences;
+            pdfQuality = thaiCharRatio(g.pages.map((p) => p.text).join('\n'));
+          }
+        }
       }
     }
 
-    // 3. Upsert pages (delete old then insert fresh — rerun-friendly)
+    // Build complete page set: PDF pages + (optional) one trailing manual page
+    const rowsToInsert: Array<{
+      pageNumber: number;
+      rawText: string;
+      extractMethod: string;
+      confidence: number | null;
+      needsReview: boolean;
+    }> = [];
+
+    pdfPages.forEach((p, idx) => {
+      rowsToInsert.push({
+        pageNumber: p.pageNumber,
+        rawText: p.text,
+        extractMethod: pdfExtractMethod,
+        confidence: pdfConfidences ? pdfConfidences[idx] : pdfExtractMethod === 'ai' ? 0.85 : null,
+        needsReview: pdfExtractMethod === 'ai' || pdfQuality < 0.6,
+      });
+    });
+
+    if (hasText) {
+      const lastPdfPageNumber = rowsToInsert.length > 0 ? Math.max(...rowsToInsert.map((p) => p.pageNumber)) : 0;
+      rowsToInsert.push({
+        pageNumber: lastPdfPageNumber + 1,
+        rawText: trimmedBody,
+        extractMethod: 'manual',
+        confidence: 1.0,
+        needsReview: false,
+      });
+    }
+
+    // Recompute overall quality including the manual page (high quality by definition)
+    const overallQuality = rowsToInsert.length > 0
+      ? thaiCharRatio(rowsToInsert.map((p) => p.rawText).join('\n'))
+      : 0;
+
+    // Wipe + re-insert (rerun-friendly)
     await prisma.sarPage.deleteMany({ where: { documentId } });
-    if (pages.length > 0) {
+    if (rowsToInsert.length > 0) {
       await prisma.sarPage.createMany({
-        data: pages.map((p, idx) => ({
+        data: rowsToInsert.map((p) => ({
           documentId,
           pageNumber: p.pageNumber,
-          rawText: p.text,
-          cleanedText: p.text,
-          extractMethod,
-          confidence: confidences ? confidences[idx] : extractMethod === 'ai' ? 0.85 : null,
-          needsReview: extractMethod === 'ai' || quality < 0.6,
+          rawText: p.rawText,
+          cleanedText: p.rawText,
+          extractMethod: p.extractMethod,
+          confidence: p.confidence,
+          needsReview: p.needsReview,
         })),
       });
+    }
+
+    // Compose extractionMethod label for display
+    let extractionMethod: string;
+    if (hasFile && !pdfFileMissing && hasText) {
+      extractionMethod = (pdfExtractMethod === 'ai' ? 'openrouter' : 'native') + '+manual';
+    } else if (hasFile && !pdfFileMissing) {
+      extractionMethod = pdfExtractMethod === 'ai' ? 'openrouter' : 'native';
+    } else {
+      extractionMethod = 'manual';
     }
 
     await prisma.sarDocument.update({
       where: { id: documentId },
       data: {
         status: 'NEEDS_REVIEW',
-        extractionMethod: extractMethod === 'ai' ? 'openrouter' : 'native',
-        textQualityScore: Math.round(quality * 1000) / 1000,
-        pageCount,
-        errorMessage: null,
+        extractionMethod,
+        textQualityScore: Math.round(overallQuality * 1000) / 1000,
+        pageCount: rowsToInsert.length,
+        errorMessage: pdfFileMissing ? 'ไฟล์ PDF เดิมหาย — ใช้เฉพาะข้อความที่บันทึกไว้' : null,
       },
     });
-    console.log(`[extractOrOcr] doc=${documentId} done: ${extractMethod} ${pages.length} pages quality=${quality.toFixed(2)}`);
+    console.log(`[extractOrOcr] doc=${documentId} done: method=${extractionMethod} pages=${rowsToInsert.length} quality=${overallQuality.toFixed(2)}`);
   } catch (err: any) {
     console.error('[extractOrOcr] failed', documentId, err);
     await prisma.sarDocument.update({

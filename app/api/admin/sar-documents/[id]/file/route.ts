@@ -25,6 +25,7 @@ export async function GET(
       if (!t || t.schoolId !== doc.schoolId) return errorResponse('Forbidden', 403);
     }
 
+    if (!doc.filePath) return errorResponse('เอกสารนี้ไม่มีไฟล์ PDF', 404);
     const fullPath = path.join(process.cwd(), 'public', doc.filePath.replace(/^\//, ''));
     if (!fs.existsSync(fullPath)) return errorResponse('File missing on disk', 404);
 

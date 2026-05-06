@@ -13,7 +13,10 @@ interface SarRow {
   schoolName: string;
   academicYear: string;
   level: 'EARLY_CHILDHOOD' | 'BASIC_EDUCATION';
-  originalFilename: string;
+  originalFilename: string | null;
+  hasFile: boolean;
+  hasBodyText: boolean;
+  bodyTextLength: number;
   status: string;
   extractionMethod: string | null;
   textQualityScore: number | null;
@@ -88,11 +91,11 @@ export default function SarListPage() {
             <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#333', marginBottom: '0.5rem' }}>
               📚 คลังหลักฐาน SAR
             </h1>
-            <p style={{ color: '#666' }}>อัปโหลด SAR ปฐมวัย + ขั้นพื้นฐาน ปีละ 2 ไฟล์ · OCR + ตรวจทาน · ใช้เป็น Evidence Base ของ AI</p>
+            <p style={{ color: '#666' }}>ส่ง SAR ปฐมวัย + ขั้นพื้นฐาน เป็นไฟล์ PDF และ/หรือข้อความ · OCR + ตรวจทาน · ใช้เป็น Evidence Base ของ AI</p>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <Link href="/admin/sar/new" style={{ padding: '0.55rem 1rem', background: '#10b981', color: 'white', borderRadius: '0.5rem', textDecoration: 'none', fontWeight: 600 }}>
-              + อัปโหลด SAR ใหม่
+              + ส่ง SAR ใหม่
             </Link>
             <Link href="/dashboard" style={{ padding: '0.55rem 1rem', background: '#667eea', color: 'white', borderRadius: '0.5rem', textDecoration: 'none' }}>
               ← Dashboard
@@ -113,7 +116,7 @@ export default function SarListPage() {
                   <th style={{ padding: '0.75rem 1rem', textAlign: 'left' }}>โรงเรียน</th>
                   <th style={{ padding: '0.75rem 1rem', textAlign: 'left' }}>ปี</th>
                   <th style={{ padding: '0.75rem 1rem', textAlign: 'left' }}>ระดับ</th>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left' }}>ไฟล์</th>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left' }}>ที่มาข้อมูล</th>
                   <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>สถานะ</th>
                   <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>หน้า</th>
                   <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>คุณภาพข้อความ</th>
@@ -125,18 +128,25 @@ export default function SarListPage() {
                 {loading ? (
                   <tr><td colSpan={10} style={{ padding: '2rem', textAlign: 'center', color: '#666' }}>กำลังโหลด...</td></tr>
                 ) : rows.length === 0 ? (
-                  <tr><td colSpan={10} style={{ padding: '2rem', textAlign: 'center', color: '#666' }}>ยังไม่มี SAR — กดปุ่ม "อัปโหลดใหม่" เพื่อเริ่ม</td></tr>
+                  <tr><td colSpan={10} style={{ padding: '2rem', textAlign: 'center', color: '#666' }}>ยังไม่มี SAR — กดปุ่ม "ส่ง SAR ใหม่" เพื่อเริ่ม</td></tr>
                 ) : rows.map((r) => {
                   const sc = STATUS_COLORS[r.status] || { bg: '#f3f4f6', text: '#6b7280', label: r.status };
                   const qScore = r.textQualityScore !== null ? `${(r.textQualityScore * 100).toFixed(0)}%` : '—';
+                  const fileLabel = r.originalFilename
+                    ? (r.originalFilename.length > 24 ? r.originalFilename.slice(0, 24) + '…' : r.originalFilename)
+                    : null;
                   return (
                     <tr key={r.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
                       <td style={{ padding: '0.6rem 1rem', color: '#666' }}>#{r.id}</td>
                       <td style={{ padding: '0.6rem 1rem', color: '#333', fontSize: '0.85rem' }}>{r.schoolCode ? `${r.schoolCode} ` : ''}{r.schoolName}</td>
                       <td style={{ padding: '0.6rem 1rem', color: '#666' }}>{r.academicYear}</td>
                       <td style={{ padding: '0.6rem 1rem', color: '#333' }}>{LEVEL_LABEL[r.level] || r.level}</td>
-                      <td style={{ padding: '0.6rem 1rem', color: '#666', fontSize: '0.8rem' }} title={r.originalFilename}>
-                        {r.originalFilename.length > 30 ? r.originalFilename.slice(0, 30) + '…' : r.originalFilename}
+                      <td style={{ padding: '0.6rem 1rem', color: '#666', fontSize: '0.8rem' }} title={r.originalFilename || ''}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                          {r.hasFile && fileLabel && <span>📎 {fileLabel}</span>}
+                          {r.hasBodyText && <span style={{ color: '#7c3aed' }}>📝 ข้อความ {r.bodyTextLength.toLocaleString()} ตัวอักษร</span>}
+                          {!r.hasFile && !r.hasBodyText && <span style={{ color: '#dc2626' }}>—</span>}
+                        </div>
                       </td>
                       <td style={{ padding: '0.6rem 1rem', textAlign: 'center' }}>
                         <span style={{ padding: '0.2rem 0.6rem', background: sc.bg, color: sc.text, borderRadius: '0.25rem', fontSize: '0.78rem', fontWeight: 600 }}>

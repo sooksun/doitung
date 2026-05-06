@@ -43,6 +43,7 @@ export interface SoarPromptInput {
     documentId: number;
     level: string;
     note: string; // e.g. "available as evidence base; cite documentId+pageId when quoting"
+    bodyText?: string | null; // qualitative text submitted directly by user (no PDF)
   }>;
 }
 
@@ -57,9 +58,26 @@ export function buildSoarUserPrompt(input: SoarPromptInput): string {
   if (input.sarDocuments.length > 0) {
     lines.push(`# เอกสาร SAR ที่ใช้เป็นหลักฐาน (Approved)`);
     for (const d of input.sarDocuments) {
-      lines.push(`- documentId=${d.documentId} (${d.level}) — ${d.note}`);
+      const sources: string[] = [];
+      if (d.bodyText) sources.push('ข้อความที่โรงเรียนพิมพ์เข้ามา (อยู่ในส่วน "ข้อความ SAR" ด้านล่าง)');
+      // Note: PDFs are passed as inline files — no flag in this DTO; assume present unless bodyText-only
+      sources.push('PDF (อาจแนบมาด้านบน หรือไม่มีถ้าเป็น text-only)');
+      lines.push(`- documentId=${d.documentId} (${d.level}) — ${d.note} · แหล่งที่มา: ${sources.join(' + ')}`);
     }
-    lines.push('PDF ของเอกสาร SAR ถูกแนบให้แล้วในรูปแบบ fileData. เมื่ออ้างอิงให้ระบุ documentId และเลขหน้า (pageId หากทราบ).');
+    lines.push('PDF ของเอกสาร SAR (ถ้ามี) ถูกแนบให้แล้วในรูปแบบ fileData. เมื่ออ้างอิงให้ระบุ documentId และเลขหน้า (pageId หากทราบ).');
+
+    // Inline body text for text-only or text-augmented docs
+    const docsWithText = input.sarDocuments.filter((d) => !!d.bodyText);
+    if (docsWithText.length > 0) {
+      lines.push('');
+      lines.push(`# ข้อความ SAR ที่โรงเรียนพิมพ์ส่งโดยตรง (ข้อมูลเชิงคุณภาพ baseline)`);
+      for (const d of docsWithText) {
+        lines.push(`\n## documentId=${d.documentId} (${d.level})`);
+        lines.push(d.bodyText!);
+      }
+      lines.push('');
+      lines.push('เมื่ออ้างถึงข้อความเหล่านี้ ให้ระบุ documentId และคำว่า "ข้อความ" (ไม่มี pageId).');
+    }
   } else {
     lines.push(`# เอกสาร SAR: ยังไม่มี`);
     lines.push('ทุก Item ต้องตั้ง evidenceMissing=true และระบุข้อความว่า "หลักฐานไม่พอ — ต้องการ X" ใน text.');

@@ -68,6 +68,9 @@ export async function GET(request: NextRequest) {
         academicYear: d.academicYear?.year,
         level: d.level,
         originalFilename: d.originalFilename,
+        hasFile: !!d.filePath,
+        hasBodyText: !!d.bodyText,
+        bodyTextLength: d.bodyText ? d.bodyText.length : 0,
         status: d.status,
         extractionMethod: d.extractionMethod,
         textQualityScore: d.textQualityScore,
@@ -104,14 +107,26 @@ export async function POST(request: NextRequest) {
     const level = String(form.get('level') || '');
     const changeNote = String(form.get('changeNote') || '');
     const file = form.get('file');
+    const bodyTextRaw = form.get('bodyText');
 
     if (!schoolIdRaw || !academicYearIdRaw || !level || !ALLOWED_LEVELS.has(level)) {
       return errorResponse('Missing or invalid fields: schoolId, academicYearId, level', 400);
     }
-    if (!(file instanceof File)) return errorResponse('Missing file', 400);
-    if (file.size === 0) return errorResponse('Empty file', 400);
-    if (file.size > MAX_BYTES) return errorResponse(`File too large (max ${MAX_BYTES} bytes)`, 413);
-    if (!file.name.toLowerCase().endsWith('.pdf')) return errorResponse('Only PDF files are accepted', 400);
+
+    const hasFile = file instanceof File && file.size > 0;
+    const bodyText = typeof bodyTextRaw === 'string' ? bodyTextRaw.trim() : '';
+    const hasBodyText = bodyText.length > 0;
+
+    if (!hasFile && !hasBodyText) {
+      return errorResponse('ต้องส่งไฟล์ PDF หรือข้อความ SAR อย่างน้อยหนึ่งอย่าง', 400);
+    }
+    if (hasBodyText && bodyText.length < 10) {
+      return errorResponse('ข้อความ SAR ต้องมีอย่างน้อย 10 ตัวอักษร', 400);
+    }
+    if (hasFile) {
+      if ((file as File).size > MAX_BYTES) return errorResponse(`File too large (max ${MAX_BYTES} bytes)`, 413);
+      if (!(file as File).name.toLowerCase().endsWith('.pdf')) return errorResponse('Only PDF files are accepted', 400);
+    }
 
     const schoolId = parseInt(String(schoolIdRaw), 10);
     const academicYearId = parseInt(String(academicYearIdRaw), 10);
@@ -129,23 +144,36 @@ export async function POST(request: NextRequest) {
 
     const versionNo = existing ? (existing.versions[0]?.versionNo ?? 0) + 1 : 1;
 
-    // Persist file to disk
-    const dir = path.join(uploadsRoot(), String(schoolId), String(academicYearId), level);
-    fs.mkdirSync(dir, { recursive: true });
-    const fileName = `v${versionNo}.pdf`;
-    const fullPath = path.join(dir, fileName);
-    const arrayBuf = await file.arrayBuffer();
-    fs.writeFileSync(fullPath, Buffer.from(arrayBuf));
-    const relPath = `/uploads/sar/${schoolId}/${academicYearId}/${level}/${fileName}`;
+    // Field carry-forward: a submission that updates only one field (file XOR text)
+    // preserves the other field from the previous state, so versions are full snapshots.
+    let nextFilePath: string | null = existing?.filePath ?? null;
+    let nextOriginalFilename: string | null = existing?.originalFilename ?? null;
+    let nextBodyText: string | null = existing?.bodyText ?? null;
+
+    if (hasFile) {
+      const f = file as File;
+      const dir = path.join(uploadsRoot(), String(schoolId), String(academicYearId), level);
+      fs.mkdirSync(dir, { recursive: true });
+      const fileName = `v${versionNo}.pdf`;
+      const fullPath = path.join(dir, fileName);
+      const arrayBuf = await f.arrayBuffer();
+      fs.writeFileSync(fullPath, Buffer.from(arrayBuf));
+      nextFilePath = `/uploads/sar/${schoolId}/${academicYearId}/${level}/${fileName}`;
+      nextOriginalFilename = f.name;
+    }
+
+    if (hasBodyText) {
+      nextBodyText = bodyText;
+    }
 
     let doc;
     if (existing) {
-      // Add version, update status to UPLOADED, swap filePath to new version
       doc = await prisma.sarDocument.update({
         where: { id: existing.id },
         data: {
-          filePath: relPath,
-          originalFilename: file.name,
+          filePath: nextFilePath,
+          originalFilename: nextOriginalFilename,
+          bodyText: nextBodyText,
           status: 'UPLOADED',
           extractionMethod: null,
           textQualityScore: null,
@@ -157,7 +185,14 @@ export async function POST(request: NextRequest) {
         },
       });
       await prisma.sarDocumentVersion.create({
-        data: { documentId: existing.id, versionNo, filePath: relPath, createdById: me.id, changeNote: changeNote || null },
+        data: {
+          documentId: existing.id,
+          versionNo,
+          filePath: nextFilePath,
+          bodyText: nextBodyText,
+          createdById: me.id,
+          changeNote: changeNote || null,
+        },
       });
     } else {
       doc = await prisma.sarDocument.create({
@@ -165,14 +200,22 @@ export async function POST(request: NextRequest) {
           schoolId,
           academicYearId,
           level: level as any,
-          originalFilename: file.name,
-          filePath: relPath,
+          originalFilename: nextOriginalFilename,
+          filePath: nextFilePath,
+          bodyText: nextBodyText,
           status: 'UPLOADED',
           uploadedById: me.id,
         },
       });
       await prisma.sarDocumentVersion.create({
-        data: { documentId: doc.id, versionNo: 1, filePath: relPath, createdById: me.id, changeNote: changeNote || null },
+        data: {
+          documentId: doc.id,
+          versionNo: 1,
+          filePath: nextFilePath,
+          bodyText: nextBodyText,
+          createdById: me.id,
+          changeNote: changeNote || null,
+        },
       });
     }
 
@@ -181,12 +224,27 @@ export async function POST(request: NextRequest) {
       action: existing ? 'SAR_REUPLOAD' : 'SAR_UPLOAD',
       entityType: 'SarDocument',
       entityId: doc.id,
-      after: { schoolId, academicYearId, level, versionNo, originalFilename: file.name },
+      after: {
+        schoolId,
+        academicYearId,
+        level,
+        versionNo,
+        hasFile,
+        hasBodyText,
+        bodyTextLength: hasBodyText ? bodyText.length : 0,
+        originalFilename: nextOriginalFilename,
+      },
     });
 
     return successResponse(
-      { id: doc.id, status: doc.status, versionNo, filePath: relPath },
-      existing ? `อัปโหลดเวอร์ชันใหม่สำเร็จ (v${versionNo})` : 'อัปโหลดสำเร็จ'
+      {
+        id: doc.id,
+        status: doc.status,
+        versionNo,
+        filePath: nextFilePath,
+        hasBodyText: !!nextBodyText,
+      },
+      existing ? `บันทึกเวอร์ชันใหม่สำเร็จ (v${versionNo})` : 'บันทึกสำเร็จ'
     );
   } catch (error: any) {
     if (error?.message?.startsWith('Unauthorized')) return errorResponse(error.message, 401);

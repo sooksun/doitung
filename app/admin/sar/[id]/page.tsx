@@ -14,10 +14,14 @@ interface SarDetail {
   schoolId: number;
   schoolCode: string | null;
   schoolName: string;
+  academicYearId: number;
   academicYear: string;
   level: string;
-  originalFilename: string;
-  filePath: string;
+  originalFilename: string | null;
+  filePath: string | null;
+  hasFile: boolean;
+  bodyText: string | null;
+  hasBodyText: boolean;
   status: string;
   extractionMethod: string | null;
   textQualityScore: number | null;
@@ -44,6 +48,9 @@ export default function SarDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [editingText, setEditingText] = useState(false);
+  const [textDraft, setTextDraft] = useState('');
+  const [textNote, setTextNote] = useState('');
 
   const load = useCallback(async (authToken: string) => {
     try {
@@ -94,6 +101,48 @@ export default function SarDetailPage() {
     }
   };
 
+  const saveText = async () => {
+    if (!token || !doc) return;
+    const trimmed = textDraft.trim();
+    if (trimmed.length < 10) {
+      toastError('ข้อความต้องมีอย่างน้อย 10 ตัวอักษร');
+      return;
+    }
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('schoolId', String(doc.schoolId));
+      fd.append('academicYearId', String(doc.academicYearId));
+      fd.append('level', doc.level);
+      fd.append('bodyText', textDraft);
+      if (textNote.trim()) fd.append('changeNote', textNote.trim());
+      const res = await fetch('/api/admin/sar-documents', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        toastError(json.error || 'บันทึกไม่สำเร็จ');
+        return;
+      }
+      toastSuccess(json.message || 'บันทึกสำเร็จ');
+      setEditingText(false);
+      setTextNote('');
+      await load(token);
+    } catch {
+      toastError('เกิดข้อผิดพลาด');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const startEditText = () => {
+    setTextDraft(doc?.bodyText || '');
+    setTextNote('');
+    setEditingText(true);
+  };
+
   if (loading) return <div style={{ padding: '2rem', textAlign: 'center', color: '#666' }}>กำลังโหลด...</div>;
   if (error || !doc) {
     return (
@@ -119,7 +168,11 @@ export default function SarDetailPage() {
           </h1>
           <div style={{ color: '#666', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
             <div>{doc.schoolCode} {doc.schoolName} · ปีการศึกษา {doc.academicYear} · ระดับ {LEVEL_LABEL[doc.level] || doc.level}</div>
-            <div style={{ fontSize: '0.8rem', color: '#888', marginTop: '0.25rem' }}>{doc.originalFilename}</div>
+            <div style={{ fontSize: '0.8rem', color: '#888', marginTop: '0.25rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              {doc.hasFile && doc.originalFilename && <span>📎 {doc.originalFilename}</span>}
+              {doc.hasBodyText && <span style={{ color: '#7c3aed' }}>📝 ข้อความ {doc.bodyText?.length.toLocaleString()} ตัวอักษร</span>}
+              {!doc.hasFile && !doc.hasBodyText && <span style={{ color: '#dc2626' }}>⚠️ ไม่มีข้อมูล</span>}
+            </div>
           </div>
 
           {/* Status timeline */}
@@ -160,14 +213,16 @@ export default function SarDetailPage() {
 
           {/* Action buttons */}
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', borderTop: '1px solid #e5e7eb', paddingTop: '1rem', marginBottom: '1.5rem' }}>
-            <a
-              href={`/api/admin/sar-documents/${doc.id}/file`}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ padding: '0.55rem 1rem', background: '#667eea', color: 'white', borderRadius: '0.4rem', textDecoration: 'none', fontWeight: 500 }}
-            >
-              📖 เปิด PDF
-            </a>
+            {doc.hasFile && (
+              <a
+                href={`/api/admin/sar-documents/${doc.id}/file`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ padding: '0.55rem 1rem', background: '#667eea', color: 'white', borderRadius: '0.4rem', textDecoration: 'none', fontWeight: 500 }}
+              >
+                📖 เปิด PDF
+              </a>
+            )}
             {(doc.status === 'UPLOADED' || doc.status === 'NEEDS_REVIEW') && (
               <button
                 onClick={() => action(`/api/admin/sar-documents/${doc.id}/process`)}
@@ -195,9 +250,75 @@ export default function SarDetailPage() {
               </button>
             )}
             <Link href="/admin/sar/new" style={{ padding: '0.55rem 1rem', background: '#e5e7eb', color: '#333', borderRadius: '0.4rem', textDecoration: 'none', fontWeight: 500 }}>
-              📤 อัปโหลดเวอร์ชันใหม่
+              📤 บันทึกเวอร์ชันใหม่
             </Link>
+            {!editingText && (
+              <button
+                onClick={startEditText}
+                disabled={busy}
+                style={{ padding: '0.55rem 1rem', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '0.4rem', cursor: busy ? 'not-allowed' : 'pointer', fontWeight: 500 }}
+              >
+                {doc.hasBodyText ? '✏️ แก้ไขข้อความ' : '📝 เพิ่มข้อความ'}
+              </button>
+            )}
           </div>
+
+          {/* Body text panel */}
+          {(doc.hasBodyText || editingText) && (
+            <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#faf5ff', border: '1px solid #d8b4fe', borderRadius: '0.5rem' }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#6b21a8', marginBottom: '0.5rem' }}>
+                📝 ข้อความเชิงคุณภาพ (Baseline) — ใช้ประกอบการวิเคราะห์ AI
+              </div>
+              {editingText ? (
+                <>
+                  <textarea
+                    value={textDraft}
+                    onChange={(e) => setTextDraft(e.target.value)}
+                    rows={12}
+                    placeholder="พิมพ์ข้อมูลคุณภาพการศึกษา ระดับ ${LEVEL_LABEL[doc.level] || doc.level} ..."
+                    style={{
+                      width: '100%', padding: '0.6rem 0.85rem', border: '1px solid #c4b5fd', borderRadius: '0.4rem',
+                      fontSize: '0.92rem', fontFamily: 'inherit', resize: 'vertical', lineHeight: 1.5, boxSizing: 'border-box',
+                    }}
+                  />
+                  <div style={{ fontSize: '0.75rem', color: '#888', marginTop: '0.25rem', textAlign: 'right' }}>
+                    {textDraft.length.toLocaleString()} ตัวอักษร{' '}
+                    {textDraft.length > 0 && textDraft.length < 10 && <span style={{ color: '#dc2626' }}>(ขั้นต่ำ 10)</span>}
+                  </div>
+                  <input
+                    value={textNote}
+                    onChange={(e) => setTextNote(e.target.value)}
+                    placeholder="หมายเหตุการเปลี่ยนแปลง (เช่น แก้คำผิด, เพิ่มหัวข้อ PLC)"
+                    style={{ width: '100%', padding: '0.5rem 0.75rem', marginTop: '0.5rem', border: '1px solid #c4b5fd', borderRadius: '0.4rem', fontSize: '0.85rem', boxSizing: 'border-box' }}
+                  />
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.6rem' }}>
+                    <button
+                      onClick={saveText}
+                      disabled={busy || textDraft.trim().length < 10}
+                      style={{ padding: '0.5rem 1rem', background: busy || textDraft.trim().length < 10 ? '#9ca3af' : '#10b981', color: 'white', border: 'none', borderRadius: '0.4rem', cursor: busy ? 'not-allowed' : 'pointer', fontWeight: 500, fontSize: '0.88rem' }}
+                    >
+                      💾 บันทึกเวอร์ชันใหม่
+                    </button>
+                    <button
+                      onClick={() => { setEditingText(false); setTextNote(''); }}
+                      disabled={busy}
+                      style={{ padding: '0.5rem 1rem', background: '#e5e7eb', color: '#333', border: 'none', borderRadius: '0.4rem', cursor: busy ? 'not-allowed' : 'pointer', fontSize: '0.88rem' }}
+                    >
+                      ยกเลิก
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div style={{
+                  whiteSpace: 'pre-wrap', wordWrap: 'break-word', maxHeight: '400px', overflowY: 'auto',
+                  padding: '0.75rem', background: 'white', border: '1px solid #e9d5ff', borderRadius: '0.4rem',
+                  fontSize: '0.9rem', lineHeight: 1.6, color: '#1f2937',
+                }}>
+                  {doc.bodyText}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Versions */}
           <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#333', marginBottom: '0.5rem' }}>ประวัติเวอร์ชัน</h3>

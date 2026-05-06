@@ -81,7 +81,7 @@ export async function runSoar(runId: number): Promise<void> {
     // 2. Approved SAR documents for this school
     const sarDocs = await prisma.sarDocument.findMany({
       where: { schoolId: session.schoolId, status: 'APPROVED' },
-      select: { id: true, level: true, filePath: true },
+      select: { id: true, level: true, filePath: true, bodyText: true },
       orderBy: { id: 'desc' },
       take: 4,
     });
@@ -89,6 +89,7 @@ export async function runSoar(runId: number): Promise<void> {
       documentId: d.id,
       level: d.level,
       note: 'cite documentId + page when quoting',
+      bodyText: d.bodyText || null,
     }));
 
     // 3. Cache lookup
@@ -126,9 +127,10 @@ export async function runSoar(runId: number): Promise<void> {
     // 4. Redact + build user prompt
     const userPrompt = redactPII(buildSoarUserPrompt(promptInput)).text;
 
-    // 5. Collect SAR PDF paths (sent inline as base64 via OpenRouter; skip missing files)
+    // 5. Collect SAR PDF paths (sent inline as base64 via OpenRouter; skip text-only or missing files)
     const pdfFiles: Array<{ path: string; filename: string }> = [];
     for (const doc of sarDocs) {
+      if (!doc.filePath) continue; // text-only doc — content is rendered in the user prompt instead
       const full = path.join(process.cwd(), 'public', doc.filePath.replace(/^\//, ''));
       if (fs.existsSync(full)) {
         pdfFiles.push({ path: full, filename: `sar-${doc.id}.pdf` });

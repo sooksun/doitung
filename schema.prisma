@@ -640,8 +640,9 @@ model SarDocument {
   schoolId         Int
   academicYearId   Int
   level            SarLevel
-  originalFilename String
-  filePath         String
+  originalFilename String?
+  filePath         String?
+  bodyText         String?      @db.LongText
   status           SarDocStatus @default(UPLOADED)
   extractionMethod String? // 'native' | 'gemini_file_api'
   textQualityScore Float?
@@ -671,7 +672,8 @@ model SarDocumentVersion {
   id          Int      @id @default(autoincrement())
   documentId  Int
   versionNo   Int
-  filePath    String
+  filePath    String?
+  bodyText    String?  @db.LongText
   createdById Int
   changeNote  String?
   createdAt   DateTime @default(now())

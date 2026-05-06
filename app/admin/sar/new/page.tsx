@@ -24,6 +24,8 @@ export default function NewSarPage() {
   const [academicYearId, setAcademicYearId] = useState('');
   const [ecFile, setEcFile] = useState<File | null>(null);
   const [bsFile, setBsFile] = useState<File | null>(null);
+  const [ecText, setEcText] = useState('');
+  const [bsText, setBsText] = useState('');
   const [changeNote, setChangeNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -74,9 +76,16 @@ export default function NewSarPage() {
     }).catch(() => setError('โหลดข้อมูลไม่สำเร็จ'));
   }, [router]);
 
-  const upload = async (file: File, level: 'EARLY_CHILDHOOD' | 'BASIC_EDUCATION', schoolId: number, yearId: number) => {
+  const submit = async (
+    level: 'EARLY_CHILDHOOD' | 'BASIC_EDUCATION',
+    schoolId: number,
+    yearId: number,
+    file: File | null,
+    bodyText: string,
+  ) => {
     const fd = new FormData();
-    fd.append('file', file);
+    if (file) fd.append('file', file);
+    if (bodyText.trim()) fd.append('bodyText', bodyText);
     fd.append('schoolId', String(schoolId));
     fd.append('academicYearId', String(yearId));
     fd.append('level', level);
@@ -87,15 +96,18 @@ export default function NewSarPage() {
       body: fd,
     });
     const json = await res.json();
-    if (!res.ok || !json.success) throw new Error(json.error || `Upload failed (${level})`);
+    if (!res.ok || !json.success) throw new Error(json.error || `Submit failed (${level})`);
     return json.data;
   };
+
+  const ecHasInput = !!ecFile || ecText.trim().length > 0;
+  const bsHasInput = !!bsFile || bsText.trim().length > 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) return;
-    if (!ecFile && !bsFile) {
-      toastError('กรุณาเลือกไฟล์อย่างน้อย 1 ไฟล์');
+    if (!ecHasInput && !bsHasInput) {
+      toastError('กรุณาส่ง PDF หรือพิมพ์ข้อความ SAR อย่างน้อย 1 ระดับ');
       return;
     }
     if (!academicYearId) { toastError('กรุณาเลือกปีการศึกษา'); return; }
@@ -105,19 +117,19 @@ export default function NewSarPage() {
     setError('');
     try {
       let lastId: number | null = null;
-      if (ecFile) {
-        const r = await upload(ecFile, 'EARLY_CHILDHOOD', resolvedSchoolId, parseInt(academicYearId, 10));
+      if (ecHasInput) {
+        const r = await submit('EARLY_CHILDHOOD', resolvedSchoolId, parseInt(academicYearId, 10), ecFile, ecText);
         lastId = r.id;
       }
-      if (bsFile) {
-        const r = await upload(bsFile, 'BASIC_EDUCATION', resolvedSchoolId, parseInt(academicYearId, 10));
+      if (bsHasInput) {
+        const r = await submit('BASIC_EDUCATION', resolvedSchoolId, parseInt(academicYearId, 10), bsFile, bsText);
         lastId = r.id;
       }
-      toastSuccess('อัปโหลดสำเร็จ');
+      toastSuccess('บันทึกสำเร็จ');
       router.push(lastId ? `/admin/sar/${lastId}` : '/admin/sar');
     } catch (err: any) {
-      setError(err.message || 'อัปโหลดไม่สำเร็จ');
-      toastError(err.message || 'อัปโหลดไม่สำเร็จ');
+      setError(err.message || 'บันทึกไม่สำเร็จ');
+      toastError(err.message || 'บันทึกไม่สำเร็จ');
     } finally {
       setSubmitting(false);
     }
@@ -135,10 +147,10 @@ export default function NewSarPage() {
 
         <div style={{ background: 'white', padding: '2rem', borderRadius: '0.5rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#333', marginBottom: '0.25rem' }}>
-            📤 อัปโหลด SAR
+            📤 ส่งข้อมูล SAR
           </h1>
           <p style={{ color: '#666', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
-            ปีการศึกษา 1 ปีต่อโรงเรียน รองรับ 2 ไฟล์: ปฐมวัย + ขั้นพื้นฐาน · อัปโหลดซ้ำเก็บเป็นเวอร์ชันใหม่ (ไฟล์เดิมไม่หาย)
+            ส่งได้ทั้ง <strong>ไฟล์ PDF</strong> และ/หรือ <strong>ข้อความเชิงคุณภาพ</strong> สำหรับ 2 ระดับ: ปฐมวัย + ขั้นพื้นฐาน · ทุกครั้งที่บันทึกจะเก็บเวอร์ชันใหม่ (ของเดิมไม่หาย)
           </p>
 
           {error && <div style={{ padding: '0.75rem', background: '#fee', color: '#c33', borderRadius: '0.4rem', marginBottom: '1rem', fontSize: '0.875rem' }}>{error}</div>}
@@ -181,17 +193,45 @@ export default function NewSarPage() {
               </select>
             </div>
 
-            <div style={{ marginBottom: '1rem' }}>
-              <label style={labelStyle}>SAR ระดับปฐมวัย (PDF)</label>
-              <input type="file" accept="application/pdf" onChange={(e) => setEcFile(e.target.files?.[0] || null)} style={{ ...inputStyle, padding: '0.5rem', cursor: 'pointer' }} />
-              {ecFile && <div style={{ fontSize: '0.78rem', color: '#666', marginTop: '0.25rem' }}>เลือกแล้ว: {ecFile.name} ({(ecFile.size / 1024 / 1024).toFixed(2)} MB)</div>}
-            </div>
+            <fieldset style={{ marginBottom: '1.25rem', padding: '1rem', border: '1px solid #e5e7eb', borderRadius: '0.5rem' }}>
+              <legend style={{ padding: '0 0.5rem', fontWeight: 600, color: '#333' }}>SAR ระดับปฐมวัย</legend>
+              <div style={{ marginBottom: '0.75rem' }}>
+                <label style={labelStyle}>📎 ไฟล์ PDF (ถ้ามี)</label>
+                <input type="file" accept="application/pdf" onChange={(e) => setEcFile(e.target.files?.[0] || null)} style={{ ...inputStyle, padding: '0.5rem', cursor: 'pointer' }} />
+                {ecFile && <div style={{ fontSize: '0.78rem', color: '#666', marginTop: '0.25rem' }}>เลือกแล้ว: {ecFile.name} ({(ecFile.size / 1024 / 1024).toFixed(2)} MB)</div>}
+              </div>
+              <div>
+                <label style={labelStyle}>📝 หรือพิมพ์ข้อความ SAR ตรงนี้ (ข้อมูลเชิงคุณภาพ baseline)</label>
+                <textarea
+                  value={ecText}
+                  onChange={(e) => setEcText(e.target.value)}
+                  rows={8}
+                  placeholder="พิมพ์ข้อมูลคุณภาพการศึกษาระดับปฐมวัย เช่น แนวทางการจัดประสบการณ์ จุดเน้น กิจกรรมที่ดำเนินการ ผลที่เกิดกับเด็ก ฯลฯ — ใช้คู่กับ PDF หรือใช้แทน PDF ก็ได้"
+                  style={{ ...inputStyle, fontFamily: 'inherit', resize: 'vertical', lineHeight: 1.5 }}
+                />
+                <div style={{ fontSize: '0.75rem', color: '#888', marginTop: '0.25rem', textAlign: 'right' }}>{ecText.length.toLocaleString()} ตัวอักษร {ecText.length > 0 && ecText.length < 10 && <span style={{ color: '#dc2626' }}>(ขั้นต่ำ 10)</span>}</div>
+              </div>
+            </fieldset>
 
-            <div style={{ marginBottom: '1rem' }}>
-              <label style={labelStyle}>SAR ระดับขั้นพื้นฐาน (PDF)</label>
-              <input type="file" accept="application/pdf" onChange={(e) => setBsFile(e.target.files?.[0] || null)} style={{ ...inputStyle, padding: '0.5rem', cursor: 'pointer' }} />
-              {bsFile && <div style={{ fontSize: '0.78rem', color: '#666', marginTop: '0.25rem' }}>เลือกแล้ว: {bsFile.name} ({(bsFile.size / 1024 / 1024).toFixed(2)} MB)</div>}
-            </div>
+            <fieldset style={{ marginBottom: '1.25rem', padding: '1rem', border: '1px solid #e5e7eb', borderRadius: '0.5rem' }}>
+              <legend style={{ padding: '0 0.5rem', fontWeight: 600, color: '#333' }}>SAR ระดับขั้นพื้นฐาน</legend>
+              <div style={{ marginBottom: '0.75rem' }}>
+                <label style={labelStyle}>📎 ไฟล์ PDF (ถ้ามี)</label>
+                <input type="file" accept="application/pdf" onChange={(e) => setBsFile(e.target.files?.[0] || null)} style={{ ...inputStyle, padding: '0.5rem', cursor: 'pointer' }} />
+                {bsFile && <div style={{ fontSize: '0.78rem', color: '#666', marginTop: '0.25rem' }}>เลือกแล้ว: {bsFile.name} ({(bsFile.size / 1024 / 1024).toFixed(2)} MB)</div>}
+              </div>
+              <div>
+                <label style={labelStyle}>📝 หรือพิมพ์ข้อความ SAR ตรงนี้ (ข้อมูลเชิงคุณภาพ baseline)</label>
+                <textarea
+                  value={bsText}
+                  onChange={(e) => setBsText(e.target.value)}
+                  rows={8}
+                  placeholder="พิมพ์ข้อมูลคุณภาพการศึกษาระดับขั้นพื้นฐาน เช่น แนวการจัดการเรียนรู้ ผลสัมฤทธิ์ จุดเด่น/จุดที่ต้องพัฒนา ชุมชนแห่งการเรียนรู้ (PLC) ฯลฯ — ใช้คู่กับ PDF หรือใช้แทน PDF ก็ได้"
+                  style={{ ...inputStyle, fontFamily: 'inherit', resize: 'vertical', lineHeight: 1.5 }}
+                />
+                <div style={{ fontSize: '0.75rem', color: '#888', marginTop: '0.25rem', textAlign: 'right' }}>{bsText.length.toLocaleString()} ตัวอักษร {bsText.length > 0 && bsText.length < 10 && <span style={{ color: '#dc2626' }}>(ขั้นต่ำ 10)</span>}</div>
+              </div>
+            </fieldset>
 
             <div style={{ marginBottom: '1.5rem' }}>
               <label style={labelStyle}>หมายเหตุการเปลี่ยนแปลง (ถ้าอัปโหลดเวอร์ชันใหม่)</label>
@@ -201,15 +241,15 @@ export default function NewSarPage() {
             <div style={{ display: 'flex', gap: '0.75rem', borderTop: '1px solid #e5e7eb', paddingTop: '1rem' }}>
               <button
                 type="submit"
-                disabled={submitting || (!ecFile && !bsFile) || !resolvedSchoolId || !academicYearId}
+                disabled={submitting || (!ecHasInput && !bsHasInput) || !resolvedSchoolId || !academicYearId}
                 style={{
                   padding: '0.7rem 1.5rem',
-                  background: submitting || (!ecFile && !bsFile) || !resolvedSchoolId || !academicYearId ? '#9ca3af' : '#10b981',
+                  background: submitting || (!ecHasInput && !bsHasInput) || !resolvedSchoolId || !academicYearId ? '#9ca3af' : '#10b981',
                   color: 'white', border: 'none', borderRadius: '0.4rem', fontSize: '0.95rem', fontWeight: 600,
                   cursor: submitting ? 'not-allowed' : 'pointer',
                 }}
               >
-                {submitting ? 'กำลังอัปโหลด...' : '📤 อัปโหลด'}
+                {submitting ? 'กำลังบันทึก...' : '💾 บันทึก'}
               </button>
               <Link href="/admin/sar" style={{ padding: '0.7rem 1.5rem', background: '#f3f4f6', color: '#333', border: '1px solid #d1d5db', borderRadius: '0.4rem', fontSize: '0.95rem', textDecoration: 'none' }}>
                 ยกเลิก
