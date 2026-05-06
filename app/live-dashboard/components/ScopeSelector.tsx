@@ -51,6 +51,13 @@ const selectStyle: React.CSSProperties = {
   minWidth: '140px',
 };
 
+// Native <option> popup uses the OS/browser surface, not the dark dashboard
+// background — explicitly set black-on-white so the list is readable when open.
+const optionStyle: React.CSSProperties = {
+  color: '#000',
+  background: '#fff',
+};
+
 const btnBase: React.CSSProperties = {
   padding: '0.4rem 1rem',
   borderRadius: '0.4rem',
@@ -120,9 +127,9 @@ export default function ScopeSelector({
           onChange={(e) => onSchoolChange(e.target.value ? parseInt(e.target.value) : undefined)}
           style={selectStyle}
         >
-          <option value="">-- เลือกโรงเรียน --</option>
+          <option value="" style={optionStyle}>-- เลือกโรงเรียน --</option>
           {schools.map((s) => (
-            <option key={s.id} value={s.id}>
+            <option key={s.id} value={s.id} style={optionStyle}>
               {s.nameTh}
             </option>
           ))}
@@ -135,9 +142,9 @@ export default function ScopeSelector({
           onChange={(e) => onNetworkChange(e.target.value ? parseInt(e.target.value) : undefined)}
           style={selectStyle}
         >
-          <option value="">-- เลือกกลุ่มโรงเรียน --</option>
+          <option value="" style={optionStyle}>-- เลือกกลุ่มโรงเรียน --</option>
           {networks.map((n) => (
-            <option key={n.id} value={n.id}>
+            <option key={n.id} value={n.id} style={optionStyle}>
               {n.name}
             </option>
           ))}
@@ -153,9 +160,9 @@ export default function ScopeSelector({
         }}
         style={selectStyle}
       >
-        <option value="">ทุกปีการศึกษา</option>
+        <option value="" style={optionStyle}>ทุกปีการศึกษา</option>
         {academicYears.map((y) => (
-          <option key={y.id} value={y.id}>
+          <option key={y.id} value={y.id} style={optionStyle}>
             ปีการศึกษา {y.year}
           </option>
         ))}
@@ -168,9 +175,9 @@ export default function ScopeSelector({
           onChange={(e) => onTermChange(e.target.value ? parseInt(e.target.value) : undefined)}
           style={selectStyle}
         >
-          <option value="">ทุกเทอม</option>
+          <option value="" style={optionStyle}>ทุกเทอม</option>
           {filteredTerms.map((t) => (
-            <option key={t.id} value={t.id}>
+            <option key={t.id} value={t.id} style={optionStyle}>
               เทอม {t.termNumber}
             </option>
           ))}
