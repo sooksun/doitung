@@ -64,6 +64,7 @@ export default function LiveDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [paused, setPaused] = useState(false);
   const [secondsAgo, setSecondsAgo] = useState(0);
+  const [activeIndicatorTab, setActiveIndicatorTab] = useState<'Q-Leadership' | 'Q-PLC' | 'Q-Learning' | 'Q-Students'>('Q-Leadership');
   const lastFetchTime = useRef<number>(Date.now());
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -372,106 +373,146 @@ export default function LiveDashboardPage() {
               <LiveSpiderChart data={liveData?.spiderData ?? []} height={420} />
             </div>
 
-            {/* RIGHT PANEL — Indicator Health (all 47, scrollable, grouped by section) */}
+            {/* RIGHT PANEL — Indicator Health (4 tabs, scrollable list per tab) */}
             <div
               style={{
                 background: 'rgba(255,255,255,0.04)',
                 borderRadius: '1rem',
                 border: '1px solid rgba(255,255,255,0.08)',
-                padding: '1rem',
+                padding: '1rem 0.75rem 1rem 1rem',
                 overflow: 'hidden',
                 display: 'flex',
                 flexDirection: 'column',
                 minHeight: 0,
               }}
             >
-              <div
-                style={{
-                  fontSize: '0.8rem',
-                  fontWeight: 700,
-                  color: 'rgba(255,255,255,0.5)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  marginBottom: '0.75rem',
-                  flexShrink: 0,
-                }}
-              >
-                ตัวชี้วัดทั้งหมด
-                <div style={{ fontSize: '0.65rem', fontWeight: 400, color: 'rgba(255,255,255,0.35)', marginTop: '0.2rem', letterSpacing: 0 }}>
-                  47 ตัว · 4 มิติ
-                </div>
-              </div>
-              <div
-                className="indicator-scroll"
-                style={{
-                  overflowY: 'auto',
-                  paddingRight: '0.4rem',
-                  flex: 1,
-                  minHeight: 0,
-                }}
-              >
-                {(liveData?.indicatorHealth ?? []).map((ind, idx) => {
-                  const prev = liveData?.indicatorHealth?.[idx - 1];
-                  const showSectionHeader = !prev || prev.sectionKey !== ind.sectionKey;
-                  const hasData = ind.score !== null && ind.progress !== null;
-                  return (
-                    <div key={`${ind.sectionKey}-${ind.code ?? idx}`}>
-                      {showSectionHeader && (
-                        <div
-                          style={{
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                            color: '#a5b4fc',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.05em',
-                            margin: idx === 0 ? '0 0 0.5rem' : '0.85rem 0 0.5rem',
-                            paddingBottom: '0.25rem',
-                            borderBottom: '1px solid rgba(165,180,252,0.15)',
-                          }}
-                        >
-                          {ind.sectionLabelTh}
-                        </div>
-                      )}
-                      <div style={{ marginBottom: '0.65rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                          <span style={{ fontSize: '0.78rem', color: '#cbd5e1', lineHeight: 1.35, flex: 1 }}>
-                            {ind.code && (
-                              <span style={{ fontWeight: 700, color: '#818cf8', marginRight: '0.35rem' }}>
-                                {ind.code}
-                              </span>
-                            )}
-                            {ind.nameTh}
-                          </span>
-                          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: hasData ? '#818cf8' : 'rgba(255,255,255,0.3)', whiteSpace: 'nowrap' }}>
-                            {hasData ? `${ind.score}/${ind.max}` : '—'}
-                          </span>
-                        </div>
-                        <div
-                          style={{
-                            width: '100%',
-                            height: '6px',
-                            background: 'rgba(255,255,255,0.08)',
-                            borderRadius: '3px',
-                            overflow: 'hidden',
-                          }}
-                        >
-                          {hasData && (
-                            <div
-                              style={{
-                                width: `${ind.progress}%`,
-                                height: '100%',
-                                background: 'linear-gradient(90deg, #818cf899, #818cf8)',
-                                borderRadius: '3px',
-                                transition: 'width 0.7s ease-out',
-                              }}
-                            />
-                          )}
-                        </div>
-                      </div>
+              {(() => {
+                const TABS: Array<{ key: 'Q-Leadership' | 'Q-PLC' | 'Q-Learning' | 'Q-Students'; label: string; tooltip: string }> = [
+                  { key: 'Q-Leadership', label: 'LH',  tooltip: 'Q-Leadership ผู้บริหาร' },
+                  { key: 'Q-PLC',        label: 'PLC', tooltip: 'Q-PLC ชุมชนแห่งการเรียนรู้' },
+                  { key: 'Q-Learning',   label: 'LN',  tooltip: 'Q-Learning การจัดการเรียนรู้' },
+                  { key: 'Q-Students',   label: 'STD', tooltip: 'Q-Students ด้านนักเรียน' },
+                ];
+                const all = liveData?.indicatorHealth ?? [];
+                const counts = TABS.reduce((acc, t) => {
+                  acc[t.key] = all.filter((i) => i.sectionKey === t.key).length;
+                  return acc;
+                }, {} as Record<string, number>);
+                const filtered = all.filter((i) => i.sectionKey === activeIndicatorTab);
+                const activeMeta = TABS.find((t) => t.key === activeIndicatorTab);
+
+                return (
+                  <>
+                    <div style={{ display: 'flex', gap: '0.3rem', marginBottom: '0.6rem', flexShrink: 0 }}>
+                      {TABS.map((t) => {
+                        const isActive = t.key === activeIndicatorTab;
+                        return (
+                          <button
+                            key={t.key}
+                            onClick={() => setActiveIndicatorTab(t.key)}
+                            title={t.tooltip}
+                            style={{
+                              flex: 1,
+                              padding: '0.4rem 0.25rem',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              border: '1px solid',
+                              borderColor: isActive ? '#818cf8' : 'rgba(255,255,255,0.1)',
+                              background: isActive ? 'rgba(129,140,248,0.18)' : 'transparent',
+                              color: isActive ? '#c7d2fe' : 'rgba(255,255,255,0.55)',
+                              borderRadius: '0.4rem',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              gap: '0.05rem',
+                              lineHeight: 1.1,
+                            }}
+                          >
+                            <span>{t.label}</span>
+                            <span style={{ fontSize: '0.6rem', fontWeight: 500, opacity: 0.7 }}>
+                              {counts[t.key] || 0}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
-                  );
-                })}
-              </div>
+
+                    <div
+                      style={{
+                        fontSize: '0.65rem',
+                        fontWeight: 600,
+                        color: 'rgba(165,180,252,0.7)',
+                        textAlign: 'center',
+                        marginBottom: '0.5rem',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {activeMeta?.tooltip}
+                    </div>
+
+                    <div
+                      key={activeIndicatorTab}
+                      className="indicator-scroll"
+                      style={{
+                        overflowY: 'auto',
+                        paddingRight: '0.35rem',
+                        flex: 1,
+                        minHeight: 0,
+                      }}
+                    >
+                      {filtered.length === 0 ? (
+                        <div style={{ padding: '1.5rem 0.5rem', textAlign: 'center', color: 'rgba(255,255,255,0.35)', fontSize: '0.8rem' }}>
+                          ไม่มีตัวชี้วัดในมิตินี้
+                        </div>
+                      ) : (
+                        filtered.map((ind, idx) => {
+                          const hasData = ind.score !== null && ind.progress !== null;
+                          return (
+                            <div key={`${ind.sectionKey}-${ind.code ?? idx}`} style={{ marginBottom: '0.65rem' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                                <span style={{ fontSize: '0.78rem', color: '#cbd5e1', lineHeight: 1.35, flex: 1 }}>
+                                  {ind.code && (
+                                    <span style={{ fontWeight: 700, color: '#818cf8', marginRight: '0.35rem' }}>
+                                      {ind.code}
+                                    </span>
+                                  )}
+                                  {ind.nameTh}
+                                </span>
+                                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: hasData ? '#818cf8' : 'rgba(255,255,255,0.3)', whiteSpace: 'nowrap' }}>
+                                  {hasData ? `${ind.score}/${ind.max}` : '—'}
+                                </span>
+                              </div>
+                              <div
+                                style={{
+                                  width: '100%',
+                                  height: '6px',
+                                  background: 'rgba(255,255,255,0.08)',
+                                  borderRadius: '3px',
+                                  overflow: 'hidden',
+                                }}
+                              >
+                                {hasData && (
+                                  <div
+                                    style={{
+                                      width: `${ind.progress}%`,
+                                      height: '100%',
+                                      background: 'linear-gradient(90deg, #818cf899, #818cf8)',
+                                      borderRadius: '3px',
+                                      transition: 'width 0.7s ease-out',
+                                    }}
+                                  />
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
 
