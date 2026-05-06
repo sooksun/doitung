@@ -127,17 +127,42 @@ export async function generateJson(opts: {
     })
   );
 
-  const text = res.choices[0]?.message?.content ?? '';
+  // Defensive access: OpenRouter occasionally returns a response object without
+  // `choices` populated (e.g. on certain error states or upstream provider hiccups);
+  // bare `res.choices[0]` would throw TypeError before our error path runs.
+  const choice = res?.choices?.[0];
+  const finishReason = choice?.finish_reason || 'unknown';
+  const rawText = choice?.message?.content ?? '';
   const usage = {
-    in: res.usage?.prompt_tokens ?? 0,
-    out: res.usage?.completion_tokens ?? 0,
+    in: res?.usage?.prompt_tokens ?? 0,
+    out: res?.usage?.completion_tokens ?? 0,
   };
+
+  if (!rawText) {
+    throw new Error(
+      `AI returned empty response (finish=${finishReason}, choices=${res?.choices?.length ?? 0}). ` +
+      `Likely a provider-side error — try again in a moment.`
+    );
+  }
+
+  // Some Gemini-compat models occasionally wrap JSON in markdown despite json_object
+  // mode; strip any leading/trailing ```json fences before parsing.
+  let cleaned = rawText.trim();
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```(?:json)?\s*\n?/i, '').replace(/\s*```\s*$/, '');
+  }
 
   let parsed: unknown;
   try {
-    parsed = JSON.parse(text);
-  } catch {
-    throw new Error(`Model did not return valid JSON: ${String(text).slice(0, 200)}`);
+    parsed = JSON.parse(cleaned);
+  } catch (parseErr: any) {
+    const truncated = finishReason === 'length';
+    const head = cleaned.slice(0, 200);
+    const tail = cleaned.length > 300 ? '…' + cleaned.slice(-100) : '';
+    throw new Error(
+      `AI returned invalid JSON (len=${cleaned.length}, finish=${finishReason}` +
+      `${truncated ? ', TRUNCATED — model hit max_tokens' : ''}, parseErr=${parseErr.message}): ${head}${tail}`
+    );
   }
   return { json: parsed, usage };
 }
