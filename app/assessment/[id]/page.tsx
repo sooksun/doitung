@@ -204,6 +204,29 @@ export default function AssessmentPage() {
     }
   }, [token, sessionId, responses, submitted]);
 
+  const handleClearAll = async () => {
+    if (!token || !sessionId) return;
+    const ok = window.confirm('ยืนยันเคลียร์คะแนนทั้งหมด?\nคะแนนเดิมจะถูกลบและสถานะกลับเป็น "ร่าง"');
+    if (!ok) return;
+    try {
+      const res = await fetch(`/api/evaluations/${sessionId}/responses`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setResponses({});
+        setSubmitted(false);
+        // Reload session to pick up the DRAFT status
+        loadAll(token);
+      } else {
+        const j = await res.json().catch(() => ({}));
+        setError(j?.error || 'เคลียร์คะแนนไม่สำเร็จ');
+      }
+    } catch {
+      setError('เกิดข้อผิดพลาดในการเคลียร์คะแนน');
+    }
+  };
+
   const handleSubmit = async () => {
     if (!token || submitting) return;
     const total = indicators.length;
@@ -683,18 +706,33 @@ export default function AssessmentPage() {
               </span>
             )}
           </div>
-          <button
-            onClick={handleSubmit}
-            disabled={submitting || submitted}
-            style={{
-              background: submitted ? '#10b981' : submitting ? '#9ca3af' : '#10b981',
-              color: 'white', border: 'none', borderRadius: '0.5rem',
-              padding: '0.625rem 1.5rem', fontSize: '0.95rem', fontWeight: '600',
-              cursor: submitting || submitted ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {submitted ? '✓ ส่งแล้ว' : submitting ? 'กำลังส่ง...' : 'ส่งแบบประเมิน'}
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <button
+              onClick={handleClearAll}
+              disabled={submitting}
+              title="ลบคะแนนทุกข้อแล้วเริ่มประเมินใหม่ (สถานะกลับเป็นร่าง)"
+              style={{
+                background: '#dc2626',
+                color: 'white', border: 'none', borderRadius: '0.5rem',
+                padding: '0.625rem 1rem', fontSize: '0.85rem', fontWeight: 600,
+                cursor: submitting ? 'not-allowed' : 'pointer',
+              }}
+            >
+              🗑️ เคลียร์คะแนน
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={submitting || submitted}
+              style={{
+                background: submitted ? '#10b981' : submitting ? '#9ca3af' : '#10b981',
+                color: 'white', border: 'none', borderRadius: '0.5rem',
+                padding: '0.625rem 1.5rem', fontSize: '0.95rem', fontWeight: '600',
+                cursor: submitting || submitted ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {submitted ? '✓ ส่งแล้ว' : submitting ? 'กำลังส่ง...' : 'ส่งแบบประเมิน'}
+            </button>
+          </div>
         </div>
       </div>
 

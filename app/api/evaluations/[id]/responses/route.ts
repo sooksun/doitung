@@ -192,3 +192,52 @@ export async function POST(
   }
 }
 
+// DELETE /api/evaluations/[id]/responses - clear ALL responses for this evaluation
+// and reset its status from SUBMITTED → DRAFT so the owner can re-fill the form.
+// Owner-or-ADMIN only.
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const me = await requireAuth(request);
+    const evaluationSessionId = parseInt(params.id, 10);
+    if (isNaN(evaluationSessionId)) {
+      return errorResponse('Invalid evaluation ID', 400);
+    }
+
+    const evaluationSession = await prisma.evaluationSession.findUnique({
+      where: { id: evaluationSessionId },
+      select: { id: true, evaluatorId: true, status: true },
+    });
+    if (!evaluationSession) {
+      return errorResponse('ไม่พบการประเมินที่ต้องการ', 404);
+    }
+    if (evaluationSession.evaluatorId !== me.id && !hasRole(me, 'ADMIN')) {
+      return errorResponse('คุณสามารถเคลียร์คะแนนได้เฉพาะการประเมินของตนเองเท่านั้น', 403);
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const deleted = await tx.evaluationResponse.deleteMany({
+        where: { evaluationSessionId },
+      });
+      // Roll the session back to DRAFT so it shows up as editable again
+      if (evaluationSession.status !== 'DRAFT') {
+        await tx.evaluationSession.update({
+          where: { id: evaluationSessionId },
+          data: { status: 'DRAFT', submittedAt: null },
+        });
+      }
+      return deleted.count;
+    });
+
+    return successResponse(
+      { deletedCount: result, status: 'DRAFT' },
+      `เคลียร์คะแนนสำเร็จ (${result} ข้อ) — สามารถเริ่มประเมินใหม่ได้`
+    );
+  } catch (error: any) {
+    if (error?.message?.startsWith('Unauthorized')) return errorResponse(error.message, 401);
+    return handleApiError(error);
+  }
+}
+

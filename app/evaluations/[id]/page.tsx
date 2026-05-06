@@ -301,6 +301,34 @@ export default function EvaluationDetailPage() {
     );
   };
 
+  const handleClearAll = async () => {
+    if (!token || !evaluation) return;
+    toastConfirm(
+      'ยืนยันเคลียร์คะแนนทั้งหมด? คะแนนเดิมจะถูกลบและสถานะกลับเป็น "ร่าง"',
+      async () => {
+        setSaving(true);
+        try {
+          const res = await fetch(`/api/evaluations/${evaluation.id}/responses`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            toastSuccess(data.message || 'เคลียร์คะแนนสำเร็จ');
+            // Refresh page state by re-fetching the evaluation + (now-empty) responses
+            await fetchEvaluation(token, evaluation.id);
+          } else {
+            toastError(data.error || 'เคลียร์คะแนนไม่สำเร็จ');
+          }
+        } catch {
+          toastError('เกิดข้อผิดพลาดในการเคลียร์คะแนน');
+        } finally {
+          setSaving(false);
+        }
+      }
+    );
+  };
+
   const renderIndicatorInput = (indicator: Section['indicators'][0]) => {
     // Read-only when SUBMITTED, or when current user is not the owner / not an ADMIN.
     const isReadOnly = evaluation?.status === 'SUBMITTED' || !canEdit;
@@ -668,6 +696,40 @@ export default function EvaluationDetailPage() {
                 textAlign: 'center'
               }}>
                 ✅ แบบประเมินนี้ส่งแล้ว ไม่สามารถแก้ไขได้
+              </div>
+            )}
+
+            {/* Clear-and-reset row: separate from Save/Submit because it's destructive
+                and needs to work even after the form is locked by SUBMITTED. */}
+            {canEdit && (
+              <div style={{
+                marginTop: '1.5rem',
+                paddingTop: '1.5rem',
+                borderTop: '1px dashed #e5e7eb',
+                display: 'flex',
+                gap: '0.75rem',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+              }}>
+                <button
+                  onClick={handleClearAll}
+                  disabled={saving}
+                  style={{
+                    padding: '0.55rem 1.1rem',
+                    background: saving ? '#ccc' : '#dc2626',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '0.4rem',
+                    fontSize: '0.9rem',
+                    fontWeight: 600,
+                    cursor: saving ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  🗑️ เคลียร์คะแนนทั้งหมด (เริ่มประเมินใหม่)
+                </button>
+                <span style={{ fontSize: '0.8rem', color: '#666' }}>
+                  ลบคะแนนทุกข้อแล้วเริ่มใหม่ — สถานะจะกลับเป็น "ร่าง"
+                </span>
               </div>
             )}
 
