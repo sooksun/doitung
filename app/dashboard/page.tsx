@@ -346,6 +346,20 @@ export default function DashboardPage() {
             📈 รายงาน
           </Link>
           <Link
+            href="/users"
+            style={{
+              padding: '1rem',
+              background: 'white',
+              borderRadius: '0.5rem',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              textDecoration: 'none',
+              color: '#333',
+              textAlign: 'center'
+            }}
+          >
+            👥 จัดการผู้ใช้
+          </Link>
+          <Link
             href="/live-dashboard"
             style={{
               padding: '1rem',

@@ -75,6 +75,7 @@ model User {
   email     String     @unique
   password  String
   name      String
+  phone     String?
   isActive  Boolean    @default(true)
 
   roles     UserRole[]
