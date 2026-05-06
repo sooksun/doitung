@@ -194,7 +194,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 5. Indicator health — top 8 Q-Model indicators (by id) showing current state
+    // 5. Indicator health — 8 indicators with lowest current state across ALL dimensions
+    // (those most in need of development). Indicators without any data are excluded.
     const indicatorHealth: Array<{
       name: string;
       nameTh: string;
@@ -204,16 +205,25 @@ export async function GET(request: NextRequest) {
     }> = [];
 
     if (qModel) {
-      const topIndicators = qModel.indicators.slice(0, 8);
-      for (const ind of topIndicators) {
-        const agg = await prisma.evaluationResponse.aggregate({
-          where: {
-            indicatorId: ind.id,
-            evaluationSession: { ...sessionWhere, instrumentId: qModel.id },
-          },
-          _avg: { score2: true },
-        });
-        const avg = agg._avg.score2 ?? 0;
+      const stats = await Promise.all(
+        qModel.indicators.map(async (ind) => {
+          const agg = await prisma.evaluationResponse.aggregate({
+            where: {
+              indicatorId: ind.id,
+              evaluationSession: { ...sessionWhere, instrumentId: qModel.id },
+            },
+            _avg: { score2: true },
+          });
+          return { ind, avg: agg._avg.score2 };
+        })
+      );
+
+      const critical = stats
+        .filter((s): s is { ind: typeof s.ind; avg: number } => s.avg !== null)
+        .sort((a, b) => a.avg - b.avg)
+        .slice(0, 8);
+
+      for (const { ind, avg } of critical) {
         const range = ind.maxScore - ind.minScore;
         const progress = range > 0
           ? Math.max(0, Math.min(100, Math.round(((avg - ind.minScore) / range) * 100)))

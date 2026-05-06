@@ -384,7 +384,10 @@ export default function LiveDashboardPage() {
                   marginBottom: '1rem',
                 }}
               >
-                INDICATOR HEALTH
+                ตัวชี้วัดที่ต้องเร่งพัฒนา
+                <div style={{ fontSize: '0.65rem', fontWeight: 400, color: 'rgba(255,255,255,0.35)', marginTop: '0.2rem', letterSpacing: 0 }}>
+                  8 ตัวที่คะแนนต่ำสุด (ทุกมิติ)
+                </div>
               </div>
               {(liveData?.indicatorHealth ?? []).map((ind) => (
                 <div key={ind.name} style={{ marginBottom: '1rem' }}>
