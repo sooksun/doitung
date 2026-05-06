@@ -22,7 +22,9 @@ export async function POST(
     if (!hasRole(me, 'ADMIN')) {
       const t = await prisma.teacher.findUnique({ where: { userId: me.id } });
       if (!t || t.schoolId !== doc.schoolId) return errorResponse('Forbidden', 403);
-      if (!hasRole(me, 'SCHOOL_LEADER')) return errorResponse('Forbidden: ต้องเป็น admin หรือผู้บริหาร', 403);
+      if (!hasRole(me, 'SCHOOL_LEADER') && !hasRole(me, 'SCHOOL_ADMIN')) {
+        return errorResponse('Forbidden: ต้องเป็น admin / school admin / ผู้บริหาร', 403);
+      }
     }
 
     if (!['UPLOADED', 'NEEDS_REVIEW'].includes(doc.status)) {

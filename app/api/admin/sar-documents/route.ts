@@ -94,8 +94,8 @@ export async function POST(request: NextRequest) {
   try {
     const me = await requireAuth(request);
     const isAdmin = hasRole(me, 'ADMIN');
-    if (!isAdmin && !hasRole(me, 'SCHOOL_LEADER')) {
-      return errorResponse('Forbidden: ต้องเป็น admin หรือผู้บริหาร', 403);
+    if (!isAdmin && !hasRole(me, 'SCHOOL_LEADER') && !hasRole(me, 'SCHOOL_ADMIN')) {
+      return errorResponse('Forbidden: ต้องเป็น admin / school admin / ผู้บริหาร', 403);
     }
 
     const form = await request.formData();

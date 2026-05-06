@@ -12,6 +12,7 @@ async function main() {
 
   // --- ROLES ---
   const adminRole = await prisma.role.upsert({ where: { name: 'ADMIN' }, update: {}, create: { name: 'ADMIN' } });
+  const schoolAdminRole = await prisma.role.upsert({ where: { name: 'SCHOOL_ADMIN' }, update: {}, create: { name: 'SCHOOL_ADMIN' } });
   const leaderRole = await prisma.role.upsert({ where: { name: 'SCHOOL_LEADER' }, update: {}, create: { name: 'SCHOOL_LEADER' } });
   const teacherRole = await prisma.role.upsert({ where: { name: 'TEACHER' }, update: {}, create: { name: 'TEACHER' } });
   const supervisorRole = await prisma.role.upsert({ where: { name: 'SUPERVISOR' }, update: {}, create: { name: 'SUPERVISOR' } });

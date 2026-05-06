@@ -19,8 +19,8 @@ export async function POST(
     if (!doc) return errorResponse('ไม่พบเอกสาร', 404);
 
     const isAdmin = hasRole(me, 'ADMIN');
-    if (!isAdmin && !hasRole(me, 'SCHOOL_LEADER')) {
-      return errorResponse('Forbidden: ต้องเป็น admin หรือผู้บริหาร', 403);
+    if (!isAdmin && !hasRole(me, 'SCHOOL_LEADER') && !hasRole(me, 'SCHOOL_ADMIN')) {
+      return errorResponse('Forbidden: ต้องเป็น admin / school admin / ผู้บริหาร', 403);
     }
     if (!isAdmin) {
       const t = await prisma.teacher.findUnique({ where: { userId: me.id } });

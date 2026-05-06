@@ -18,6 +18,7 @@ generator client {
 
 enum RoleType {
   ADMIN
+  SCHOOL_ADMIN
   SCHOOL_LEADER
   TEACHER
   SUPERVISOR

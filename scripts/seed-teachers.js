@@ -37,6 +37,12 @@ async function main() {
     update: {},
     create: { name: 'TEACHER' },
   });
+  // School admin role — granted to the FIRST teacher of each school (t1-{schoolCode}).
+  const schoolAdminRole = await prisma.role.upsert({
+    where: { name: 'SCHOOL_ADMIN' },
+    update: {},
+    create: { name: 'SCHOOL_ADMIN' },
+  });
 
   const passwordHash = await bcrypt.hash(DEFAULT_PASSWORD, 10);
 
@@ -99,6 +105,15 @@ async function main() {
             update: {},
             create: { userId: user.id, roleId: teacherRole.id },
           });
+
+          // First teacher of each school is also the SCHOOL_ADMIN (PRD §6).
+          if (i === 1) {
+            await prisma.userRole.upsert({
+              where: { userId_roleId: { userId: user.id, roleId: schoolAdminRole.id } },
+              update: {},
+              create: { userId: user.id, roleId: schoolAdminRole.id },
+            });
+          }
 
           // Teacher record (1 per user, schema constraint)
           await prisma.teacher.upsert({

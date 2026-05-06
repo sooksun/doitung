@@ -20,6 +20,7 @@ interface UserDetail {
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: 'ผู้ดูแลระบบ',
+  SCHOOL_ADMIN: 'แอดมินโรงเรียน',
   SCHOOL_LEADER: 'ผู้บริหาร',
   TEACHER: 'ครู',
   SUPERVISOR: 'ศึกษานิเทศก์',

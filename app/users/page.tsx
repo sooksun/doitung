@@ -27,6 +27,7 @@ interface SchoolOption {
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: 'ผู้ดูแลระบบ',
+  SCHOOL_ADMIN: 'แอดมินโรงเรียน',
   SCHOOL_LEADER: 'ผู้บริหาร',
   TEACHER: 'ครู',
   SUPERVISOR: 'ศึกษานิเทศก์',
@@ -34,6 +35,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
   ADMIN: { bg: '#fee2e2', text: '#991b1b' },
+  SCHOOL_ADMIN: { bg: '#fed7aa', text: '#9a3412' },
   SCHOOL_LEADER: { bg: '#dbeafe', text: '#1e40af' },
   TEACHER: { bg: '#ede9fe', text: '#5b21b6' },
   SUPERVISOR: { bg: '#d1fae5', text: '#065f46' },
@@ -190,6 +192,7 @@ export default function UsersPage() {
             >
               <option value="">ทั้งหมด</option>
               <option value="ADMIN">ผู้ดูแลระบบ</option>
+              <option value="SCHOOL_ADMIN">แอดมินโรงเรียน</option>
               <option value="SCHOOL_LEADER">ผู้บริหาร</option>
               <option value="TEACHER">ครู</option>
               <option value="SUPERVISOR">ศึกษานิเทศก์</option>
