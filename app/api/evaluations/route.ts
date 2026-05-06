@@ -10,6 +10,8 @@ import {
   handleApiError,
   parsePagination,
   parseIntParam,
+  requireAuth,
+  hasRole,
 } from '@/lib/api-utils';
 import { EvaluationStatus } from '@prisma/client';
 import { EvaluationSessionDto, PaginatedResponse } from '@/lib/api-types';
@@ -172,29 +174,49 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const me = await requireAuth(request);
     const body = await request.json();
     const {
       instrumentId,
       schoolId,
       academicYearId,
       termId,
-      evaluatorId,
       targetTeacherId,
       targetSchoolId,
       note,
     } = body;
 
-    if (!instrumentId || !schoolId || !academicYearId || !evaluatorId) {
-      return errorResponse('Missing required fields: instrumentId, schoolId, academicYearId, evaluatorId', 400);
+    if (!instrumentId || !schoolId || !academicYearId) {
+      return errorResponse('Missing required fields: instrumentId, schoolId, academicYearId', 400);
     }
 
+    const requestedSchoolId = parseInt(schoolId, 10);
+
+    // Enforce school binding: if user has a Teacher record, schoolId must match.
+    // If not, only ADMIN may create evaluations (for any school).
+    const teacher = await prisma.teacher.findUnique({ where: { userId: me.id } });
+    if (teacher) {
+      if (requestedSchoolId !== teacher.schoolId) {
+        return errorResponse(
+          'คุณสามารถสร้างการประเมินได้เฉพาะโรงเรียนของตนเองเท่านั้น',
+          403
+        );
+      }
+    } else if (!hasRole(me, 'ADMIN')) {
+      return errorResponse(
+        'บัญชีของคุณยังไม่ได้ผูกกับโรงเรียน — โปรดติดต่อผู้ดูแลระบบ',
+        403
+      );
+    }
+
+    // evaluatorId is always derived from the auth token, never trusted from body
     const evaluationSession = await prisma.evaluationSession.create({
       data: {
         instrumentId: parseInt(instrumentId, 10),
-        schoolId: parseInt(schoolId, 10),
+        schoolId: requestedSchoolId,
         academicYearId: parseInt(academicYearId, 10),
         termId: termId ? parseInt(termId, 10) : null,
-        evaluatorId: parseInt(evaluatorId, 10),
+        evaluatorId: me.id,
         targetTeacherId: targetTeacherId ? parseInt(targetTeacherId, 10) : null,
         targetSchoolId: targetSchoolId ? parseInt(targetSchoolId, 10) : null,
         status: EvaluationStatus.DRAFT,
@@ -257,7 +279,13 @@ export async function POST(request: NextRequest) {
       } as EvaluationSessionDto,
       'สร้างการประเมินสำเร็จ'
     );
-  } catch (error) {
+  } catch (error: any) {
+    if (typeof error?.message === 'string' && error.message.startsWith('Unauthorized')) {
+      return errorResponse(error.message, 401);
+    }
+    if (typeof error?.message === 'string' && error.message.startsWith('Forbidden')) {
+      return errorResponse(error.message, 403);
+    }
     return handleApiError(error);
   }
 }

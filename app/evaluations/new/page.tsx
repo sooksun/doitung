@@ -42,6 +42,8 @@ export default function NewEvaluationPage() {
   const [schools, setSchools] = useState<School[]>([]);
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [terms, setTerms] = useState<Term[]>([]);
+  const [boundSchool, setBoundSchool] = useState<{ id: number; code: string | null; nameTh: string } | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const [formData, setFormData] = useState({
     instrumentId: '',
@@ -79,11 +81,18 @@ export default function NewEvaluationPage() {
         }),
       ]);
 
-      // Get current user ID
+      // Get current user info — id, roles, and bound school (if any)
       if (meRes.ok) {
         const meData = await meRes.json();
         if (meData.success && meData.data?.id) {
           setCurrentUserId(meData.data.id);
+          const roles = Array.isArray(meData.data.roles) ? meData.data.roles : [];
+          setIsAdmin(roles.includes('ADMIN'));
+          if (meData.data.school) {
+            setBoundSchool(meData.data.school);
+            // Auto-bind schoolId for users who have a Teacher record
+            setFormData((prev) => ({ ...prev, schoolId: String(meData.data.school.id) }));
+          }
         }
       }
 
@@ -302,26 +311,68 @@ export default function NewEvaluationPage() {
               }}>
                 โรงเรียน *
               </label>
-              <select
-                value={formData.schoolId}
-                onChange={(e) => setFormData({ ...formData, schoolId: e.target.value })}
-                required
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  border: '1px solid #ddd',
-                  borderRadius: '0.5rem',
-                  fontSize: '1rem',
-                  boxSizing: 'border-box'
-                }}
-              >
-                <option value="">เลือกโรงเรียน</option>
-                {schools.map((school) => (
-                  <option key={school.id} value={school.id}>
-                    {school.nameTh || school.code}
-                  </option>
-                ))}
-              </select>
+              {boundSchool ? (
+                <div
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    background: '#f5f3ff',
+                    border: '1px solid #c4b5fd',
+                    borderRadius: '0.5rem',
+                    color: '#4c1d95',
+                    fontSize: '1rem',
+                    fontWeight: 500,
+                    boxSizing: 'border-box',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                  }}
+                >
+                  <span>🔒</span>
+                  <span>
+                    {boundSchool.code ? `${boundSchool.code} ` : ''}{boundSchool.nameTh}
+                  </span>
+                  <span style={{ marginLeft: 'auto', fontSize: '0.8rem', color: '#7c3aed', fontWeight: 400 }}>
+                    ผูกกับบัญชีของคุณ
+                  </span>
+                </div>
+              ) : isAdmin ? (
+                <select
+                  value={formData.schoolId}
+                  onChange={(e) => setFormData({ ...formData, schoolId: e.target.value })}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '1px solid #ddd',
+                    borderRadius: '0.5rem',
+                    fontSize: '1rem',
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  <option value="">เลือกโรงเรียน</option>
+                  {schools.map((school) => (
+                    <option key={school.id} value={school.id}>
+                      {school.code ? `${school.code} ` : ''}{school.nameTh || school.code}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    background: '#fef2f2',
+                    border: '1px solid #fca5a5',
+                    borderRadius: '0.5rem',
+                    color: '#991b1b',
+                    fontSize: '0.9rem',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  ⚠️ บัญชีของคุณยังไม่ได้ผูกกับโรงเรียน — โปรดติดต่อผู้ดูแลระบบ
+                </div>
+              )}
             </div>
 
             <div style={{ marginBottom: '1.5rem' }}>
@@ -466,16 +517,16 @@ export default function NewEvaluationPage() {
             <div style={{ display: 'flex', gap: '1rem' }}>
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || !formData.schoolId}
                 style={{
                   padding: '0.75rem 1.5rem',
-                  background: submitting ? '#ccc' : '#10b981',
+                  background: submitting || !formData.schoolId ? '#ccc' : '#10b981',
                   color: 'white',
                   border: 'none',
                   borderRadius: '0.5rem',
                   fontSize: '1rem',
                   fontWeight: 'bold',
-                  cursor: submitting ? 'not-allowed' : 'pointer',
+                  cursor: submitting || !formData.schoolId ? 'not-allowed' : 'pointer',
                   transition: 'background 0.2s'
                 }}
               >
