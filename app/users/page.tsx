@@ -1,9 +1,9 @@
 // app/users/page.tsx
-// User management list (admin only). Search by email/name, filter by role + active state.
+// User management list (admin only). Search by email/name, filter by role/school/active state.
 
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -16,6 +16,13 @@ interface User {
   createdAt: string;
   roles: string[];
   school: { id: number; code: string | null; nameTh: string } | null;
+}
+
+interface SchoolOption {
+  id: number;
+  code: string | null;
+  nameTh: string | null;
+  name: string;
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -43,16 +50,32 @@ export default function UsersPage() {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [activeFilter, setActiveFilter] = useState('');
+  const [schools, setSchools] = useState<SchoolOption[]>([]);
+  const [schoolInput, setSchoolInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const fetchUsers = useCallback(async (authToken: string, opts: { page: number; search: string; role: string; isActive: string }) => {
+  // Resolve typed text → schoolId (matches "57030001 บ้านพญาไพร" or partial)
+  const resolvedSchoolId = useMemo(() => {
+    const q = schoolInput.trim();
+    if (!q) return '';
+    const exact = schools.find((s) => {
+      const label = `${s.code || ''} ${s.nameTh || s.name || ''}`.trim();
+      return label === q || s.code === q;
+    });
+    if (exact) return String(exact.id);
+    const startsWith = schools.find((s) => (s.code || '').startsWith(q) || (s.nameTh || '').startsWith(q));
+    return startsWith ? String(startsWith.id) : '';
+  }, [schoolInput, schools]);
+
+  const fetchUsers = useCallback(async (authToken: string, opts: { page: number; search: string; role: string; schoolId: string; isActive: string }) => {
     setLoading(true);
     setError('');
     try {
       const params = new URLSearchParams({ page: String(opts.page), limit: String(PAGE_SIZE) });
       if (opts.search) params.set('search', opts.search);
       if (opts.role) params.set('role', opts.role);
+      if (opts.schoolId) params.set('schoolId', opts.schoolId);
       if (opts.isActive) params.set('isActive', opts.isActive);
 
       const res = await fetch(`/api/users?${params}`, {
@@ -87,19 +110,27 @@ export default function UsersPage() {
     const stored = localStorage.getItem('token');
     if (!stored) { router.push('/login'); return; }
     setToken(stored);
-    fetchUsers(stored, { page: 1, search: '', role: '', isActive: '' });
+    fetchUsers(stored, { page: 1, search: '', role: '', schoolId: '', isActive: '' });
+
+    // Load school list for the filter dropdown
+    fetch('/api/schools?isActive=true', { headers: { Authorization: `Bearer ${stored}` } })
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.success && Array.isArray(j.data)) setSchools(j.data);
+      })
+      .catch(() => {});
   }, [router, fetchUsers]);
 
   const applyFilters = () => {
     if (!token) return;
     setPage(1);
-    fetchUsers(token, { page: 1, search, role: roleFilter, isActive: activeFilter });
+    fetchUsers(token, { page: 1, search, role: roleFilter, schoolId: resolvedSchoolId, isActive: activeFilter });
   };
 
   const goToPage = (p: number) => {
     if (!token) return;
     setPage(p);
-    fetchUsers(token, { page: p, search, role: roleFilter, isActive: activeFilter });
+    fetchUsers(token, { page: p, search, role: roleFilter, schoolId: resolvedSchoolId, isActive: activeFilter });
   };
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -163,6 +194,26 @@ export default function UsersPage() {
               <option value="TEACHER">ครู</option>
               <option value="SUPERVISOR">ศึกษานิเทศก์</option>
             </select>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <span style={{ fontSize: '0.85rem', color: '#666' }}>
+              โรงเรียน {schoolInput.trim() && !resolvedSchoolId && (
+                <span style={{ color: '#ef4444', fontSize: '0.75rem' }}>(ไม่พบ)</span>
+              )}
+            </span>
+            <input
+              list="schools-datalist"
+              value={schoolInput}
+              onChange={(e) => setSchoolInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') applyFilters(); }}
+              placeholder="พิมพ์รหัสหรือชื่อโรงเรียน"
+              style={{ padding: '0.5rem 0.75rem', border: '1px solid #ddd', borderRadius: '0.4rem', fontSize: '0.9rem' }}
+            />
+            <datalist id="schools-datalist">
+              {schools.map((s) => (
+                <option key={s.id} value={`${s.code || ''} ${s.nameTh || s.name || ''}`.trim()} />
+              ))}
+            </datalist>
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
             <span style={{ fontSize: '0.85rem', color: '#666' }}>สถานะ</span>
