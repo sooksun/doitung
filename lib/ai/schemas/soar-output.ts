@@ -69,52 +69,53 @@ export const soarOutputSchema = z.object({
 
 export type SoarOutput = z.infer<typeof soarOutputSchema>;
 
-// JSON-schema variant for Gemini structured output (Type-based schema is preferred over Zod
-// because Gemini's @google/genai expects its own Type enum). We hand-craft this to mirror Zod.
+// JSON-schema (draft-07 / OpenAPI 3.1 style) for OpenRouter's response_format.
+// Uses lowercase types; nullable fields use type-array `['integer', 'null']`.
+// Hand-mirrored from the Zod schema above.
 export const SOAR_RESPONSE_SCHEMA: Record<string, unknown> = {
-  type: 'OBJECT',
+  type: 'object',
   required: ['executiveInsight', 'byDimension', 'topPriorities', 'plcQuestions', 'evidenceGaps', 'growthPlan90'],
   properties: {
-    executiveInsight: { type: 'STRING' },
+    executiveInsight: { type: 'string' },
     byDimension: {
-      type: 'OBJECT',
+      type: 'object',
       required: ['Q-Leadership', 'Q-PLC', 'Q-Learning', 'Q-Students'],
       properties: dimsObject(),
     },
     topPriorities: {
-      type: 'ARRAY',
+      type: 'array',
       items: {
-        type: 'OBJECT',
+        type: 'object',
         required: ['qDimension', 'gap', 'reason', 'recommendedAction'],
         properties: {
-          indicatorId: { type: 'INTEGER', nullable: true },
-          qDimension: { type: 'STRING' },
-          gap: { type: 'NUMBER' },
-          reason: { type: 'STRING' },
-          recommendedAction: { type: 'STRING' },
+          indicatorId: { type: ['integer', 'null'] },
+          qDimension: { type: 'string' },
+          gap: { type: 'number' },
+          reason: { type: 'string' },
+          recommendedAction: { type: 'string' },
         },
       },
     },
-    plcQuestions: { type: 'ARRAY', items: { type: 'STRING' } },
+    plcQuestions: { type: 'array', items: { type: 'string' } },
     evidenceGaps: {
-      type: 'ARRAY',
+      type: 'array',
       items: {
-        type: 'OBJECT',
+        type: 'object',
         required: ['qDimension', 'missing'],
         properties: {
-          indicatorId: { type: 'INTEGER', nullable: true },
-          qDimension: { type: 'STRING' },
-          missing: { type: 'STRING' },
+          indicatorId: { type: ['integer', 'null'] },
+          qDimension: { type: 'string' },
+          missing: { type: 'string' },
         },
       },
     },
     growthPlan90: {
-      type: 'OBJECT',
+      type: 'object',
       required: ['day30', 'day60', 'day90'],
       properties: {
-        day30: { type: 'ARRAY', items: taskSchemaJson() },
-        day60: { type: 'ARRAY', items: taskSchemaJson() },
-        day90: { type: 'ARRAY', items: taskSchemaJson() },
+        day30: { type: 'array', items: taskSchemaJson() },
+        day60: { type: 'array', items: taskSchemaJson() },
+        day90: { type: 'array', items: taskSchemaJson() },
       },
     },
   },
@@ -133,48 +134,48 @@ function dimsObject() {
 function dimensionSchemaJson() {
   const itm = itemSchemaJson();
   return {
-    type: 'OBJECT',
+    type: 'object',
     required: ['strengths', 'opportunities', 'aspirations', 'results'],
     properties: {
-      strengths: { type: 'ARRAY', items: itm },
-      opportunities: { type: 'ARRAY', items: itm },
-      aspirations: { type: 'ARRAY', items: itm },
-      results: { type: 'ARRAY', items: itm },
+      strengths: { type: 'array', items: itm },
+      opportunities: { type: 'array', items: itm },
+      aspirations: { type: 'array', items: itm },
+      results: { type: 'array', items: itm },
     },
   };
 }
 
 function itemSchemaJson() {
   return {
-    type: 'OBJECT',
+    type: 'object',
     required: ['text', 'evidenceLinks', 'evidenceMissing'],
     properties: {
-      text: { type: 'STRING' },
+      text: { type: 'string' },
       evidenceLinks: {
-        type: 'ARRAY',
+        type: 'array',
         items: {
-          type: 'OBJECT',
+          type: 'object',
           required: ['quote'],
           properties: {
-            documentId: { type: 'INTEGER', nullable: true },
-            pageId: { type: 'INTEGER', nullable: true },
-            quote: { type: 'STRING' },
+            documentId: { type: ['integer', 'null'] },
+            pageId: { type: ['integer', 'null'] },
+            quote: { type: 'string' },
           },
         },
       },
-      evidenceMissing: { type: 'BOOLEAN' },
+      evidenceMissing: { type: 'boolean' },
     },
   };
 }
 
 function taskSchemaJson() {
   return {
-    type: 'OBJECT',
+    type: 'object',
     required: ['title'],
     properties: {
-      title: { type: 'STRING' },
-      responsible: { type: 'STRING', nullable: true },
-      evidenceRequired: { type: 'STRING', nullable: true },
+      title: { type: 'string' },
+      responsible: { type: ['string', 'null'] },
+      evidenceRequired: { type: ['string', 'null'] },
     },
   };
 }

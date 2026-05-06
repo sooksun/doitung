@@ -1,11 +1,12 @@
 // lib/jobs/run-soar.ts
-// Async job: build SOAR prompt from an EvaluationSession, call Gemini with structured output,
-// persist parsed result into AiAnalysisOutput rows. Caches via inputHash.
+// Async job: build SOAR prompt from an EvaluationSession, call AI provider (OpenRouter)
+// with structured output, persist parsed result into AiAnalysisOutput rows.
+// Caches via inputHash.
 
 import path from 'node:path';
 import fs from 'node:fs';
 import { prisma } from '@/lib/prisma';
-import { generateJson, uploadFile, GEMINI_MODEL } from '@/lib/ai/client';
+import { generateJson, friendlyAiError, OPENROUTER_MODEL } from '@/lib/ai/client';
 import { soarOutputSchema, SOAR_RESPONSE_SCHEMA } from '@/lib/ai/schemas/soar-output';
 import {
   SOAR_SYSTEM_PROMPT,
@@ -91,7 +92,7 @@ export async function runSoar(runId: number): Promise<void> {
     }));
 
     // 3. Cache lookup
-    const hash = inputHash(promptInput, SOAR_PROMPT_VERSION, GEMINI_MODEL);
+    const hash = inputHash(promptInput, SOAR_PROMPT_VERSION, OPENROUTER_MODEL);
     const cached = await prisma.aiAnalysisRun.findFirst({
       where: { inputHash: hash, status: 'DONE', id: { not: runId } },
       include: { outputs: true },
@@ -125,27 +126,25 @@ export async function runSoar(runId: number): Promise<void> {
     // 4. Redact + build user prompt
     const userPrompt = redactPII(buildSoarUserPrompt(promptInput)).text;
 
-    // 5. Upload SAR PDFs to Gemini File API (best-effort; skip docs whose file is missing)
-    const fileRefs: Array<{ uri: string; mimeType: string }> = [];
+    // 5. Collect SAR PDF paths (sent inline as base64 via OpenRouter; skip missing files)
+    const pdfFiles: Array<{ path: string; filename: string }> = [];
     for (const doc of sarDocs) {
-      try {
-        const full = path.join(process.cwd(), 'public', doc.filePath.replace(/^\//, ''));
-        if (fs.existsSync(full)) {
-          const up = await uploadFile(full, `sar-${doc.id}.pdf`);
-          fileRefs.push({ uri: up.uri, mimeType: up.mimeType });
-        }
-      } catch (err) {
-        console.warn('[runSoar] failed to upload SAR doc', doc.id, err);
+      const full = path.join(process.cwd(), 'public', doc.filePath.replace(/^\//, ''));
+      if (fs.existsSync(full)) {
+        pdfFiles.push({ path: full, filename: `sar-${doc.id}.pdf` });
+      } else {
+        console.warn('[runSoar] SAR doc file missing on disk', doc.id, full);
       }
     }
 
-    // 6. Call Gemini
+    // 6. Call AI provider
     const { json: raw, usage } = await generateJson({
       systemInstruction: SOAR_SYSTEM_PROMPT,
       userPrompt,
       responseSchema: SOAR_RESPONSE_SCHEMA,
+      schemaName: 'soar_output',
       maxOutputTokens: 32000,
-      files: fileRefs,
+      pdfFiles,
     });
 
     // 7. Validate (retry once on schema fail with stricter system instruction)
@@ -158,8 +157,9 @@ export async function runSoar(runId: number): Promise<void> {
         systemInstruction: SOAR_SYSTEM_PROMPT + '\n\n' + 'หากผลลัพธ์รอบก่อนไม่ผ่าน schema ให้ตอบใหม่โดยรักษากฎ evidenceLinks/evidenceMissing อย่างเคร่งครัด',
         userPrompt: retryPrompt,
         responseSchema: SOAR_RESPONSE_SCHEMA,
+        schemaName: 'soar_output',
         maxOutputTokens: 32000,
-        files: fileRefs,
+        pdfFiles,
       });
       usageRetry = retry.usage;
       parsed = soarOutputSchema.safeParse(retry.json);
@@ -200,7 +200,7 @@ export async function runSoar(runId: number): Promise<void> {
     console.error('[runSoar] failed', runId, err);
     await prisma.aiAnalysisRun.update({
       where: { id: runId },
-      data: { status: 'FAILED', errorMessage: String(err?.message || err).slice(0, 1000), finishedAt: new Date() },
+      data: { status: 'FAILED', errorMessage: friendlyAiError(err).slice(0, 1000), finishedAt: new Date() },
     });
   }
 }

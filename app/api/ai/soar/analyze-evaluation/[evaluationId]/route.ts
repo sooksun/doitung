@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { successResponse, errorResponse, requireAuth, hasRole } from '@/lib/api-utils';
 import { requireFeature } from '@/lib/feature-flags';
 import { runSoar } from '@/lib/jobs/run-soar';
-import { GEMINI_MODEL } from '@/lib/ai/client';
+import { OPENROUTER_MODEL } from '@/lib/ai/client';
 import { SOAR_PROMPT_VERSION } from '@/lib/ai/prompts/soar-coach';
 import { logAudit } from '@/lib/audit';
 
@@ -44,7 +44,7 @@ export async function POST(
         schoolId: session.schoolId,
         evaluationSessionId: evaluationId,
         promptVersion: SOAR_PROMPT_VERSION,
-        modelName: GEMINI_MODEL,
+        modelName: OPENROUTER_MODEL,
         inputHash: '',
         status: 'PENDING',
         createdById: me.id,
@@ -60,7 +60,7 @@ export async function POST(
       action: 'AI_RUN_START',
       entityType: 'AiAnalysisRun',
       entityId: run.id,
-      after: { evaluationId, schoolId: session.schoolId, model: GEMINI_MODEL },
+      after: { evaluationId, schoolId: session.schoolId, model: OPENROUTER_MODEL },
     });
 
     return successResponse(
