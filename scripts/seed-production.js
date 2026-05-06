@@ -27,28 +27,37 @@ async function main() {
     update: { password: adminHash },
     create: {
       email: 'admin@local', password: adminHash, name: 'Admin User', isActive: true,
-      roles: { create: [{ roleId: adminRole.id }] },
     },
   });
 
-  await prisma.user.upsert({
+  const leaderUser = await prisma.user.upsert({
     where: { email: 'leader@example.com' },
     update: { password: leaderHash },
     create: {
       email: 'leader@example.com', password: leaderHash, name: 'School Leader', isActive: true,
-      roles: { create: [{ roleId: leaderRole.id }, { roleId: teacherRole.id }] },
     },
   });
 
-  await prisma.user.upsert({
+  const teacherUser = await prisma.user.upsert({
     where: { email: 'teacher@example.com' },
     update: { password: teacherHash },
     create: {
       email: 'teacher@example.com', password: teacherHash, name: 'Teacher', isActive: true,
-      roles: { create: [{ roleId: teacherRole.id }] },
     },
   });
-  console.log('✓ Users created');
+
+  // Idempotent role linking — re-asserts role membership every run so a partially-seeded user
+  // (created on an older deploy without the role create block) still gets fixed up.
+  const ensureRole = async (userId, roleId) => prisma.userRole.upsert({
+    where: { userId_roleId: { userId, roleId } },
+    update: {},
+    create: { userId, roleId },
+  });
+  await ensureRole(adminUser.id, adminRole.id);
+  await ensureRole(leaderUser.id, leaderRole.id);
+  await ensureRole(leaderUser.id, teacherRole.id);
+  await ensureRole(teacherUser.id, teacherRole.id);
+  console.log('✓ Users + role links');
 
   // --- SCHOOL NETWORK ---
   const network1 = await prisma.schoolNetwork.upsert({
@@ -76,6 +85,15 @@ async function main() {
     },
   });
   console.log('✓ Schools created');
+
+  // Default feature flags (all OFF) — additive, never overwrites existing flag rows.
+  for (const s of [school1, school2]) {
+    await prisma.featureFlag.upsert({
+      where: { schoolId: s.id },
+      update: {},
+      create: { schoolId: s.id, aiEnabled: false, sarEnabled: false, growthTrackerEnabled: false },
+    });
+  }
 
   // Network members
   await prisma.schoolNetworkMember.upsert({

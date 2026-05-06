@@ -8,7 +8,16 @@ import type { NextRequest } from 'next/server';
 const publicRoutes = ['/api/auth/login', '/api/auth/register'];
 
 // Protected API routes
-const protectedApiRoutes = ['/api/instruments', '/api/evaluations', '/api/dashboard', '/api/networks', '/api/users'];
+const protectedApiRoutes = [
+  '/api/instruments',
+  '/api/evaluations',
+  '/api/dashboard',
+  '/api/networks',
+  '/api/users',
+  '/api/admin',
+  '/api/ai',
+  '/api/feature-flags',
+];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

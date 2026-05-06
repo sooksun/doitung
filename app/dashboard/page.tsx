@@ -360,6 +360,34 @@ export default function DashboardPage() {
             👥 จัดการผู้ใช้
           </Link>
           <Link
+            href="/admin/sar"
+            style={{
+              padding: '1rem',
+              background: 'white',
+              borderRadius: '0.5rem',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              textDecoration: 'none',
+              color: '#333',
+              textAlign: 'center'
+            }}
+          >
+            📚 คลังหลักฐาน SAR
+          </Link>
+          <Link
+            href="/admin/settings/feature-flags"
+            style={{
+              padding: '1rem',
+              background: 'white',
+              borderRadius: '0.5rem',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              textDecoration: 'none',
+              color: '#333',
+              textAlign: 'center'
+            }}
+          >
+            🚦 Feature Flags
+          </Link>
+          <Link
             href="/live-dashboard"
             style={{
               padding: '1rem',

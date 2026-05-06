@@ -72,6 +72,11 @@ services:
       PORT: 9901
       HOSTNAME: 0.0.0.0
       TZ: Asia/Bangkok
+      # AI + SAR add-on (read from .env on the host; the app fails open if GEMINI_API_KEY is absent
+      # because feature flags default to OFF — only schools that opt in trigger AI calls).
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      GEMINI_EMBEDDING_MODEL: ${GEMINI_EMBEDDING_MODEL:-text-embedding-004}
     ports:
       - "9901:9901"
     volumes:

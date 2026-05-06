@@ -67,6 +67,9 @@ export default function EvaluationDetailPage() {
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [responses, setResponses] = useState<Record<number, { score: number; score2: number | null; comment: string }>>({});
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [latestRunId, setLatestRunId] = useState<number | null>(null);
+  const [startingRun, setStartingRun] = useState(false);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
@@ -75,6 +78,15 @@ export default function EvaluationDetailPage() {
       return;
     }
     setToken(storedToken);
+
+    // Fetch feature flags for the current school (cheap, fire-and-forget)
+    fetch('/api/feature-flags/me', { headers: { Authorization: `Bearer ${storedToken}` } })
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.success && j.data?.flags?.aiEnabled) setAiEnabled(true);
+      })
+      .catch(() => {});
+
     if (id && id !== 'new') {
       const evalId = parseInt(id, 10);
       if (!isNaN(evalId)) {
@@ -623,6 +635,72 @@ export default function EvaluationDetailPage() {
                 textAlign: 'center'
               }}>
                 ✅ แบบประเมินนี้ส่งแล้ว ไม่สามารถแก้ไขได้
+              </div>
+            )}
+
+            {/* AI + SOAR card — only when feature is enabled for this school */}
+            {evaluation.status === 'SUBMITTED' && aiEnabled && evaluation.instrument?.type === 'Q_MODEL' && (
+              <div style={{
+                marginTop: '1.25rem',
+                padding: '1.25rem 1.5rem',
+                background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
+                borderRadius: '0.5rem',
+                color: 'white',
+                boxShadow: '0 4px 12px rgba(99,102,241,0.25)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.6rem' }}>
+                  <span style={{ fontSize: '1.5rem' }}>🤖</span>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: '1rem' }}>AI + SOAR Coach</div>
+                    <div style={{ fontSize: '0.82rem', color: '#c7d2fe' }}>
+                      วิเคราะห์ผลประเมินเป็น Strengths · Opportunities · Aspirations · Results พร้อมแผน 90 วัน
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={async () => {
+                      if (!token || startingRun) return;
+                      setStartingRun(true);
+                      try {
+                        const res = await fetch(`/api/ai/soar/analyze-evaluation/${evaluation.id}`, {
+                          method: 'POST', headers: { Authorization: `Bearer ${token}` },
+                        });
+                        const json = await res.json();
+                        if (res.ok && json.success) {
+                          setLatestRunId(json.data.runId);
+                          router.push(`/evaluations/${evaluation.id}/insights?runId=${json.data.runId}`);
+                        } else {
+                          toastError(json.error || 'ไม่สามารถเริ่มวิเคราะห์');
+                        }
+                      } catch {
+                        toastError('เกิดข้อผิดพลาด');
+                      } finally {
+                        setStartingRun(false);
+                      }
+                    }}
+                    disabled={startingRun}
+                    style={{
+                      padding: '0.6rem 1.25rem',
+                      background: startingRun ? '#6366f1' : '#818cf8',
+                      color: 'white', border: 'none', borderRadius: '0.4rem',
+                      cursor: startingRun ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: '0.9rem',
+                    }}
+                  >
+                    {startingRun ? 'กำลังเริ่ม...' : '🚀 วิเคราะห์ด้วย AI + SOAR'}
+                  </button>
+                  <Link
+                    href={`/evaluations/${evaluation.id}/insights${latestRunId ? `?runId=${latestRunId}` : ''}`}
+                    style={{
+                      padding: '0.6rem 1.25rem',
+                      background: 'rgba(255,255,255,0.1)',
+                      color: 'white', borderRadius: '0.4rem', textDecoration: 'none', fontWeight: 500, fontSize: '0.9rem',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                    }}
+                  >
+                    📊 ดู Insights ที่เคยวิเคราะห์
+                  </Link>
+                </div>
               </div>
             )}
           </div>

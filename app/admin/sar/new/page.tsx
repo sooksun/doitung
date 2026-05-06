@@ -1,0 +1,223 @@
+// app/admin/sar/new/page.tsx
+// Upload SAR PDF for a school+year+level. Auto-fills school for non-admin.
+
+'use client';
+
+import { useEffect, useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { toastSuccess, toastError } from '@/lib/toast';
+
+interface School { id: number; code: string | null; nameTh: string | null; name: string; }
+interface AcademicYear { id: number; year: string; }
+
+export default function NewSarPage() {
+  const router = useRouter();
+  const [token, setToken] = useState<string | null>(null);
+  const [meIsAdmin, setMeIsAdmin] = useState(false);
+  const [boundSchoolId, setBoundSchoolId] = useState<number | null>(null);
+  const [boundSchoolName, setBoundSchoolName] = useState<string>('');
+
+  const [schools, setSchools] = useState<School[]>([]);
+  const [years, setYears] = useState<AcademicYear[]>([]);
+  const [schoolInput, setSchoolInput] = useState('');
+  const [academicYearId, setAcademicYearId] = useState('');
+  const [ecFile, setEcFile] = useState<File | null>(null);
+  const [bsFile, setBsFile] = useState<File | null>(null);
+  const [changeNote, setChangeNote] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const resolvedSchoolId = useMemo(() => {
+    if (boundSchoolId) return boundSchoolId;
+    const q = schoolInput.trim();
+    if (!q) return null;
+    const match = schools.find((s) => {
+      const label = `${s.code || ''} ${s.nameTh || s.name || ''}`.trim();
+      return label === q || s.code === q;
+    });
+    if (match) return match.id;
+    const startsWith = schools.find((s) => (s.code || '').startsWith(q) || (s.nameTh || '').startsWith(q));
+    return startsWith ? startsWith.id : null;
+  }, [schoolInput, schools, boundSchoolId]);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('token');
+    if (!stored) { router.push('/login'); return; }
+    setToken(stored);
+
+    const me = localStorage.getItem('user');
+    let isAdmin = false;
+    if (me) {
+      try {
+        const parsed = JSON.parse(me);
+        isAdmin = Array.isArray(parsed.roles) && parsed.roles.includes('ADMIN');
+        setMeIsAdmin(isAdmin);
+      } catch { /* */ }
+    }
+
+    Promise.all([
+      fetch('/api/auth/me', { headers: { Authorization: `Bearer ${stored}` } }).then((r) => r.json()),
+      fetch('/api/academic-years', { headers: { Authorization: `Bearer ${stored}` } }).then((r) => r.json()),
+      fetch('/api/schools?isActive=true', { headers: { Authorization: `Bearer ${stored}` } }).then((r) => r.json()),
+    ]).then(([meRes, yRes, sRes]) => {
+      if (meRes.success && meRes.data?.school) {
+        setBoundSchoolId(meRes.data.school.id);
+        setBoundSchoolName(`${meRes.data.school.code || ''} ${meRes.data.school.nameTh}`.trim());
+      }
+      if (yRes.success) {
+        const ys = yRes.data || [];
+        setYears(ys);
+        if (ys.length > 0) setAcademicYearId(String(ys[0].id));
+      }
+      if (sRes.success) setSchools(sRes.data || []);
+    }).catch(() => setError('โหลดข้อมูลไม่สำเร็จ'));
+  }, [router]);
+
+  const upload = async (file: File, level: 'EARLY_CHILDHOOD' | 'BASIC_EDUCATION', schoolId: number, yearId: number) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('schoolId', String(schoolId));
+    fd.append('academicYearId', String(yearId));
+    fd.append('level', level);
+    if (changeNote) fd.append('changeNote', changeNote);
+    const res = await fetch('/api/admin/sar-documents', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd,
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) throw new Error(json.error || `Upload failed (${level})`);
+    return json.data;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token) return;
+    if (!ecFile && !bsFile) {
+      toastError('กรุณาเลือกไฟล์อย่างน้อย 1 ไฟล์');
+      return;
+    }
+    if (!academicYearId) { toastError('กรุณาเลือกปีการศึกษา'); return; }
+    if (!resolvedSchoolId) { toastError('กรุณาเลือกโรงเรียน'); return; }
+
+    setSubmitting(true);
+    setError('');
+    try {
+      let lastId: number | null = null;
+      if (ecFile) {
+        const r = await upload(ecFile, 'EARLY_CHILDHOOD', resolvedSchoolId, parseInt(academicYearId, 10));
+        lastId = r.id;
+      }
+      if (bsFile) {
+        const r = await upload(bsFile, 'BASIC_EDUCATION', resolvedSchoolId, parseInt(academicYearId, 10));
+        lastId = r.id;
+      }
+      toastSuccess('อัปโหลดสำเร็จ');
+      router.push(lastId ? `/admin/sar/${lastId}` : '/admin/sar');
+    } catch (err: any) {
+      setError(err.message || 'อัปโหลดไม่สำเร็จ');
+      toastError(err.message || 'อัปโหลดไม่สำเร็จ');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const labelStyle: React.CSSProperties = { display: 'block', marginBottom: '0.4rem', fontWeight: 500, color: '#333' };
+  const inputStyle: React.CSSProperties = { width: '100%', padding: '0.6rem 0.85rem', border: '1px solid #ddd', borderRadius: '0.4rem', fontSize: '0.95rem', boxSizing: 'border-box' };
+
+  return (
+    <div style={{ minHeight: '100vh', padding: '2rem', background: '#f5f5f5' }}>
+      <div style={{ maxWidth: '700px', margin: '0 auto' }}>
+        <Link href="/admin/sar" style={{ display: 'inline-block', marginBottom: '1rem', padding: '0.4rem 0.85rem', background: '#667eea', color: 'white', borderRadius: '0.4rem', textDecoration: 'none', fontSize: '0.9rem' }}>
+          ← กลับ
+        </Link>
+
+        <div style={{ background: 'white', padding: '2rem', borderRadius: '0.5rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#333', marginBottom: '0.25rem' }}>
+            📤 อัปโหลด SAR
+          </h1>
+          <p style={{ color: '#666', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
+            ปีการศึกษา 1 ปีต่อโรงเรียน รองรับ 2 ไฟล์: ปฐมวัย + ขั้นพื้นฐาน · อัปโหลดซ้ำเก็บเป็นเวอร์ชันใหม่ (ไฟล์เดิมไม่หาย)
+          </p>
+
+          {error && <div style={{ padding: '0.75rem', background: '#fee', color: '#c33', borderRadius: '0.4rem', marginBottom: '1rem', fontSize: '0.875rem' }}>{error}</div>}
+
+          <form onSubmit={handleSubmit}>
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={labelStyle}>โรงเรียน *</label>
+              {boundSchoolId ? (
+                <div style={{ padding: '0.6rem 0.85rem', background: '#f5f3ff', border: '1px solid #c4b5fd', borderRadius: '0.4rem', color: '#4c1d95', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  🔒 {boundSchoolName}
+                  <span style={{ marginLeft: 'auto', fontSize: '0.78rem', color: '#7c3aed', fontWeight: 400 }}>ผูกกับบัญชีของคุณ</span>
+                </div>
+              ) : meIsAdmin ? (
+                <>
+                  <input
+                    list="sar-schools"
+                    value={schoolInput}
+                    onChange={(e) => setSchoolInput(e.target.value)}
+                    placeholder="พิมพ์รหัสหรือชื่อโรงเรียน"
+                    style={inputStyle}
+                  />
+                  <datalist id="sar-schools">
+                    {schools.map((s) => (
+                      <option key={s.id} value={`${s.code || ''} ${s.nameTh || s.name || ''}`.trim()} />
+                    ))}
+                  </datalist>
+                </>
+              ) : (
+                <div style={{ padding: '0.6rem 0.85rem', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '0.4rem', color: '#991b1b', fontSize: '0.9rem' }}>
+                  ⚠️ บัญชีของคุณยังไม่ได้ผูกกับโรงเรียน
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={labelStyle}>ปีการศึกษา *</label>
+              <select value={academicYearId} onChange={(e) => setAcademicYearId(e.target.value)} required style={inputStyle}>
+                <option value="">เลือกปีการศึกษา</option>
+                {years.map((y) => <option key={y.id} value={y.id}>{y.year}</option>)}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={labelStyle}>SAR ระดับปฐมวัย (PDF)</label>
+              <input type="file" accept="application/pdf" onChange={(e) => setEcFile(e.target.files?.[0] || null)} style={{ ...inputStyle, padding: '0.5rem', cursor: 'pointer' }} />
+              {ecFile && <div style={{ fontSize: '0.78rem', color: '#666', marginTop: '0.25rem' }}>เลือกแล้ว: {ecFile.name} ({(ecFile.size / 1024 / 1024).toFixed(2)} MB)</div>}
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={labelStyle}>SAR ระดับขั้นพื้นฐาน (PDF)</label>
+              <input type="file" accept="application/pdf" onChange={(e) => setBsFile(e.target.files?.[0] || null)} style={{ ...inputStyle, padding: '0.5rem', cursor: 'pointer' }} />
+              {bsFile && <div style={{ fontSize: '0.78rem', color: '#666', marginTop: '0.25rem' }}>เลือกแล้ว: {bsFile.name} ({(bsFile.size / 1024 / 1024).toFixed(2)} MB)</div>}
+            </div>
+
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={labelStyle}>หมายเหตุการเปลี่ยนแปลง (ถ้าอัปโหลดเวอร์ชันใหม่)</label>
+              <input value={changeNote} onChange={(e) => setChangeNote(e.target.value)} style={inputStyle} placeholder="เช่น แก้คำผิดหน้า 12, เพิ่มภาคผนวก" />
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem', borderTop: '1px solid #e5e7eb', paddingTop: '1rem' }}>
+              <button
+                type="submit"
+                disabled={submitting || (!ecFile && !bsFile) || !resolvedSchoolId || !academicYearId}
+                style={{
+                  padding: '0.7rem 1.5rem',
+                  background: submitting || (!ecFile && !bsFile) || !resolvedSchoolId || !academicYearId ? '#9ca3af' : '#10b981',
+                  color: 'white', border: 'none', borderRadius: '0.4rem', fontSize: '0.95rem', fontWeight: 600,
+                  cursor: submitting ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {submitting ? 'กำลังอัปโหลด...' : '📤 อัปโหลด'}
+              </button>
+              <Link href="/admin/sar" style={{ padding: '0.7rem 1.5rem', background: '#f3f4f6', color: '#333', border: '1px solid #d1d5db', borderRadius: '0.4rem', fontSize: '0.95rem', textDecoration: 'none' }}>
+                ยกเลิก
+              </Link>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
