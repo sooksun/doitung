@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
       where: { type: 'Q_MODEL' },
       include: {
         sections: true,
-        indicators: { select: { id: true, sectionId: true, minScore: true, maxScore: true, textTh: true, textEn: true } },
+        indicators: { select: { id: true, sectionId: true, itemCode: true, minScore: true, maxScore: true, textTh: true, textEn: true } },
       },
     });
 
@@ -194,19 +194,35 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 5. Indicator health — 8 indicators with lowest current state across ALL dimensions
-    // (those most in need of development). Indicators without any data are excluded.
+    // 5. Indicator health — ALL 47 Q-Model indicators with current state, ordered by
+    // section (dimension order from Q_DIMENSIONS) then by item code / id.
     const indicatorHealth: Array<{
-      name: string;
+      code: string | null;
       nameTh: string;
-      score: number;
+      score: number | null;      // null = no data yet
       max: number;
-      progress: number;
+      progress: number | null;
+      sectionKey: string;
+      sectionLabelTh: string;
     }> = [];
 
     if (qModel) {
+      // Build section lookup → dimension info, with order matching Q_DIMENSIONS.
+      // Indicators outside the 4 active dimensions are skipped (legacy sections).
+      const sectionInfo = new Map<number, { key: string; labelTh: string; order: number }>();
+      for (const sec of qModel.sections) {
+        const dim = Q_DIMENSIONS.find((d) => d.key === sec.nameEn);
+        if (dim) {
+          sectionInfo.set(sec.id, { key: dim.key, labelTh: dim.labelTh, order: dim.order });
+        }
+      }
+
+      const activeIndicators = qModel.indicators.filter(
+        (ind) => ind.sectionId !== null && sectionInfo.has(ind.sectionId)
+      );
+
       const stats = await Promise.all(
-        qModel.indicators.map(async (ind) => {
+        activeIndicators.map(async (ind) => {
           const agg = await prisma.evaluationResponse.aggregate({
             where: {
               indicatorId: ind.id,
@@ -218,22 +234,30 @@ export async function GET(request: NextRequest) {
         })
       );
 
-      const critical = stats
-        .filter((s): s is { ind: typeof s.ind; avg: number } => s.avg !== null)
-        .sort((a, b) => a.avg - b.avg)
-        .slice(0, 8);
+      stats.sort((a, b) => {
+        const aSec = a.ind.sectionId ? sectionInfo.get(a.ind.sectionId) : undefined;
+        const bSec = b.ind.sectionId ? sectionInfo.get(b.ind.sectionId) : undefined;
+        const aOrder = aSec?.order ?? 999;
+        const bOrder = bSec?.order ?? 999;
+        if (aOrder !== bOrder) return aOrder - bOrder;
+        return a.ind.id - b.ind.id;
+      });
 
-      for (const { ind, avg } of critical) {
+      for (const { ind, avg } of stats) {
         const range = ind.maxScore - ind.minScore;
-        const progress = range > 0
-          ? Math.max(0, Math.min(100, Math.round(((avg - ind.minScore) / range) * 100)))
-          : 0;
+        let progress: number | null = null;
+        if (avg !== null && range > 0) {
+          progress = Math.max(0, Math.min(100, Math.round(((avg - ind.minScore) / range) * 100)));
+        }
+        const sec = ind.sectionId ? sectionInfo.get(ind.sectionId) : undefined;
         indicatorHealth.push({
-          name: ind.textEn || ind.textTh,
+          code: ind.itemCode,
           nameTh: ind.textTh,
-          score: Math.round(avg * 10) / 10,
+          score: avg !== null ? Math.round(avg * 10) / 10 : null,
           max: ind.maxScore,
           progress,
+          sectionKey: sec?.key ?? '',
+          sectionLabelTh: sec?.labelTh ?? '',
         });
       }
     }

@@ -25,7 +25,15 @@ interface LiveData {
   overallQualityIndex: number;
   spiderData: Array<{ dimension: string; labelTh: string; current: number; target: number }>;
   dimensionScores: Array<{ dimension: string; labelTh: string; percent: number; status: 'green' | 'yellow' | 'red' }>;
-  indicatorHealth: Array<{ name: string; nameTh: string; score: number; max: number; progress: number }>;
+  indicatorHealth: Array<{
+    code: string | null;
+    nameTh: string;
+    score: number | null;
+    max: number;
+    progress: number | null;
+    sectionKey: string;
+    sectionLabelTh: string;
+  }>;
 }
 
 interface School { id: number; nameTh: string; }
@@ -364,7 +372,7 @@ export default function LiveDashboardPage() {
               <LiveSpiderChart data={liveData?.spiderData ?? []} height={420} />
             </div>
 
-            {/* RIGHT PANEL — Indicator Health */}
+            {/* RIGHT PANEL — Indicator Health (all 47, scrollable, grouped by section) */}
             <div
               style={{
                 background: 'rgba(255,255,255,0.04)',
@@ -372,6 +380,9 @@ export default function LiveDashboardPage() {
                 border: '1px solid rgba(255,255,255,0.08)',
                 padding: '1rem',
                 overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
+                minHeight: 0,
               }}
             >
               <div
@@ -381,45 +392,86 @@ export default function LiveDashboardPage() {
                   color: 'rgba(255,255,255,0.5)',
                   textTransform: 'uppercase',
                   letterSpacing: '0.05em',
-                  marginBottom: '1rem',
+                  marginBottom: '0.75rem',
+                  flexShrink: 0,
                 }}
               >
-                ตัวชี้วัดที่ต้องเร่งพัฒนา
+                ตัวชี้วัดทั้งหมด
                 <div style={{ fontSize: '0.65rem', fontWeight: 400, color: 'rgba(255,255,255,0.35)', marginTop: '0.2rem', letterSpacing: 0 }}>
-                  8 ตัวที่คะแนนต่ำสุด (ทุกมิติ)
+                  47 ตัว · 4 มิติ
                 </div>
               </div>
-              {(liveData?.indicatorHealth ?? []).map((ind) => (
-                <div key={ind.name} style={{ marginBottom: '1rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                    <span style={{ fontSize: '0.82rem', color: '#cbd5e1', lineHeight: 1.3, maxWidth: '65%' }}>
-                      {ind.nameTh}
-                    </span>
-                    <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#818cf8' }}>
-                      {ind.score}/{ind.max}
-                    </span>
-                  </div>
-                  <div
-                    style={{
-                      width: '100%',
-                      height: '8px',
-                      background: 'rgba(255,255,255,0.08)',
-                      borderRadius: '4px',
-                      overflow: 'hidden',
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: `${ind.progress}%`,
-                        height: '100%',
-                        background: 'linear-gradient(90deg, #818cf899, #818cf8)',
-                        borderRadius: '4px',
-                        transition: 'width 0.7s ease-out',
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
+              <div
+                className="indicator-scroll"
+                style={{
+                  overflowY: 'auto',
+                  paddingRight: '0.4rem',
+                  flex: 1,
+                  minHeight: 0,
+                }}
+              >
+                {(liveData?.indicatorHealth ?? []).map((ind, idx) => {
+                  const prev = liveData?.indicatorHealth?.[idx - 1];
+                  const showSectionHeader = !prev || prev.sectionKey !== ind.sectionKey;
+                  const hasData = ind.score !== null && ind.progress !== null;
+                  return (
+                    <div key={`${ind.sectionKey}-${ind.code ?? idx}`}>
+                      {showSectionHeader && (
+                        <div
+                          style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            color: '#a5b4fc',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                            margin: idx === 0 ? '0 0 0.5rem' : '0.85rem 0 0.5rem',
+                            paddingBottom: '0.25rem',
+                            borderBottom: '1px solid rgba(165,180,252,0.15)',
+                          }}
+                        >
+                          {ind.sectionLabelTh}
+                        </div>
+                      )}
+                      <div style={{ marginBottom: '0.65rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                          <span style={{ fontSize: '0.78rem', color: '#cbd5e1', lineHeight: 1.35, flex: 1 }}>
+                            {ind.code && (
+                              <span style={{ fontWeight: 700, color: '#818cf8', marginRight: '0.35rem' }}>
+                                {ind.code}
+                              </span>
+                            )}
+                            {ind.nameTh}
+                          </span>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: hasData ? '#818cf8' : 'rgba(255,255,255,0.3)', whiteSpace: 'nowrap' }}>
+                            {hasData ? `${ind.score}/${ind.max}` : '—'}
+                          </span>
+                        </div>
+                        <div
+                          style={{
+                            width: '100%',
+                            height: '6px',
+                            background: 'rgba(255,255,255,0.08)',
+                            borderRadius: '3px',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          {hasData && (
+                            <div
+                              style={{
+                                width: `${ind.progress}%`,
+                                height: '100%',
+                                background: 'linear-gradient(90deg, #818cf899, #818cf8)',
+                                borderRadius: '3px',
+                                transition: 'width 0.7s ease-out',
+                              }}
+                            />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
@@ -457,6 +509,20 @@ export default function LiveDashboardPage() {
         @keyframes pulse {
           0%, 100% { opacity: 1; transform: scale(1); }
           50% { opacity: 0.5; transform: scale(1.2); }
+        }
+        .indicator-scroll::-webkit-scrollbar {
+          width: 6px;
+        }
+        .indicator-scroll::-webkit-scrollbar-track {
+          background: rgba(255,255,255,0.03);
+          border-radius: 3px;
+        }
+        .indicator-scroll::-webkit-scrollbar-thumb {
+          background: rgba(129,140,248,0.4);
+          border-radius: 3px;
+        }
+        .indicator-scroll::-webkit-scrollbar-thumb:hover {
+          background: rgba(129,140,248,0.6);
         }
       `}</style>
     </div>
