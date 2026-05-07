@@ -194,10 +194,11 @@ function StickyPageInner() {
             boardId={board.id}
             boardKey={board.shareKey}
             isOwner={board.isOwner}
-            // Standalone page: owner can also close the board here. Non-owner
-            // gets "ออกจากบอร์ด" which just navigates away (board stays open).
-            closeAlsoClosesBoard={board.isOwner}
-            closeLabel={board.isOwner ? 'ปิดบอร์ด (link ใช้ไม่ได้แล้ว)' : 'ออกจากบอร์ด'}
+            // Closing this page just navigates back; we leave the board
+            // ACTIVE so the same shareKey keeps working and the same notes
+            // come back when anyone reopens.
+            closeAlsoClosesBoard={false}
+            closeLabel="ออกจากบอร์ด"
             onClose={() => router.push('/admin/sar')}
             pollIntervalMs={5000}
           />

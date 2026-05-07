@@ -36,27 +36,39 @@ export async function POST(request: NextRequest) {
       return errorResponse('Forbidden: ไม่มีสิทธิ์เปิดบอร์ดของโรงเรียนนี้', 403);
     }
 
+    // Find any prior board for this context (most recent). We deliberately
+    // don't filter by status: if the most recent board is CLOSED, reactivate
+    // it so collaborators see the same notes and the original shareKey keeps
+    // working — opening a cell again is the user's signal that they want to
+    // continue brainstorming where they left off, not start over.
     const existing = await prisma.stickyBoard.findFirst({
-      where: { contextType, contextId, status: 'ACTIVE' },
-      include: { owner: { select: { id: true, name: true } } as any },
-    } as any).catch(() => null);
+      where: { contextType, contextId },
+      orderBy: { createdAt: 'desc' },
+    });
 
     if (existing) {
+      const board =
+        existing.status === 'ACTIVE'
+          ? existing
+          : await prisma.stickyBoard.update({
+              where: { id: existing.id },
+              data: { status: 'ACTIVE', closedAt: null },
+            });
       const owner = await prisma.user.findUnique({
-        where: { id: existing.ownerUserId },
+        where: { id: board.ownerUserId },
         select: { id: true, name: true },
       });
       return successResponse({
-        id: existing.id,
-        shareKey: existing.shareKey,
-        ownerUserId: existing.ownerUserId,
+        id: board.id,
+        shareKey: board.shareKey,
+        ownerUserId: board.ownerUserId,
         ownerName: owner?.name || null,
-        schoolId: existing.schoolId,
-        contextType: existing.contextType,
-        contextId: existing.contextId,
-        status: existing.status,
-        isOwner: existing.ownerUserId === me.id,
-        createdAt: existing.createdAt,
+        schoolId: board.schoolId,
+        contextType: board.contextType,
+        contextId: board.contextId,
+        status: board.status,
+        isOwner: board.ownerUserId === me.id,
+        createdAt: board.createdAt,
       });
     }
 

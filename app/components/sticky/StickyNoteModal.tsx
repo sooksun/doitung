@@ -147,11 +147,12 @@ export function StickyNoteModal({
             boardId={board.id}
             boardKey={board.shareKey}
             isOwner={board.isOwner}
-            // Owner: clicking close will both apply text AND mark board CLOSED.
-            // Non-owner (rare on this page): just apply text; board stays open
-            // for the actual owner.
-            closeAlsoClosesBoard={board.isOwner}
-            closeLabel={board.isOwner ? 'บันทึกและปิดบอร์ด' : 'บันทึก note ลง textarea'}
+            // Closing the modal applies the joined text to the Iceberg
+            // textarea and dismisses the popup. The board itself stays
+            // ACTIVE on the server so reopening this cell brings the same
+            // notes back and the share link keeps working.
+            closeAlsoClosesBoard={false}
+            closeLabel="บันทึกและปิด"
             onClose={handleSurfaceClose}
             pollIntervalMs={5000}
           />

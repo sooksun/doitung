@@ -22,19 +22,21 @@ note but only edit/delete their own.
 ### Owner (in the SAR form)
 1. On `/admin/sar/new`, choose a school + academic year.
 2. Click **📌 ระดมสมอง** chip. The modal opens; the server resolves (or creates)
-   a `StickyBoard` for this Iceberg cell — your `user.id` becomes the owner.
+   a `StickyBoard` for this Iceberg cell — your `user.id` becomes the owner
+   the very first time it's opened, and that ownership sticks.
 3. Brainstorm with notes — drag, recolor, add. Each note has explicit
    **💾 บันทึก / ↩ ยกเลิก** for content; position + color auto-save.
 4. Click **🔗 คัดลอกลิงก์** → URL of the form `/sticky?key=<shareKey>` lands
    on your clipboard. Send via LINE / email / chat.
-5. Click **บันทึกและปิดบอร์ด** (the green button). Three things happen
-   atomically:
+5. Click **บันทึกและปิด** (the green button). Two things happen atomically:
    1. every dirty note draft is flushed to the server,
-   2. the joined text is written into the Iceberg textarea,
-   3. the board is **CLOSED** server-side — the share link returns 410 from
-      this point on.
-6. Re-opening the modal for the same Iceberg cell mints a **new** board with
-   a **new** shareKey — old collaborators with old links can no longer join.
+   2. the joined text is written into the Iceberg textarea.
+   The board itself **stays ACTIVE** on the server — closing the modal is a
+   local UI action, not a board lifecycle event.
+6. Re-opening the modal for the same Iceberg cell returns the **same**
+   board with the **same** shareKey, so previously created notes are still
+   there and any link you shared keeps working. Continue brainstorming
+   exactly where you left off.
 
 ### Collaborator (with a share link)
 1. Open `/sticky?key=<shareKey>`. **No login required.** Browser auto-mints a
@@ -44,12 +46,18 @@ note but only edit/delete their own.
 3. Add notes, drag any note around, recolor any note. Edit / delete only the
    notes you wrote. The chip in the header reads "ผู้ร่วมระดมสมอง" so you
    know you're not the owner.
-4. Press **ออกจากบอร์ด** to leave. The board stays open for the owner.
+4. Press **ออกจากบอร์ด** to leave (just navigates back; the board stays
+   active for everyone else).
 
-### When the owner closes the board
-- The page detects 410 on its next poll (within ≤5 s).
-- The board surface is replaced with a friendly "🔒 บอร์ดถูกปิดแล้ว" panel and
-  every API call from this link now returns 410 Gone.
+### Closed-board state (rare)
+The `/api/sticky-boards/:id/close` endpoint still exists for the case where
+an admin needs to revoke a share link entirely, but no UI flow currently
+calls it. If a board ever does land in `status=CLOSED`:
+- collaborators on `/sticky?key=...` see a friendly "🔒 บอร์ดถูกปิดแล้ว" panel,
+- every shareKey-keyed `/api/sticky-notes` call returns **410 Gone**,
+- and the next time the owner opens the same Iceberg cell, the board is
+  **reactivated** automatically (status flips back to ACTIVE, original
+  shareKey resumes working) so notes are not lost.
 
 ## Authorization matrix
 
