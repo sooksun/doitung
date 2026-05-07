@@ -1,5 +1,7 @@
 // app/admin/sar/page.tsx
-// SAR Evidence Center — list documents (admin sees all, school_leader sees own).
+// คลังข้อมูลการระดมสมอง — list documents (admin sees all, school_leader sees own).
+// (Routes / API paths / model names still use the historical "SAR" naming
+//  internally; only the visible labels were rebranded to "การระดมสมอง".)
 
 'use client';
 
@@ -89,13 +91,15 @@ export default function SarListPage() {
         <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
             <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#333', marginBottom: '0.5rem' }}>
-              📚 คลังหลักฐาน SAR
+              📚 คลังข้อมูลการระดมสมอง
             </h1>
-            <p style={{ color: '#666' }}>ส่ง SAR ปฐมวัย + ขั้นพื้นฐาน เป็นไฟล์ PDF และ/หรือข้อความ · OCR + ตรวจทาน · ใช้เป็น Evidence Base ของ AI</p>
+            <p style={{ color: '#666' }}>
+              ดูประวัติการระดมสมองของแต่ละโรงเรียน ปีการศึกษา · บันทึกใหม่ด้วย Iceberg Model 4 ชั้น × 2 ด้าน + Sticky Notes ระดมสมอง · แนบไฟล์ PDF ได้ · เก็บเวอร์ชันทุกครั้งที่บันทึก
+            </p>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <Link href="/admin/sar/new" style={{ padding: '0.55rem 1rem', background: '#10b981', color: 'white', borderRadius: '0.5rem', textDecoration: 'none', fontWeight: 600 }}>
-              + ส่ง SAR ใหม่
+              + บันทึกการระดมสมองใหม่
             </Link>
             <Link href="/dashboard" style={{ padding: '0.55rem 1rem', background: '#667eea', color: 'white', borderRadius: '0.5rem', textDecoration: 'none' }}>
               ← Dashboard
@@ -128,7 +132,7 @@ export default function SarListPage() {
                 {loading ? (
                   <tr><td colSpan={10} style={{ padding: '2rem', textAlign: 'center', color: '#666' }}>กำลังโหลด...</td></tr>
                 ) : rows.length === 0 ? (
-                  <tr><td colSpan={10} style={{ padding: '2rem', textAlign: 'center', color: '#666' }}>ยังไม่มี SAR — กดปุ่ม "ส่ง SAR ใหม่" เพื่อเริ่ม</td></tr>
+                  <tr><td colSpan={10} style={{ padding: '2rem', textAlign: 'center', color: '#666' }}>ยังไม่มีข้อมูลการระดมสมอง — กดปุ่ม &quot;+ บันทึกการระดมสมองใหม่&quot; เพื่อเริ่ม</td></tr>
                 ) : rows.map((r) => {
                   const sc = STATUS_COLORS[r.status] || { bg: '#f3f4f6', text: '#6b7280', label: r.status };
                   const qScore = r.textQualityScore !== null ? `${(r.textQualityScore * 100).toFixed(0)}%` : '—';
