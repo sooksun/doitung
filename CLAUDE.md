@@ -10,6 +10,19 @@ The **OKR/RBM module was removed** in the May 2026 cleanup — pages, API routes
 
 `context.md` is the canonical living document for architecture, decisions, deployment, and known issues — read it first for any non-trivial change. `plan.md` and `tasks.md` track phases and pending work.
 
+## ภาษาที่ใช้ตอบ (response language)
+
+ตอบเป็น **ภาษาไทยเป็นค่าเริ่มต้น** ให้มากที่สุด — รวมถึงสรุปสิ่งที่ทำ, อธิบายโค้ด, รายงานผลทดสอบ, ข้อความใน commit message body, ข้อความ user-facing ใน UI, README ที่เขียนใหม่ ฯลฯ
+
+ใช้ภาษาอังกฤษเฉพาะกรณีต่อไปนี้เท่านั้น:
+- ตัว identifier ในโค้ด (ชื่อตัวแปร / function / class / type / API path / DB column / git branch)
+- ข้อความ error จาก compiler / runtime / external tool (อย่าแปล stack trace)
+- ชื่อ file path, URL, command line
+- บริการเทคนิคเฉพาะที่ไม่มีคำไทยเทียบ (เช่น "stacking context", "pointer capture", "fullscreen API")
+- เมื่อผู้ใช้พิมพ์เป็นภาษาอังกฤษทั้งข้อความ
+
+หัวเรื่อง / bullet / inline label ในคำตอบ — ใช้ไทยถ้ามีคำที่ตรงพอใช้ได้ คอมเมนต์ในซอร์สโค้ด — ใช้อังกฤษตามคอนเวนชันเดิมของโปรเจกต์ (ไม่ต้องแปล)
+
 ## Common commands
 
 ```bash
