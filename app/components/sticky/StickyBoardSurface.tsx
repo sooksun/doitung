@@ -17,7 +17,7 @@
 
 'use client';
 
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { StickyBoard } from './StickyBoard';
 import type { StickyNoteCardHandle } from './StickyNoteCard';
 import {
@@ -85,6 +85,31 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
     if (handle) cardHandles.current.set(id, handle);
     else cardHandles.current.delete(id);
   }, []);
+
+  // Track browser fullscreen state. Toggle targets `documentElement` so the
+  // entire tab goes fullscreen — works equally well for the modal (whose
+  // backdrop covers the page) and the standalone /sticky page.
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onChange);
+    onChange();
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+
+  const toggleFullscreen = async () => {
+    if (typeof document === 'undefined') return;
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await document.documentElement.requestFullscreen();
+      }
+    } catch (err: any) {
+      toastError(err?.message || 'ไม่สามารถเปลี่ยนโหมดเต็มจอได้');
+    }
+  };
 
   const handleAdd = async () => {
     if (closed) {
@@ -216,6 +241,14 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
         <button type="button" onClick={handleAdd} style={primaryBtn}>+ เพิ่มโน้ต</button>
         <button type="button" onClick={handleCopyLink} style={ghostBtn} title="คัดลอกลิงก์บอร์ดเพื่อให้คนอื่นร่วมระดมสมอง">
           🔗 คัดลอกลิงก์
+        </button>
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          style={ghostBtn}
+          title={isFullscreen ? 'ออกจากโหมดเต็มจอ (Esc)' : 'เปิดโหมดเต็มจอ'}
+        >
+          {isFullscreen ? '🗗 ย่อหน้าจอ' : '⛶ เต็มจอ'}
         </button>
         {showClear && (
           <button type="button" onClick={handleClear} style={ghostBtn} disabled={notes.length === 0}>ล้างบอร์ด</button>
