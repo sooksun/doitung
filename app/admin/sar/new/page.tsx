@@ -9,7 +9,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toastSuccess, toastError } from '@/lib/toast';
-import { IcebergInput, EMPTY_ICEBERG, icebergHasContent, type Iceberg } from '@/app/components/IcebergInput';
+import { IcebergInput, EMPTY_ICEBERG, icebergHasContent, ICEBERG_LAYERS, type Iceberg } from '@/app/components/IcebergInput';
 import { StickyNoteButton } from '@/app/components/sticky/StickyNoteButton';
 
 interface School { id: number; code: string | null; nameTh: string | null; name: string; }
@@ -187,26 +187,30 @@ export default function NewSarPage() {
                 value={iceberg}
                 onChange={setIceberg}
                 renderCellAccessory={({ layerNo, side }) => {
-                  // MVP: only Layer 1 / สิ่งที่เป็นอยู่ has the brainstorming popup.
-                  if (!(layerNo === 1 && side === 'current')) return null;
+                  // Every cell of the 4×2 matrix gets its own brainstorming
+                  // board — distinct contextId ⇒ distinct StickyBoard ⇒
+                  // distinct shareKey + owner + lifecycle.
                   const ready = !!resolvedSchoolId && !!academicYearId;
+                  const sideKey = side === 'current' ? 'CURRENT' : 'DESIRED';
+                  const sideLabel = side === 'current' ? 'สิ่งที่เป็นอยู่' : 'สิ่งที่อยากให้เป็น';
+                  const layerCfg = ICEBERG_LAYERS[layerNo - 1];
                   const contextId = ready
-                    ? `sar:draft:school:${resolvedSchoolId}:year:${academicYearId}:iceberg:L1:CURRENT`
+                    ? `sar:draft:school:${resolvedSchoolId}:year:${academicYearId}:iceberg:L${layerNo}:${sideKey}`
                     : 'sar:draft:placeholder';
                   return (
                     <StickyNoteButton
                       contextType="ICEBERG_CELL"
                       contextId={contextId}
                       schoolId={resolvedSchoolId}
-                      layerNo={1}
-                      side="CURRENT"
-                      title="ชั้น 1 สถานการณ์ / สิ่งที่เป็นอยู่"
+                      layerNo={layerNo}
+                      side={sideKey}
+                      title={`${layerCfg.label} / ${sideLabel}`}
                       disabled={!ready}
                       disabledReason="กรุณาเลือกโรงเรียนและปีการศึกษาก่อน"
                       onApplyText={(text) =>
                         setIceberg((prev) => ({
                           ...prev,
-                          situations: { ...prev.situations, current: text },
+                          [layerCfg.key]: { ...prev[layerCfg.key], [side]: text },
                         }))
                       }
                     />
