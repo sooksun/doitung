@@ -150,28 +150,13 @@ async function main() {
     create: { userId: teacherUser.id, schoolId: school1.id },
   });
 
-  // --- Q-MODEL INSTRUMENT — force-clean before re-seeding ---
-  const oldQModels = await prisma.instrument.findMany({ where: { type: 'Q_MODEL' } });
-  for (const old of oldQModels) {
-    const sessions = await prisma.evaluationSession.findMany({
-      where: { instrumentId: old.id },
-      select: { id: true },
-    });
-    const sessionIds = sessions.map((s) => s.id);
-    if (sessionIds.length > 0) {
-      await prisma.evaluationResponse.deleteMany({
-        where: { evaluationSessionId: { in: sessionIds } },
-      });
-      await prisma.evaluationSession.deleteMany({ where: { id: { in: sessionIds } } });
-    }
-    await prisma.indicator.deleteMany({ where: { instrumentId: old.id } });
-    await prisma.instrumentSection.deleteMany({ where: { instrumentId: old.id } });
-    await prisma.instrument.delete({ where: { id: old.id } });
-  }
-  console.log('✓ Cleaned old Q-MODEL data');
-
-  const qInstrument = await prisma.instrument.create({
-    data: {
+  // --- Q-MODEL INSTRUMENT (additive — kept in sync with scripts/seed-production.js) ---
+  // Both seed paths must be additive only. Structural indicator changes go through
+  // dedicated migration scripts, not through reseeding.
+  const qInstrument = await prisma.instrument.upsert({
+    where: { code: 'Q-MODEL-2568' },
+    update: {},
+    create: {
       code: 'Q-MODEL-2568',
       nameTh: 'แบบประเมิน Q-Model ปี 2568',
       nameEn: 'Q-Model Assessment 2568',

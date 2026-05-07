@@ -131,22 +131,12 @@ async function main() {
     create: { userId: adminUser.id, schoolId: school1.id },
   });
 
-  // --- Q-MODEL INSTRUMENT ---
-  // Force-clean ALL Q-MODEL data (cascade: responses → sessions → indicators → sections → instrument)
-  const oldQModels = await prisma.instrument.findMany({ where: { type: 'Q_MODEL' } });
-  for (const old of oldQModels) {
-    const sessions = await prisma.evaluationSession.findMany({ where: { instrumentId: old.id }, select: { id: true } });
-    const sessionIds = sessions.map(s => s.id);
-    if (sessionIds.length > 0) {
-      await prisma.evaluationResponse.deleteMany({ where: { evaluationSessionId: { in: sessionIds } } });
-      await prisma.evaluationSession.deleteMany({ where: { id: { in: sessionIds } } });
-    }
-    await prisma.indicator.deleteMany({ where: { instrumentId: old.id } });
-    await prisma.instrumentSection.deleteMany({ where: { instrumentId: old.id } });
-    await prisma.instrument.delete({ where: { id: old.id } });
-  }
-  console.log('✓ Cleaned old Q-MODEL data');
-
+  // --- Q-MODEL INSTRUMENT (additive only — must NEVER delete user data on container start) ---
+  // Production seed runs every time the container boots (docker-entrypoint.sh).
+  // The previous implementation wiped EvaluationResponse rows here, destroying real
+  // school evaluation scores on every redeploy. Anything that needs structural
+  // changes to indicators (rename/remove) must go through a one-shot migration script,
+  // never through this seed.
   const qInstrument = await prisma.instrument.upsert({
     where: { code: 'Q-MODEL-2568' },
     update: {},
