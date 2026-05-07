@@ -1,28 +1,30 @@
 // app/components/sticky/useStickyNotes.ts
-// Client-side hook for the sticky-notes board on a given (contextType, contextId).
+// Client hook for a sticky-notes board addressed by `boardKey` (the share key
+// returned from /api/sticky-boards/get-or-create).
 //
-// Responsibilities:
-//   - Initial load of notes for the board
-//   - Background polling every `pollIntervalMs` (default 5s) so collaborators see
-//     each other's changes without a websocket. Pauses when the tab is hidden.
-//   - Unified `patchNote(id, partial)` that updates locally first then PATCHes
-//     the server, replacing the local copy with the server's response.
-//   - `addNote`, `deleteNote`, `clearAll` for board ops.
+// Responsibilities
+//   - Fetch + 5s poll the notes for the given board (pause when tab hidden).
+//   - Provide CRUD wrappers (`addNote`, `patchNote`, `deleteNote`, `clearAll`)
+//     that send guest-token / Bearer headers as appropriate.
+//   - Surface an `error` plus a `closed` flag when the board is closed (so the
+//     UI can switch to a "closed by owner" state instead of looping retries).
 //
-// The cards own their *own* draft state for content + position. This hook only
-// keeps a server-mirrored list and emits patch calls when the cards explicitly
-// commit (Save button on a note, pointer-up on a drag, color change, etc.).
+// Cards own draft state for content + position so polling never clobbers
+// in-progress edits — see StickyNoteCard.
 
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { buildStickyHeaders } from '@/lib/sticky-guest';
 
 export type StickyColor = 'yellow' | 'pink' | 'mint' | 'blue' | 'peach' | 'lavender';
 
 export interface StickyNote {
   id: string;
+  boardId: string;
   schoolId: number;
   userId: number | null;
+  authorName: string | null;
   contextType: string;
   contextId: string;
   sarId: number | null;
@@ -35,60 +37,50 @@ export interface StickyNote {
   rotation: number;
   zIndex: number;
   status: 'ACTIVE' | 'ARCHIVED';
+  // Server-decorated permission flags:
+  isMine: boolean;
+  isOwner: boolean;
+  canEditContent: boolean;
+  canDelete: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
 
 export interface UseStickyNotesOptions {
   enabled: boolean;
-  contextType: string;
-  contextId: string;
-  schoolId: number | null;
-  sarId?: number | null;
-  layerNo?: number | null;
-  side?: 'CURRENT' | 'DESIRED' | null;
-  pollIntervalMs?: number; // default 5000; pass 0 to disable polling
+  boardKey: string | null;
+  pollIntervalMs?: number;
 }
 
-function getToken(): string | null {
+function getBearer(): string | null {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem('token');
 }
 
 async function apiFetch(input: string, init: RequestInit = {}): Promise<any> {
-  const token = getToken();
   const res = await fetch(input, {
     ...init,
     headers: {
       ...(init.headers || {}),
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...buildStickyHeaders({ bearer: getBearer() }),
     },
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok || !json?.success) {
-    throw new Error(json?.error || `HTTP ${res.status}`);
+    const err: any = new Error(json?.error || `HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
   }
   return json.data;
 }
 
 export function useStickyNotes(opts: UseStickyNotesOptions) {
-  const {
-    enabled,
-    contextType,
-    contextId,
-    schoolId,
-    sarId,
-    layerNo,
-    side,
-    pollIntervalMs = 5000,
-  } = opts;
+  const { enabled, boardKey, pollIntervalMs = 5000 } = opts;
   const [notes, setNotes] = useState<StickyNote[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [closed, setClosed] = useState(false);
 
-  // Always-fresh notes snapshot — used by callers that need to compute joined
-  // text right after issuing PATCHes, without waiting for the next render tick.
   const notesRef = useRef<StickyNote[]>([]);
   useEffect(() => {
     notesRef.current = notes;
@@ -96,30 +88,37 @@ export function useStickyNotes(opts: UseStickyNotesOptions) {
 
   const reload = useCallback(
     async (silent = false) => {
-      if (!enabled || !contextId) return;
+      if (!enabled || !boardKey) return;
       if (!silent) setLoading(true);
       setError(null);
       try {
-        const qs = new URLSearchParams({ contextType, contextId }).toString();
+        const qs = new URLSearchParams({ boardKey }).toString();
         const data = (await apiFetch(`/api/sticky-notes?${qs}`)) as StickyNote[];
         setNotes(Array.isArray(data) ? data : []);
+        setClosed(false);
       } catch (err: any) {
-        setError(err?.message || 'โหลดไม่สำเร็จ');
+        if (err?.status === 410) {
+          setClosed(true);
+          setError('บอร์ดถูกปิดโดยเจ้าของแล้ว');
+        } else {
+          setError(err?.message || 'โหลดไม่สำเร็จ');
+        }
       } finally {
         if (!silent) setLoading(false);
       }
     },
-    [enabled, contextType, contextId],
+    [enabled, boardKey],
   );
 
-  // Initial load.
   useEffect(() => {
     if (enabled) reload();
   }, [enabled, reload]);
 
-  // Background polling — same idea as the dashboard's 5s tick.
+  // Background polling (5s). Pauses while the document is hidden; resumes on
+  // visibility change. Stops permanently once the board is reported CLOSED.
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !boardKey) return;
+    if (closed) return;
     if (!pollIntervalMs || pollIntervalMs <= 0) return;
     const tick = () => {
       if (typeof document !== 'undefined' && document.hidden) return;
@@ -127,9 +126,7 @@ export function useStickyNotes(opts: UseStickyNotesOptions) {
     };
     const timer = setInterval(tick, pollIntervalMs);
     const onVis = () => {
-      if (typeof document !== 'undefined' && !document.hidden) {
-        reload(true).catch(() => null);
-      }
+      if (typeof document !== 'undefined' && !document.hidden) reload(true).catch(() => null);
     };
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', onVis);
@@ -140,26 +137,18 @@ export function useStickyNotes(opts: UseStickyNotesOptions) {
         document.removeEventListener('visibilitychange', onVis);
       }
     };
-  }, [enabled, pollIntervalMs, reload]);
+  }, [enabled, boardKey, pollIntervalMs, closed, reload]);
 
   const addNote = useCallback(
     async (overrides?: Partial<Pick<StickyNote, 'content' | 'color' | 'x' | 'y' | 'rotation'>>) => {
-      if (!schoolId) {
-        setError('ยังไม่ได้เลือกโรงเรียน');
-        return null;
-      }
+      if (!boardKey) return null;
       const list = notesRef.current;
       const maxZ = list.reduce((m, n) => Math.max(m, n.zIndex), 0);
       const baseX = 60 + Math.floor(Math.random() * 80);
       const baseY = 60 + Math.floor(Math.random() * 60);
       const offset = list.length * 18;
       const payload = {
-        contextType,
-        contextId,
-        schoolId,
-        sarId: sarId ?? null,
-        layerNo: layerNo ?? null,
-        side: side ?? null,
+        boardKey,
         content: overrides?.content ?? '',
         color: overrides?.color ?? 'yellow',
         x: overrides?.x ?? baseX + offset,
@@ -179,13 +168,12 @@ export function useStickyNotes(opts: UseStickyNotesOptions) {
         return null;
       }
     },
-    [contextType, contextId, schoolId, sarId, layerNo, side],
+    [boardKey],
   );
 
-  // Optimistic local apply, then PATCH server, then replace local copy with the
-  // server's authoritative version. Returns the server-side note (or null on error).
   const patchNote = useCallback(
     async (id: string, patch: Partial<StickyNote>): Promise<StickyNote | null> => {
+      // Optimistic apply (preserves server-only flags via spread).
       setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch } : n)));
       try {
         const updated = (await apiFetch(`/api/sticky-notes/${id}`, {
@@ -211,23 +199,36 @@ export function useStickyNotes(opts: UseStickyNotesOptions) {
     }
   }, []);
 
-  const clearAll = useCallback(async () => {
-    const ids = notesRef.current.map((n) => n.id);
-    setNotes([]);
-    await Promise.all(
-      ids.map((id) => apiFetch(`/api/sticky-notes/${id}`, { method: 'DELETE' }).catch(() => null)),
-    );
-  }, []);
-
   return {
     notes,
     notesRef,
     loading,
     error,
+    closed,
     reload,
     addNote,
     patchNote,
     deleteNote,
-    clearAll,
   };
+}
+
+// Helper for the surface to call POST /clear (owner-only, server-enforced).
+export async function clearBoardOwner(boardId: string): Promise<{ cleared: number } | null> {
+  const res = await fetch(`/api/sticky-boards/${boardId}/clear`, {
+    method: 'POST',
+    headers: buildStickyHeaders({ bearer: getBearer() }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json?.success) return null;
+  return json.data as { cleared: number };
+}
+
+// Helper for the surface to call POST /close (owner-only, server-enforced).
+export async function closeBoardOwner(boardId: string): Promise<boolean> {
+  const res = await fetch(`/api/sticky-boards/${boardId}/close`, {
+    method: 'POST',
+    headers: buildStickyHeaders({ bearer: getBearer() }),
+  });
+  const json = await res.json().catch(() => ({}));
+  return !!(res.ok && json?.success);
 }

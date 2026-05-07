@@ -1,17 +1,15 @@
 // app/components/sticky/StickyNoteCard.tsx
-// One Post-it on the corkboard. Owns its own draft state for content + position
-// so polling can update other clients' notes without clobbering my pending edits.
+// One Post-it on the board. Owns its own draft state for content + position
+// so polling never clobbers the current user's pending edits.
 //
-// State model:
-//   - `draft` (text)  — what's in the textarea right now. Can diverge from
-//     `note.content` when the user is typing. Sync from `note.content` only
-//     when the user is NOT actively editing (editingRef === false).
-//   - `pos` (x, y)   — where the card is rendered. While dragging,
-//     draggingRef !== null and we ignore prop updates. On pointer-up we commit.
-//   - The Save / Cancel buttons appear when `draft !== note.content`.
+// Permission-aware:
+//   - `note.canEditContent`  → textarea is read-only when false; Save/Cancel
+//     buttons are hidden.
+//   - `note.canDelete`       → ✕ button hidden / disabled.
+//   - Spatial fields (drag, color) are open to anyone with the live link.
 //
-// The component exposes a `flushIfDirty()` ref handle so the modal can ask all
-// cards to commit their drafts before closing.
+// The author's name (logged-in user.name or guest's chosen handle) is shown
+// at the bottom of the card so collaborators know who wrote what.
 
 'use client';
 
@@ -37,7 +35,7 @@ const COLOR_BORDER: Record<StickyColor, string> = {
 };
 
 const NOTE_W = 200;
-const NOTE_H = 220;
+const NOTE_H = 230;
 
 export interface StickyNoteCardHandle {
   flushIfDirty: () => Promise<void>;
@@ -67,12 +65,10 @@ export const StickyNoteCard = forwardRef<StickyNoteCardHandle, StickyNoteCardPro
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
 
-  // Mirror server content into draft only while user is not editing.
   useEffect(() => {
     if (!editingRef.current) setDraft(note.content);
   }, [note.content]);
 
-  // Mirror server position only while user is not dragging.
   useEffect(() => {
     if (!draggingRef.current) setPos({ x: note.x, y: note.y });
   }, [note.x, note.y]);
@@ -83,6 +79,10 @@ export const StickyNoteCard = forwardRef<StickyNoteCardHandle, StickyNoteCardPro
     ref,
     () => ({
       async flushIfDirty() {
+        if (!note.canEditContent) {
+          editingRef.current = false;
+          return;
+        }
         if (draft !== note.content) {
           const ok = await onSaveContent(draft);
           if (ok) editingRef.current = false;
@@ -91,7 +91,7 @@ export const StickyNoteCard = forwardRef<StickyNoteCardHandle, StickyNoteCardPro
         }
       },
     }),
-    [draft, note.content, onSaveContent],
+    [draft, note.content, note.canEditContent, onSaveContent],
   );
 
   useEffect(() => {
@@ -133,7 +133,7 @@ export const StickyNoteCard = forwardRef<StickyNoteCardHandle, StickyNoteCardPro
   };
 
   const handleSave = async () => {
-    if (!isDirty) return;
+    if (!isDirty || !note.canEditContent) return;
     setSaving(true);
     const ok = await onSaveContent(draft);
     setSaving(false);
@@ -151,6 +151,7 @@ export const StickyNoteCard = forwardRef<StickyNoteCardHandle, StickyNoteCardPro
 
   const bg = COLOR_BG[note.color] || COLOR_BG.yellow;
   const border = COLOR_BORDER[note.color] || COLOR_BORDER.yellow;
+  const authorLabel = note.authorName || (note.userId ? '' : 'Guest');
 
   return (
     <div
@@ -202,22 +203,24 @@ export const StickyNoteCard = forwardRef<StickyNoteCardHandle, StickyNoteCardPro
               e.stopPropagation();
               setShowColorPicker((v) => !v);
             }}
-            title="เปลี่ยนสี"
+            title="เปลี่ยนสี (ใครก็ทำได้)"
             style={iconBtnStyle}
           >
             🎨
           </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (window.confirm('ลบโน้ตนี้?')) onDelete();
-            }}
-            title="ลบโน้ต"
-            style={iconBtnStyle}
-          >
-            ✕
-          </button>
+          {note.canDelete && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (window.confirm('ลบโน้ตนี้?')) onDelete();
+              }}
+              title="ลบโน้ต"
+              style={iconBtnStyle}
+            >
+              ✕
+            </button>
+          )}
         </div>
       </div>
 
@@ -263,11 +266,13 @@ export const StickyNoteCard = forwardRef<StickyNoteCardHandle, StickyNoteCardPro
       <textarea
         value={draft}
         onChange={(e) => {
+          if (!note.canEditContent) return;
           editingRef.current = true;
           setDraft(e.target.value);
         }}
+        readOnly={!note.canEditContent}
         onPointerDown={(e) => e.stopPropagation()}
-        placeholder="พิมพ์ข้อความ..."
+        placeholder={note.canEditContent ? 'พิมพ์ข้อความ...' : ''}
         style={{
           flex: 1,
           width: '100%',
@@ -280,36 +285,43 @@ export const StickyNoteCard = forwardRef<StickyNoteCardHandle, StickyNoteCardPro
           fontSize: '0.88rem',
           lineHeight: 1.4,
           color: '#1f2937',
+          cursor: note.canEditContent ? 'text' : 'default',
         }}
       />
 
       <div
         style={{
-          minHeight: 30,
+          minHeight: 26,
           display: 'flex',
           alignItems: 'center',
           gap: 4,
           padding: '4px 6px',
-          background: isDirty ? `${border}22` : 'rgba(0,0,0,0.04)',
+          background: isDirty ? `${border}33` : 'rgba(0,0,0,0.04)',
           borderTop: `1px solid ${border}55`,
-          fontSize: '0.72rem',
+          fontSize: '0.7rem',
+          flexWrap: 'wrap',
         }}
       >
-        {savedFlash && !isDirty && (
-          <span style={{ color: '#15803d', fontWeight: 600 }}>✓ บันทึกแล้ว</span>
-        )}
-        {!savedFlash && !isDirty && (
-          <span style={{ color: '#6b7280' }}>โน้ตอัปเดตอัตโนมัติ</span>
-        )}
-        {isDirty && (
+        {note.canEditContent ? (
           <>
-            <button type="button" onClick={handleSave} disabled={saving} style={saveBtn}>
-              💾 {saving ? 'กำลังบันทึก...' : 'บันทึก'}
-            </button>
-            <button type="button" onClick={handleCancel} disabled={saving} style={cancelBtn}>
-              ↩ ยกเลิก
-            </button>
+            {savedFlash && !isDirty && <span style={{ color: '#15803d', fontWeight: 600 }}>✓ บันทึกแล้ว</span>}
+            {!savedFlash && !isDirty && <span style={{ color: '#6b7280' }}>{authorLabel ? `— ${authorLabel}` : ''}</span>}
+            {isDirty && (
+              <>
+                <button type="button" onClick={handleSave} disabled={saving} style={saveBtn}>
+                  💾 {saving ? '...' : 'บันทึก'}
+                </button>
+                <button type="button" onClick={handleCancel} disabled={saving} style={cancelBtn}>
+                  ↩ ยกเลิก
+                </button>
+              </>
+            )}
           </>
+        ) : (
+          <span style={{ color: '#6b7280' }}>
+            {authorLabel ? `— ${authorLabel}` : 'อ่านอย่างเดียว'}
+            <span style={{ marginLeft: 6, fontSize: '0.65rem', color: '#94a3b8' }}>(ผู้เขียนเท่านั้นแก้ได้)</span>
+          </span>
         )}
       </div>
     </div>
@@ -339,7 +351,7 @@ const saveBtn: React.CSSProperties = {
   border: 'none',
   borderRadius: 4,
   cursor: 'pointer',
-  fontSize: '0.72rem',
+  fontSize: '0.7rem',
   fontWeight: 700,
 };
 
@@ -350,7 +362,7 @@ const cancelBtn: React.CSSProperties = {
   border: '1px solid #d1d5db',
   borderRadius: 4,
   cursor: 'pointer',
-  fontSize: '0.72rem',
+  fontSize: '0.7rem',
   fontWeight: 600,
 };
 

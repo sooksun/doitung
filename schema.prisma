@@ -774,25 +774,65 @@ model AiAnalysisOutput {
 }
 
 //
-// STICKY NOTES (brainstorming board, e.g. Iceberg cells on /admin/sar/new)
-// Standalone — no FK relations on purpose so it can host notes for any context.
-// contextType + contextId addresses the board, e.g.
-//   contextType = "ICEBERG_CELL"
-//   contextId   = "sar:draft:school:42:year:7:iceberg:L1:CURRENT"
+// STICKY NOTES — collaborative brainstorming boards (e.g. Iceberg cells on /admin/sar/new).
 //
+// A StickyBoard groups notes that share a context and lets us address ownership
+// + share-key + lifecycle without coupling those concerns to every individual
+// note. Notes carry an optional `boardId` FK plus author identity so we can
+// authorize edits/deletes from both logged-in users and guests.
+//
+// Authorization model:
+//   - StickyBoard.ownerUserId → the user who first opened the board.
+//     Owner-only actions: clear, close, copy share link.
+//   - StickyNote.userId / authorToken → identifies the note's author. Only the
+//     author may edit `content` or delete the note. The board owner may edit
+//     content / delete any note.
+//   - Spatial fields (x, y, color, rotation, zIndex) are collaborative —
+//     anyone with a live shareKey may rearrange.
+//
+// shareKey: 40 hex chars (random 20 bytes) — opaque, not derivable from the
+// context. Closing the board (status=CLOSED) makes every API path that takes
+// a shareKey return 410 Gone, killing the link without deleting note history.
+
+model StickyBoard {
+  id          String    @id @default(uuid())
+  shareKey    String    @unique @db.VarChar(40)
+  ownerUserId Int
+  schoolId    Int
+  contextType String
+  contextId   String    @db.VarChar(255)
+  status      String    @default("ACTIVE") // ACTIVE | CLOSED
+  closedAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  notes StickyNote[]
+
+  @@index([shareKey])
+  @@index([contextType, contextId, status])
+  @@index([ownerUserId])
+  @@index([schoolId])
+}
 
 model StickyNote {
   id String @id @default(uuid())
 
-  schoolId Int
-  userId   Int?
+  // New: link to the board (nullable so legacy rows without a board are still
+  // queryable via Prisma; the new flow always sets it).
+  boardId String?
 
-  contextType String // e.g. "ICEBERG_CELL"
-  contextId   String @db.VarChar(255) // board key
+  schoolId    Int
+  userId      Int? // = author user (logged-in)
+  authorToken String? @db.VarChar(64) // sha256 of guest token; null for logged-in authors
+  authorName  String? @db.VarChar(120) // optional display name (set by guests; for logged-in users we'll fall back to user.name at read time)
+
+  contextType String
+  contextId   String @db.VarChar(255)
 
   sarId   Int?
-  layerNo Int? // 1, 2, 3, 4
-  side    String? // CURRENT | DESIRED
+  layerNo Int?
+  side    String?
 
   content  String @db.Text
   color    String @default("yellow")
@@ -806,7 +846,11 @@ model StickyNote {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  board StickyBoard? @relation(fields: [boardId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   @@index([schoolId])
   @@index([sarId])
   @@index([contextType, contextId])
+  @@index([boardId])
+  @@index([authorToken])
 }

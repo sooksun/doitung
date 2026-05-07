@@ -1,13 +1,12 @@
 // app/sticky/page.tsx
-// Shareable standalone board. The "🔗 คัดลอกลิงก์" button on a sticky modal
-// produces a URL pointing here:
+// Shareable standalone board reached via /sticky?key=<shareKey>.
 //
-//   /sticky?contextType=ICEBERG_CELL&contextId=sar:draft:school:42:year:7:iceberg:L1:CURRENT
-//
-// Anyone with the link (and a login on a school that the API allows) can add /
-// edit / drag / colour notes on the same board. Polling shows everyone else's
-// changes within ~5s. There is no "apply text to a textarea" action here —
-// that only happens back in the form modal on /admin/sar/new.
+// - Open to anyone with the link. NO login required (guests get a per-browser
+//   token automatically + can optionally pick a display name).
+// - Logged-in users authenticate normally; if they happen to be the board
+//   owner the page surfaces the owner-only chrome (Clear, Close).
+// - When the owner has closed the board, every API path returns 410 and the
+//   surface shows a friendly "closed by owner" state.
 
 'use client';
 
@@ -15,18 +14,19 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { StickyBoardSurface } from '@/app/components/sticky/StickyBoardSurface';
+import { getGuestName, setGuestName, getOrCreateGuestToken } from '@/lib/sticky-guest';
 
-interface MeResponse {
-  id: number;
-  roles: string[];
-  school: { id: number; nameTh: string } | null;
-}
-
-interface ParsedContext {
-  schoolId: number | null;
-  layerNo: 1 | 2 | 3 | 4 | null;
-  side: 'CURRENT' | 'DESIRED' | null;
-  title: string;
+interface BoardByKeyResponse {
+  id: string;
+  shareKey: string;
+  ownerUserId: number;
+  ownerName: string | null;
+  schoolId: number;
+  contextType: string;
+  contextId: string;
+  status: 'ACTIVE' | 'CLOSED';
+  closedAt: string | null;
+  isOwner: boolean;
 }
 
 const ICEBERG_LAYER_LABEL: Record<number, string> = {
@@ -36,75 +36,97 @@ const ICEBERG_LAYER_LABEL: Record<number, string> = {
   4: 'ชั้น 4 แบบจำลองวิธีคิด',
 };
 
-function parseContext(contextType: string, contextId: string): ParsedContext {
-  if (contextType !== 'ICEBERG_CELL') {
-    return { schoolId: null, layerNo: null, side: null, title: 'บอร์ดระดมสมอง' };
-  }
-  // sar:draft:school:{N}:year:{N}:iceberg:L{n}:{SIDE}
-  // sar:{sarId}:iceberg:L{n}:{SIDE}
-  const schoolMatch = contextId.match(/school:(\d+)/);
-  const layerMatch = contextId.match(/iceberg:L(\d):(CURRENT|DESIRED)/);
-  const schoolId = schoolMatch ? Number(schoolMatch[1]) : null;
-  const layerNo = layerMatch ? (Number(layerMatch[1]) as 1 | 2 | 3 | 4) : null;
-  const side = layerMatch ? (layerMatch[2] as 'CURRENT' | 'DESIRED') : null;
-  const layerLabel = layerNo ? ICEBERG_LAYER_LABEL[layerNo] : '';
-  const sideLabel = side === 'CURRENT' ? 'สิ่งที่เป็นอยู่' : side === 'DESIRED' ? 'สิ่งที่อยากให้เป็น' : '';
-  const title = layerLabel && sideLabel ? `Iceberg · ${layerLabel} / ${sideLabel}` : 'บอร์ดระดมสมอง';
-  return { schoolId, layerNo, side, title };
+function deriveTitle(contextType: string, contextId: string): string {
+  if (contextType !== 'ICEBERG_CELL') return 'บอร์ดระดมสมอง';
+  const m = contextId.match(/iceberg:L(\d):(CURRENT|DESIRED)/);
+  if (!m) return 'บอร์ดระดมสมอง';
+  const layer = ICEBERG_LAYER_LABEL[Number(m[1])] || `ชั้น ${m[1]}`;
+  const sideLabel = m[2] === 'CURRENT' ? 'สิ่งที่เป็นอยู่' : 'สิ่งที่อยากให้เป็น';
+  return `Iceberg · ${layer} / ${sideLabel}`;
 }
 
 function StickyPageInner() {
   const router = useRouter();
   const sp = useSearchParams();
-  const contextType = sp.get('contextType') || '';
-  const contextId = sp.get('contextId') || '';
+  const shareKey = sp.get('key') || '';
 
-  const [me, setMe] = useState<MeResponse | null>(null);
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [authChecked, setAuthChecked] = useState(false);
+  const [board, setBoard] = useState<BoardByKeyResponse | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [guestNameInput, setGuestNameInput] = useState<string>('');
+  const [hasName, setHasName] = useState<boolean>(false);
 
   useEffect(() => {
-    const tok = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    if (!tok) {
-      router.push(`/login?next=${encodeURIComponent('/sticky?' + sp.toString())}`);
+    if (typeof window !== 'undefined') {
+      // Make sure a guest token exists from the start, even before the user
+      // adds their first note — saves a round-trip later.
+      getOrCreateGuestToken();
+      const existing = getGuestName();
+      if (existing) {
+        setGuestNameInput(existing);
+        setHasName(true);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!shareKey) {
+      setLoadError('ลิงก์บอร์ดไม่สมบูรณ์ — ขาดพารามิเตอร์ key');
+      setLoaded(true);
       return;
     }
-    fetch('/api/auth/me', { headers: { Authorization: `Bearer ${tok}` } })
+    let cancelled = false;
+    fetch(`/api/sticky-boards/by-key/${encodeURIComponent(shareKey)}`)
       .then((r) => r.json())
       .then((j) => {
+        if (cancelled) return;
         if (!j?.success) {
-          setAuthError(j?.error || 'ตรวจสอบสิทธิ์ไม่สำเร็จ');
+          setLoadError(j?.error || 'โหลดบอร์ดไม่สำเร็จ');
         } else {
-          setMe(j.data as MeResponse);
+          setBoard(j.data as BoardByKeyResponse);
         }
       })
-      .catch(() => setAuthError('โหลดข้อมูลผู้ใช้ไม่สำเร็จ'))
-      .finally(() => setAuthChecked(true));
-  }, [router, sp]);
+      .catch((e) => !cancelled && setLoadError(e?.message || 'โหลดบอร์ดไม่สำเร็จ'))
+      .finally(() => !cancelled && setLoaded(true));
+    return () => {
+      cancelled = true;
+    };
+  }, [shareKey]);
 
-  if (!contextType || !contextId) {
+  const saveName = () => {
+    const v = guestNameInput.trim();
+    if (!v) {
+      setGuestName(null);
+      setHasName(false);
+      return;
+    }
+    setGuestName(v);
+    setHasName(true);
+  };
+
+  if (!loaded) {
+    return <FullPageMessage title="กำลังโหลดบอร์ด..." message="" muted />;
+  }
+
+  if (loadError || !board) {
     return (
       <FullPageMessage
-        title="ลิงก์บอร์ดไม่สมบูรณ์"
-        message="URL นี้ขาด contextType หรือ contextId — กลับไปคัดลอกลิงก์จากบอร์ดอีกครั้ง"
+        title="เข้าถึงบอร์ดไม่สำเร็จ"
+        message={loadError || 'ไม่พบข้อมูลบอร์ด'}
       />
     );
   }
 
-  if (!authChecked) {
-    return <FullPageMessage title="กำลังตรวจสอบสิทธิ์..." message="" muted />;
+  if (board.status === 'CLOSED') {
+    return (
+      <FullPageMessage
+        title="🔒 บอร์ดถูกปิดแล้ว"
+        message={`เจ้าของ${board.ownerName ? ` (${board.ownerName})` : ''}ได้ปิดบอร์ดไปแล้ว — ขอลิงก์ใหม่หากต้องการระดมสมองต่อ`}
+      />
+    );
   }
 
-  if (authError) {
-    return <FullPageMessage title="เข้าถึงบอร์ดไม่สำเร็จ" message={authError} />;
-  }
-
-  const ctx = parseContext(contextType, contextId);
-  const isAdmin = me?.roles?.includes('ADMIN');
-  // Admins can act on any school — fall back to the schoolId encoded in the
-  // contextId. Non-admin teachers always use their own bound school (the API
-  // enforces this; we just reflect it in the UI).
-  const schoolId = me?.school?.id ?? (isAdmin ? ctx.schoolId : null);
+  const title = deriveTitle(board.contextType, board.contextId);
 
   return (
     <div style={{ minHeight: '100vh', background: '#f3f4f6', display: 'flex', flexDirection: 'column' }}>
@@ -116,25 +138,44 @@ function StickyPageInner() {
           display: 'flex',
           alignItems: 'center',
           gap: '0.75rem',
+          flexWrap: 'wrap',
         }}
       >
         <Link href="/admin/sar" style={{ color: '#4f46e5', textDecoration: 'none', fontSize: '0.9rem', fontWeight: 600 }}>
-          ← กลับ /admin/sar
+          ← กลับ
         </Link>
         <span style={{ color: '#9ca3af' }}>·</span>
         <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>
-          {me?.school?.nameTh ? `โรงเรียน: ${me.school.nameTh}` : isAdmin ? 'โหมด Admin' : 'ไม่ผูกกับโรงเรียน'}
+          เจ้าของ: <strong>{board.ownerName || 'ไม่ระบุ'}</strong>
         </span>
+        <div style={{ flex: 1 }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem' }}>
+          <label style={{ color: '#6b7280' }}>👋 ชื่อของคุณ:</label>
+          <input
+            type="text"
+            value={guestNameInput}
+            onChange={(e) => setGuestNameInput(e.target.value)}
+            onBlur={saveName}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.currentTarget.blur();
+              }
+            }}
+            placeholder="ใส่ชื่อ (เลือกได้)"
+            maxLength={40}
+            style={{
+              padding: '4px 8px',
+              border: '1px solid #d1d5db',
+              borderRadius: 4,
+              fontSize: '0.85rem',
+              width: 160,
+            }}
+          />
+          {hasName && <span style={{ color: '#10b981', fontSize: '0.75rem' }}>✓ บันทึกแล้ว</span>}
+        </div>
       </header>
 
-      <main
-        style={{
-          flex: 1,
-          minHeight: 0,
-          padding: '1rem 1.25rem',
-          display: 'flex',
-        }}
-      >
+      <main style={{ flex: 1, minHeight: 0, padding: '1rem 1.25rem', display: 'flex' }}>
         <div
           style={{
             flex: 1,
@@ -149,34 +190,19 @@ function StickyPageInner() {
           }}
         >
           <StickyBoardSurface
-            title={ctx.title}
-            contextType={contextType}
-            contextId={contextId}
-            schoolId={schoolId}
-            layerNo={ctx.layerNo}
-            side={ctx.side}
-            closeLabel="ปิดบอร์ด"
+            title={title}
+            boardId={board.id}
+            boardKey={board.shareKey}
+            isOwner={board.isOwner}
+            // Standalone page: owner can also close the board here. Non-owner
+            // gets "ออกจากบอร์ด" which just navigates away (board stays open).
+            closeAlsoClosesBoard={board.isOwner}
+            closeLabel={board.isOwner ? 'ปิดบอร์ด (link ใช้ไม่ได้แล้ว)' : 'ออกจากบอร์ด'}
             onClose={() => router.push('/admin/sar')}
-            showCopyLink
-            allowClear={!!isAdmin}
             pollIntervalMs={5000}
           />
         </div>
       </main>
-
-      {!schoolId && (
-        <div
-          style={{
-            padding: '0.75rem 1.25rem',
-            background: '#fef3c7',
-            color: '#92400e',
-            fontSize: '0.85rem',
-            borderTop: '1px solid #fde68a',
-          }}
-        >
-          ⚠️ บัญชีของคุณยังไม่ได้ผูกกับโรงเรียน — ดูบอร์ดได้ แต่จะเพิ่มโน้ตไม่ได้จนกว่าจะมีโรงเรียน
-        </div>
-      )}
     </div>
   );
 }
@@ -207,12 +233,28 @@ function FullPageMessage({
           padding: '2rem',
           borderRadius: 12,
           boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-          maxWidth: 440,
+          maxWidth: 500,
           textAlign: 'center',
         }}
       >
         <h1 style={{ fontSize: '1.15rem', fontWeight: 700, color: muted ? '#6b7280' : '#dc2626', marginBottom: '0.5rem' }}>{title}</h1>
         {message && <p style={{ color: '#4b5563', fontSize: '0.9rem' }}>{message}</p>}
+        <Link
+          href="/admin/sar"
+          style={{
+            display: 'inline-block',
+            marginTop: '1rem',
+            padding: '0.5rem 1rem',
+            background: '#4f46e5',
+            color: 'white',
+            borderRadius: 6,
+            textDecoration: 'none',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+          }}
+        >
+          กลับหน้า SAR
+        </Link>
       </div>
     </div>
   );

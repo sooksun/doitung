@@ -1,43 +1,50 @@
 // app/components/sticky/StickyBoardSurface.tsx
-// Shared chrome (toolbar + board area) used by both the modal version (rendered
-// over /admin/sar/new) and the standalone /sticky page (the shareable URL).
+// Shared toolbar + board area used by both:
+//   - StickyNoteModal (rendered over /admin/sar/new)
+//   - /sticky standalone page (the share-link target)
 //
-// The host decides:
-//   - what to put in the close-button slot (e.g. "บันทึกและปิด" for the modal,
-//     "ปิดบอร์ด" for the standalone page),
-//   - whether to apply joined text back to a parent (only the modal does),
-//   - the title shown in the toolbar.
+// The host owns:
+//   - The shareKey (`boardKey`) — already resolved from /api/sticky-boards/...
+//     so this component never has to do the get-or-create dance itself.
+//   - `boardId` so we can call /clear and /close (owner-only).
+//   - `isOwner` to gate owner-only chrome (Clear, Close).
+//   - `closeLabel` + `onClose` so each host picks its own close behaviour:
+//       modal → "บันทึกและปิด" → flush + apply text + close board
+//       page  → "ปิดบอร์ด" (owner) | "ออกจากบอร์ด" (non-owner)
 //
-// Polling, optimistic updates, and per-card Save/Cancel are handled inside
-// useStickyNotes + StickyNoteCard — this component is presentational chrome.
+// Polling, Save/Cancel per note, and guest token plumbing all live behind
+// useStickyNotes / StickyNoteCard.
 
 'use client';
 
 import React, { useCallback, useRef } from 'react';
 import { StickyBoard } from './StickyBoard';
 import type { StickyNoteCardHandle } from './StickyNoteCard';
-import { useStickyNotes, type StickyColor, type StickyNote } from './useStickyNotes';
+import {
+  closeBoardOwner,
+  clearBoardOwner,
+  useStickyNotes,
+  type StickyColor,
+} from './useStickyNotes';
 import { toastError, toastSuccess } from '@/lib/toast';
 
 export interface StickyBoardSurfaceProps {
   title: string;
-  contextType: string;
-  contextId: string;
-  schoolId: number | null;
-  sarId?: number | null;
-  layerNo?: number | null;
-  side?: 'CURRENT' | 'DESIRED' | null;
+  boardId: string;
+  boardKey: string;
+  isOwner: boolean;
+  shareUrl?: string; // override; default = `${origin}/sticky?key=${boardKey}`
 
-  // Host wiring
-  closeLabel?: string; // default "ปิดบอร์ด"
-  onClose: (joined: string) => Promise<void> | void; // called after dirty flush; receives joined text
-  showCopyLink?: boolean; // default true
-  shareUrl?: string; // override; otherwise computed from contextType/contextId
+  closeLabel?: string;
+  /** Called after dirty-flush and (optionally) board-close. Receives joined note text. */
+  onClose: (joined: string) => Promise<void> | void;
+  /** When true (modal/owner case), pressing Close also marks the board CLOSED on the server. */
+  closeAlsoClosesBoard?: boolean;
 
-  // Allow page hosts to suppress the "ล้างบอร์ด" action.
-  allowClear?: boolean; // default true
+  /** Hide the "ล้างบอร์ด" button (e.g. for non-owner standalone view). */
+  showClearButton?: boolean;
 
-  pollIntervalMs?: number; // default 5000
+  pollIntervalMs?: number;
 }
 
 function joinNotes(contents: string[]): string {
@@ -47,46 +54,28 @@ function joinNotes(contents: string[]): string {
     .join(', ');
 }
 
-function buildShareUrl(contextType: string, contextId: string): string {
+function defaultShareUrl(boardKey: string): string {
   if (typeof window === 'undefined') return '';
-  const params = new URLSearchParams({ contextType, contextId });
-  return `${window.location.origin}/sticky?${params.toString()}`;
+  return `${window.location.origin}/sticky?key=${encodeURIComponent(boardKey)}`;
 }
 
 export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
   const {
     title,
-    contextType,
-    contextId,
-    schoolId,
-    sarId = null,
-    layerNo = null,
-    side = null,
+    boardId,
+    boardKey,
+    isOwner,
+    shareUrl,
     closeLabel = 'ปิดบอร์ด',
     onClose,
-    showCopyLink = true,
-    shareUrl,
-    allowClear = true,
+    closeAlsoClosesBoard = false,
+    showClearButton,
     pollIntervalMs = 5000,
   } = props;
 
-  const {
-    notes,
-    notesRef,
-    loading,
-    error,
-    addNote,
-    patchNote,
-    deleteNote,
-    clearAll,
-  } = useStickyNotes({
+  const { notes, notesRef, loading, error, closed, addNote, patchNote, deleteNote } = useStickyNotes({
     enabled: true,
-    contextType,
-    contextId,
-    schoolId,
-    sarId,
-    layerNo,
-    side,
+    boardKey,
     pollIntervalMs,
   });
 
@@ -98,8 +87,8 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
   }, []);
 
   const handleAdd = async () => {
-    if (!schoolId) {
-      toastError('กรุณาเลือกโรงเรียนและปีการศึกษาก่อนเปิดบอร์ด');
+    if (closed) {
+      toastError('บอร์ดถูกปิดแล้ว');
       return;
     }
     await addNote();
@@ -107,18 +96,28 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
 
   const handleClear = async () => {
     if (notes.length === 0) return;
+    if (!isOwner) {
+      toastError('เฉพาะเจ้าของบอร์ดเท่านั้นที่ล้างบอร์ดได้');
+      return;
+    }
     if (!window.confirm('ล้างโน้ตทั้งหมดบนบอร์ด?')) return;
-    await clearAll();
+    const result = await clearBoardOwner(boardId);
+    if (result) {
+      toastSuccess(`ล้างโน้ต ${result.cleared} ใบสำเร็จ`);
+      // Force-refresh local list — server has soft-archived everything.
+      cardHandles.current.clear();
+    } else {
+      toastError('ล้างไม่สำเร็จ');
+    }
   };
 
   const handleCopyLink = async () => {
-    const url = shareUrl || buildShareUrl(contextType, contextId);
+    const url = shareUrl || defaultShareUrl(boardKey);
     if (!url) return;
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(url);
       } else {
-        // Fallback: prompt with selectable URL
         window.prompt('คัดลอกลิงก์บอร์ด:', url);
       }
       toastSuccess('คัดลอกลิงก์บอร์ดแล้ว');
@@ -153,20 +152,42 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
     (id: string) => {
       const list = notesRef.current;
       const maxZ = list.reduce((m, n) => Math.max(m, n.zIndex), 0);
-      const next = maxZ + 1;
-      patchNote(id, { zIndex: next });
+      patchNote(id, { zIndex: maxZ + 1 });
     },
     [patchNote, notesRef],
   );
 
   const handleClose = async () => {
-    // Flush every dirty draft, then compute joined text from the freshest snapshot.
     await Promise.all(
       Array.from(cardHandles.current.values()).map((h) => (h ? h.flushIfDirty() : Promise.resolve())),
     );
     const joined = joinNotes(notesRef.current.map((n) => n.content));
+    if (closeAlsoClosesBoard && isOwner) {
+      await closeBoardOwner(boardId);
+    }
     await onClose(joined);
   };
+
+  // Closed-state UI: replace the whole surface so users can't keep poking the
+  // board after the owner shut it down.
+  if (closed) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '2rem', textAlign: 'center', color: '#6b7280' }}>
+        <div style={{ fontSize: '3rem' }}>🔒</div>
+        <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#1f2937', marginTop: '0.5rem' }}>
+          บอร์ดถูกปิดโดยเจ้าของแล้ว
+        </div>
+        <div style={{ fontSize: '0.9rem', marginTop: '0.5rem', maxWidth: 480 }}>
+          link นี้ใช้ไม่ได้แล้ว — ขอลิงก์ใหม่จากเจ้าของหากต้องการระดมสมองรอบใหม่
+        </div>
+        <button type="button" onClick={() => onClose('')} style={{ ...successBtn, marginTop: '1.25rem' }}>
+          ปิดหน้านี้
+        </button>
+      </div>
+    );
+  }
+
+  const showClear = (showClearButton ?? isOwner) && isOwner;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
@@ -182,14 +203,21 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
         }}
       >
         <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#1f2937' }}>📌 {title}</div>
+        {isOwner ? (
+          <span style={{ fontSize: '0.7rem', padding: '2px 6px', background: '#ddd6fe', color: '#5b21b6', borderRadius: 4, fontWeight: 600 }}>
+            👑 เจ้าของ
+          </span>
+        ) : (
+          <span style={{ fontSize: '0.7rem', padding: '2px 6px', background: '#dbeafe', color: '#1e40af', borderRadius: 4, fontWeight: 600 }}>
+            ผู้ร่วมระดมสมอง
+          </span>
+        )}
         <div style={{ flex: 1 }} />
         <button type="button" onClick={handleAdd} style={primaryBtn}>+ เพิ่มโน้ต</button>
-        {showCopyLink && (
-          <button type="button" onClick={handleCopyLink} style={ghostBtn} title="คัดลอกลิงก์บอร์ดเพื่อให้คนอื่นร่วมระดมสมอง">
-            🔗 คัดลอกลิงก์
-          </button>
-        )}
-        {allowClear && (
+        <button type="button" onClick={handleCopyLink} style={ghostBtn} title="คัดลอกลิงก์บอร์ดเพื่อให้คนอื่นร่วมระดมสมอง">
+          🔗 คัดลอกลิงก์
+        </button>
+        {showClear && (
           <button type="button" onClick={handleClear} style={ghostBtn} disabled={notes.length === 0}>ล้างบอร์ด</button>
         )}
         <button type="button" onClick={handleClose} style={successBtn}>{closeLabel}</button>
@@ -207,11 +235,11 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
           flexWrap: 'wrap',
         }}
       >
-        <span>โน้ตทั้งหมด: <strong>{notes.length}</strong></span>
+        <span>โน้ต: <strong>{notes.length}</strong></span>
         <span>•</span>
-        <span>คนอื่นที่ได้ลิงก์เปิดบอร์ดเดียวกันจะเห็นการเปลี่ยนแปลงทุก ~{Math.round((pollIntervalMs || 5000) / 1000)} วินาที</span>
+        <span>คนอื่นที่ได้ลิงก์ ({(pollIntervalMs || 5000) / 1000}s polling) จะเห็นโน้ตของคุณ — ทุกคนเห็นโน้ตของกันและกัน ไม่ทับกัน</span>
         <span>•</span>
-        <span>แต่ละโน้ตมีปุ่ม <strong>บันทึก / ยกเลิก</strong> ของตัวเอง</span>
+        <span>ผู้เขียน <strong>เท่านั้น</strong> ที่แก้ข้อความ/ลบโน้ตของตัวเองได้ ลาก/เปลี่ยนสีได้ทุกคน</span>
         {loading && <span style={{ marginLeft: 'auto', color: '#6366f1' }}>กำลังโหลด...</span>}
         {error && <span style={{ marginLeft: 'auto', color: '#dc2626' }}>{error}</span>}
       </div>

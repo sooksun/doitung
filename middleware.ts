@@ -8,6 +8,12 @@ import type { NextRequest } from 'next/server';
 const publicRoutes = ['/api/auth/login', '/api/auth/register'];
 
 // Protected API routes
+//
+// `/api/sticky-notes` and `/api/sticky-boards` are intentionally NOT in this
+// list — they need to accept guest traffic (anyone with a board's shareKey can
+// post / read notes via a guest token). The handlers themselves call
+// requireAuth for the owner-only operations (close board, clear board,
+// get-or-create).
 const protectedApiRoutes = [
   '/api/instruments',
   '/api/evaluations',
@@ -17,7 +23,6 @@ const protectedApiRoutes = [
   '/api/admin',
   '/api/ai',
   '/api/feature-flags',
-  '/api/sticky-notes',
 ];
 
 export function middleware(request: NextRequest) {
