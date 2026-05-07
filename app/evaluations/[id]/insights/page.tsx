@@ -234,7 +234,7 @@ export default function InsightsPage() {
             )}
 
             {iceberg && (
-              <Card title="🧊 Iceberg Analysis (สิ่งที่เป็นอยู่ ↔ สิ่งที่อยากให้เป็น)" output={byType['iceberg']} onSet={setOutputStatus}>
+              <Card title="🧊 Iceberg Analysis (สิ่งที่เป็นอยู่ ↔ สิ่งที่อยากให้เป็น)" output={byType['iceberg']} onSet={setOutputStatus} bgImage="/iceberg-bg.png">
                 <p style={{ fontSize: '0.82rem', color: '#666', marginTop: 0, marginBottom: '1rem' }}>
                   มอง 4 ชั้นจากผิวสู่ราก: <strong>สถานการณ์</strong> (สิ่งที่เห็น) → <strong>รูปแบบ</strong> (สิ่งที่เกิดซ้ำ) → <strong>โครงสร้าง</strong> (กลไกที่ค้ำ) → <strong>แบบจำลองวิธีคิด</strong> (ความเชื่อที่ฝังลึก) แต่ละชั้นเทียบ "เป็นอยู่ vs อยากให้เป็น"
                 </p>
@@ -318,14 +318,24 @@ function StatusPill({ status }: { status: string }) {
   return <span style={{ padding: '0.25rem 0.6rem', background: c.bg, color: c.text, borderRadius: '0.3rem', fontSize: '0.8rem', fontWeight: 600 }}>{status}</span>;
 }
 
-function Card({ title, children, output, onSet }: {
+function Card({ title, children, output, onSet, bgImage }: {
   title: string;
   children: React.ReactNode;
   output?: Run['outputs'][number];
   onSet: (id: number, status: 'APPROVED' | 'REJECTED' | 'DRAFT') => void;
+  /**
+   * Optional background image rendered behind the card content. The image is
+   * displayed at effective alpha 0.4 by overlaying a 60%-opaque white layer
+   * via linear-gradient — keeps text readable while the iceberg illustration
+   * shows through.
+   */
+  bgImage?: string;
 }) {
+  const baseBg = bgImage
+    ? `linear-gradient(rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.6)), url('${bgImage}') center / contain no-repeat`
+    : 'white';
   return (
-    <div style={{ background: 'white', padding: '1.25rem 1.5rem', borderRadius: '0.5rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginBottom: '1rem' }}>
+    <div style={{ background: baseBg, padding: '1.25rem 1.5rem', borderRadius: '0.5rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginBottom: '1rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
         <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#333', margin: 0 }}>{title}</h2>
         {output && (
