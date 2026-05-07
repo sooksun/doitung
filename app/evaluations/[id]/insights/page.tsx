@@ -14,6 +14,8 @@ interface Item { text: string; evidenceLinks: EvidenceLink[]; evidenceMissing: b
 interface Dim { strengths: Item[]; opportunities: Item[]; aspirations: Item[]; results: Item[] }
 interface Priority { indicatorId: number | null; qDimension: string; gap: number; reason: string; recommendedAction: string }
 interface Task { title: string; responsible: string | null; evidenceRequired: string | null }
+interface IcebergLayer { current: string[]; desired: string[] }
+interface IcebergDim { situations: IcebergLayer; patterns: IcebergLayer; structures: IcebergLayer; mentalModels: IcebergLayer }
 
 interface Run {
   id: number;
@@ -168,6 +170,7 @@ export default function InsightsPage() {
   for (const o of run.outputs) byType[o.outputType] = o;
   const exec = byType['executive']?.jsonOutput?.executiveInsight as string | undefined;
   const soar = byType['soar']?.jsonOutput as Record<string, Dim> | undefined;
+  const iceberg = byType['iceberg']?.jsonOutput as Record<string, IcebergDim> | undefined;
   const priorities = (byType['priorities']?.jsonOutput as Priority[] | undefined) || [];
   const plcQs = (byType['plc_questions']?.jsonOutput as string[] | undefined) || [];
   const evGaps = (byType['evidence_gaps']?.jsonOutput as Array<{ indicatorId: number | null; qDimension: string; missing: string }> | undefined) || [];
@@ -225,6 +228,19 @@ export default function InsightsPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '1rem' }}>
                   {Q_DIMS.map((d) => (
                     <DimCard key={d} dim={d} dimTh={Q_TH[d]} data={soar[d]} />
+                  ))}
+                </div>
+              </Card>
+            )}
+
+            {iceberg && (
+              <Card title="🧊 Iceberg Analysis (สิ่งที่เป็นอยู่ ↔ สิ่งที่อยากให้เป็น)" output={byType['iceberg']} onSet={setOutputStatus}>
+                <p style={{ fontSize: '0.82rem', color: '#666', marginTop: 0, marginBottom: '1rem' }}>
+                  มอง 4 ชั้นจากผิวสู่ราก: <strong>สถานการณ์</strong> (สิ่งที่เห็น) → <strong>รูปแบบ</strong> (สิ่งที่เกิดซ้ำ) → <strong>โครงสร้าง</strong> (กลไกที่ค้ำ) → <strong>แบบจำลองวิธีคิด</strong> (ความเชื่อที่ฝังลึก) แต่ละชั้นเทียบ "เป็นอยู่ vs อยากให้เป็น"
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(520px, 1fr))', gap: '1rem' }}>
+                  {Q_DIMS.map((d) => (
+                    <IcebergCard key={d} dim={d} dimTh={Q_TH[d]} data={iceberg[d]} />
                   ))}
                 </div>
               </Card>
@@ -374,6 +390,68 @@ function DimCard({ dim, dimTh, data }: { dim: string; dimTh: string; data?: Dim 
         </div>
       ))}
     </div>
+  );
+}
+
+function IcebergCard({ dim, dimTh, data }: { dim: string; dimTh: string; data?: IcebergDim }) {
+  if (!data) return null;
+  // Top of iceberg = visible (light blue / sky), bottom = hidden mental models (deep navy).
+  // Each layer is a 2-column row: current (left) vs desired (right).
+  const layers: Array<{
+    key: keyof IcebergDim;
+    label: string;
+    sublabel: string;
+    bg: string;
+    accent: string;
+  }> = [
+    { key: 'situations', label: '1 · สถานการณ์', sublabel: 'สิ่งที่เห็นเกิดขึ้น', bg: '#eff6ff', accent: '#1d4ed8' },
+    { key: 'patterns', label: '2 · รูปแบบของปัญหา', sublabel: 'สิ่งที่เกิดซ้ำจนเป็นเทรนด์', bg: '#dbeafe', accent: '#1e40af' },
+    { key: 'structures', label: '3 · โครงสร้าง', sublabel: 'นโยบาย / ระบบ / ทรัพยากรที่ค้ำไว้', bg: '#bfdbfe', accent: '#1e3a8a' },
+    { key: 'mentalModels', label: '4 · แบบจำลองวิธีคิด', sublabel: 'ความเชื่อ / ค่านิยมที่ฝังลึก', bg: '#93c5fd', accent: '#0c1a4d' },
+  ];
+  return (
+    <div style={{ border: '1px solid #e5e7eb', borderRadius: '0.5rem', padding: '0.85rem 1rem', background: 'white' }}>
+      <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#7c3aed', margin: '0 0 0.6rem' }}>{dimTh}</h3>
+      {/* Column headers */}
+      <div style={{ display: 'grid', gridTemplateColumns: '170px 1fr 1fr', gap: '0.4rem', fontSize: '0.72rem', fontWeight: 700, color: '#6b7280', marginBottom: '0.3rem', paddingLeft: '0.25rem' }}>
+        <div></div>
+        <div>📍 สิ่งที่เป็นอยู่ (current)</div>
+        <div>🎯 สิ่งที่อยากให้เป็น (desired)</div>
+      </div>
+      {layers.map(({ key, label, sublabel, bg, accent }) => {
+        const layer = data[key];
+        return (
+          <div key={key} style={{ display: 'grid', gridTemplateColumns: '170px 1fr 1fr', gap: '0.4rem', marginBottom: '0.4rem', alignItems: 'stretch' }}>
+            <div style={{ background: bg, borderLeft: `4px solid ${accent}`, padding: '0.5rem 0.6rem', borderRadius: '0.25rem' }}>
+              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: accent }}>{label}</div>
+              <div style={{ fontSize: '0.7rem', color: '#475569', lineHeight: 1.3 }}>{sublabel}</div>
+            </div>
+            <BulletCell items={layer?.current} placeholder="—" />
+            <BulletCell items={layer?.desired} placeholder="—" highlight />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function BulletCell({ items, placeholder, highlight }: { items?: string[]; placeholder: string; highlight?: boolean }) {
+  if (!items || items.length === 0) {
+    return <div style={{ padding: '0.5rem 0.6rem', fontSize: '0.78rem', color: '#9ca3af', fontStyle: 'italic' }}>{placeholder}</div>;
+  }
+  return (
+    <ul style={{
+      margin: 0,
+      padding: '0.5rem 0.6rem 0.5rem 1.4rem',
+      fontSize: '0.78rem',
+      color: '#1f2937',
+      lineHeight: 1.45,
+      background: highlight ? '#fefce8' : '#f9fafb',
+      borderRadius: '0.25rem',
+      borderLeft: highlight ? '3px solid #eab308' : '3px solid #d1d5db',
+    }}>
+      {items.map((t, i) => <li key={i} style={{ marginBottom: '0.25rem' }}>{t}</li>)}
+    </ul>
   );
 }
 

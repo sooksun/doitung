@@ -181,6 +181,12 @@ export async function runSoar(runId: number): Promise<void> {
       { outputType: 'evidence_gaps', jsonOutput: out.evidenceGaps },
       { outputType: 'plan_30_60_90', jsonOutput: out.growthPlan90 },
     ];
+    // Iceberg view (4 layers × 2 perspectives × 4 dimensions). Optional in the
+    // Zod schema, so older runs without it still validated; for soar-v2 onwards
+    // the prompt forces the model to fill it.
+    if (out.icebergByDimension) {
+      outputRows.push({ outputType: 'iceberg', jsonOutput: out.icebergByDimension });
+    }
     for (const row of outputRows) {
       await prisma.aiAnalysisOutput.create({
         data: { runId, outputType: row.outputType, jsonOutput: row.jsonOutput, humanStatus: 'DRAFT' },

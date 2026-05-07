@@ -33,6 +33,27 @@ const taskSchema = z.object({
   evidenceRequired: z.string().nullable(),
 });
 
+// Iceberg Model layer: each layer captures both the current and the desired state.
+// "current" = สิ่งที่เป็นอยู่ — what's actually happening in the school today.
+// "desired" = สิ่งที่อยากให้เป็น — the future state the school is aiming for.
+const icebergLayerSchema = z.object({
+  current: z.array(z.string().min(1).max(400)).min(1).max(5),
+  desired: z.array(z.string().min(1).max(400)).min(1).max(5),
+});
+
+// Iceberg per Q-dimension: 4 layers from the visible event surface down to the
+// mental models that hold the structure in place.
+//   situations   = ชั้น 1 สถานการณ์ที่เห็น
+//   patterns     = ชั้น 2 รูปแบบของปัญหาที่เกิดซ้ำ
+//   structures   = ชั้น 3 โครงสร้าง (นโยบาย / ค่านิยม / ระบบ)
+//   mentalModels = ชั้น 4 แบบจำลองวิธีคิด (ความเชื่อ / ทัศนคติ / สมมติฐานที่ฝังลึก)
+const icebergPerDimensionSchema = z.object({
+  situations: icebergLayerSchema,
+  patterns: icebergLayerSchema,
+  structures: icebergLayerSchema,
+  mentalModels: icebergLayerSchema,
+});
+
 export const soarOutputSchema = z.object({
   executiveInsight: z.string().min(1),
   byDimension: z.object({
@@ -41,6 +62,15 @@ export const soarOutputSchema = z.object({
     'Q-Learning': dimensionSchema,
     'Q-Students': dimensionSchema,
   }),
+  // Iceberg view per dimension — optional so legacy runs (pre-v2) still parse.
+  icebergByDimension: z
+    .object({
+      'Q-Leadership': icebergPerDimensionSchema,
+      'Q-PLC': icebergPerDimensionSchema,
+      'Q-Learning': icebergPerDimensionSchema,
+      'Q-Students': icebergPerDimensionSchema,
+    })
+    .optional(),
   topPriorities: z
     .array(
       z.object({
@@ -81,6 +111,11 @@ export const SOAR_RESPONSE_SCHEMA: Record<string, unknown> = {
       type: 'object',
       required: ['Q-Leadership', 'Q-PLC', 'Q-Learning', 'Q-Students'],
       properties: dimsObject(),
+    },
+    icebergByDimension: {
+      type: 'object',
+      required: ['Q-Leadership', 'Q-PLC', 'Q-Learning', 'Q-Students'],
+      properties: icebergDimsObject(),
     },
     topPriorities: {
       type: 'array',
@@ -176,6 +211,41 @@ function taskSchemaJson() {
       title: { type: 'string' },
       responsible: { type: ['string', 'null'] },
       evidenceRequired: { type: ['string', 'null'] },
+    },
+  };
+}
+
+function icebergDimsObject() {
+  const dim = icebergPerDimensionJson();
+  return {
+    'Q-Leadership': dim,
+    'Q-PLC': dim,
+    'Q-Learning': dim,
+    'Q-Students': dim,
+  };
+}
+
+function icebergPerDimensionJson() {
+  const layer = icebergLayerJson();
+  return {
+    type: 'object',
+    required: ['situations', 'patterns', 'structures', 'mentalModels'],
+    properties: {
+      situations: layer,
+      patterns: layer,
+      structures: layer,
+      mentalModels: layer,
+    },
+  };
+}
+
+function icebergLayerJson() {
+  return {
+    type: 'object',
+    required: ['current', 'desired'],
+    properties: {
+      current: { type: 'array', items: { type: 'string' } },
+      desired: { type: 'array', items: { type: 'string' } },
     },
   };
 }
