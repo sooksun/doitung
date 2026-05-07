@@ -8,6 +8,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { StickyBoardSurface } from './StickyBoardSurface';
 import { buildStickyHeaders } from '@/lib/sticky-guest';
 
@@ -51,6 +52,13 @@ export function StickyNoteModal({
   const [boardError, setBoardError] = useState<string | null>(null);
   const [boardLoading, setBoardLoading] = useState(false);
 
+  // Mount flag so we can portal to document.body without an SSR/hydration
+  // mismatch — without this, the modal would inherit the parent Iceberg cell's
+  // stacking context (the cell wrapper has zIndex:2) and the chips on the
+  // OTHER 7 cells would visually leak above the modal backdrop.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -91,14 +99,14 @@ export function StickyNoteModal({
     };
   }, [open, schoolId, contextType, contextId]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
   const handleSurfaceClose = async (joined: string) => {
     onApplyText(joined);
     onClose();
   };
 
-  return (
+  const overlay = (
     <div
       role="dialog"
       aria-modal="true"
@@ -160,4 +168,6 @@ export function StickyNoteModal({
       </div>
     </div>
   );
+
+  return createPortal(overlay, document.body);
 }
