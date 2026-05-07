@@ -11,7 +11,6 @@ export interface StickyNoteButtonProps {
   contextType: string;
   contextId: string;
   schoolId: number | null;
-  sarId?: number | null;
   layerNo?: number | null;
   side?: 'CURRENT' | 'DESIRED' | null;
   title: string;
@@ -24,7 +23,6 @@ export function StickyNoteButton({
   contextType,
   contextId,
   schoolId,
-  sarId = null,
   layerNo = null,
   side = null,
   title,
@@ -73,7 +71,6 @@ export function StickyNoteButton({
           contextType={contextType}
           contextId={contextId}
           schoolId={schoolId}
-          sarId={sarId}
           layerNo={layerNo}
           side={side}
           onApplyText={onApplyText}
