@@ -86,13 +86,17 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
     else cardHandles.current.delete(id);
   }, []);
 
-  // Track browser fullscreen state. Toggle targets `documentElement` so the
-  // entire tab goes fullscreen — works equally well for the modal (whose
-  // backdrop covers the page) and the standalone /sticky page.
+  // Fullscreen the surface root itself instead of documentElement. When the
+  // surface element is the fullscreenElement, the browser hides every other
+  // element (modal backdrop, the SAR form behind, the page header) and paints
+  // ONLY this container at viewport size — so the corkboard truly fills the
+  // screen instead of staying as a centered card.
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   useEffect(() => {
     if (typeof document === 'undefined') return;
-    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    const onChange = () =>
+      setIsFullscreen(!!document.fullscreenElement && document.fullscreenElement === containerRef.current);
     document.addEventListener('fullscreenchange', onChange);
     onChange();
     return () => document.removeEventListener('fullscreenchange', onChange);
@@ -103,8 +107,8 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
     try {
       if (document.fullscreenElement) {
         await document.exitFullscreen();
-      } else {
-        await document.documentElement.requestFullscreen();
+      } else if (containerRef.current) {
+        await containerRef.current.requestFullscreen();
       }
     } catch (err: any) {
       toastError(err?.message || 'ไม่สามารถเปลี่ยนโหมดเต็มจอได้');
@@ -215,7 +219,18 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
   const showClear = (showClearButton ?? isOwner) && isOwner;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+    <div
+      ref={containerRef}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        minHeight: 0,
+        // Keep the white background on the surface itself — once we fullscreen
+        // it, parent backgrounds (modal card / page card) are no longer rendered.
+        background: 'white',
+      }}
+    >
       <div
         style={{
           padding: '0.85rem 1rem',
