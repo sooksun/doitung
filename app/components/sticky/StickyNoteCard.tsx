@@ -104,6 +104,11 @@ export const StickyNoteCard = forwardRef<StickyNoteCardHandle, StickyNoteCardPro
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
+    // Don't initiate a drag when the click started on an interactive control
+    // — that's why the 🎨 / ✕ icons in the drag bar and the color-picker
+    // swatches in the popup were swallowing clicks (the pointer ended up
+    // captured on the card so click events never reached the buttons).
+    if (target.closest('button, input, textarea, select, a')) return;
     if (!target.closest('[data-sticky-drag-handle]')) return;
     e.preventDefault();
     onZIndexBump();
