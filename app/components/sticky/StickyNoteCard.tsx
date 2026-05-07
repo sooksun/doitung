@@ -1,11 +1,21 @@
 // app/components/sticky/StickyNoteCard.tsx
-// One Post-it on the corkboard. Drag with the header strip. Edit text inline.
-// All visual + interaction logic is local; persistence is delegated to the parent
-// via the supplied callbacks (so the same card can drive optimistic + debounced patch).
+// One Post-it on the corkboard. Owns its own draft state for content + position
+// so polling can update other clients' notes without clobbering my pending edits.
+//
+// State model:
+//   - `draft` (text)  — what's in the textarea right now. Can diverge from
+//     `note.content` when the user is typing. Sync from `note.content` only
+//     when the user is NOT actively editing (editingRef === false).
+//   - `pos` (x, y)   — where the card is rendered. While dragging,
+//     draggingRef !== null and we ignore prop updates. On pointer-up we commit.
+//   - The Save / Cancel buttons appear when `draft !== note.content`.
+//
+// The component exposes a `flushIfDirty()` ref handle so the modal can ask all
+// cards to commit their drafts before closing.
 
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { StickyColor, StickyNote } from './useStickyNotes';
 
 const COLOR_BG: Record<StickyColor, string> = {
@@ -27,46 +37,72 @@ const COLOR_BORDER: Record<StickyColor, string> = {
 };
 
 const NOTE_W = 200;
-const NOTE_H = 180;
+const NOTE_H = 220;
+
+export interface StickyNoteCardHandle {
+  flushIfDirty: () => Promise<void>;
+}
 
 export interface StickyNoteCardProps {
   note: StickyNote;
   boardSize: { width: number; height: number };
-  onContentChange: (content: string) => void;
-  onPositionChange: (x: number, y: number) => void;
-  onPositionCommit: (x: number, y: number) => void;
+  onSaveContent: (content: string) => Promise<boolean>;
+  onCommitPosition: (x: number, y: number) => void;
   onColorChange: (color: StickyColor) => void;
   onZIndexBump: () => void;
   onDelete: () => void;
 }
 
-export function StickyNoteCard({
-  note,
-  boardSize,
-  onContentChange,
-  onPositionChange,
-  onPositionCommit,
-  onColorChange,
-  onZIndexBump,
-  onDelete,
-}: StickyNoteCardProps) {
+export const StickyNoteCard = forwardRef<StickyNoteCardHandle, StickyNoteCardProps>(function StickyNoteCard(
+  { note, boardSize, onSaveContent, onCommitPosition, onColorChange, onZIndexBump, onDelete },
+  ref,
+) {
   const cardRef = useRef<HTMLDivElement | null>(null);
-  const dragStateRef = useRef<{ pointerId: number; startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const editingRef = useRef(false);
+  const draggingRef = useRef<{ pid: number; sx: number; sy: number; ox: number; oy: number } | null>(null);
+
+  const [draft, setDraft] = useState(note.content);
+  const [pos, setPos] = useState({ x: note.x, y: note.y });
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
+
+  // Mirror server content into draft only while user is not editing.
+  useEffect(() => {
+    if (!editingRef.current) setDraft(note.content);
+  }, [note.content]);
+
+  // Mirror server position only while user is not dragging.
+  useEffect(() => {
+    if (!draggingRef.current) setPos({ x: note.x, y: note.y });
+  }, [note.x, note.y]);
+
+  const isDirty = draft !== note.content;
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      async flushIfDirty() {
+        if (draft !== note.content) {
+          const ok = await onSaveContent(draft);
+          if (ok) editingRef.current = false;
+        } else {
+          editingRef.current = false;
+        }
+      },
+    }),
+    [draft, note.content, onSaveContent],
+  );
 
   useEffect(() => {
     return () => {
-      // Make sure we never leave a hanging pointer capture if the card unmounts mid-drag.
       const el = cardRef.current;
-      const drag = dragStateRef.current;
-      if (el && drag && el.hasPointerCapture(drag.pointerId)) {
-        el.releasePointerCapture(drag.pointerId);
-      }
+      const drag = draggingRef.current;
+      if (el && drag && el.hasPointerCapture(drag.pid)) el.releasePointerCapture(drag.pid);
     };
   }, []);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    // Only the drag-handle starts a drag — text editing and buttons must not.
     const target = e.target as HTMLElement;
     if (!target.closest('[data-sticky-drag-handle]')) return;
     e.preventDefault();
@@ -74,32 +110,43 @@ export function StickyNoteCard({
     const el = cardRef.current;
     if (!el) return;
     el.setPointerCapture(e.pointerId);
-    dragStateRef.current = {
-      pointerId: e.pointerId,
-      startX: e.clientX,
-      startY: e.clientY,
-      origX: note.x,
-      origY: note.y,
-    };
+    draggingRef.current = { pid: e.pointerId, sx: e.clientX, sy: e.clientY, ox: pos.x, oy: pos.y };
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    const drag = dragStateRef.current;
-    if (!drag || drag.pointerId !== e.pointerId) return;
-    const dx = e.clientX - drag.startX;
-    const dy = e.clientY - drag.startY;
-    const nextX = clamp(drag.origX + dx, 0, Math.max(0, boardSize.width - NOTE_W));
-    const nextY = clamp(drag.origY + dy, 0, Math.max(0, boardSize.height - NOTE_H));
-    onPositionChange(nextX, nextY);
+    const drag = draggingRef.current;
+    if (!drag || drag.pid !== e.pointerId) return;
+    const dx = e.clientX - drag.sx;
+    const dy = e.clientY - drag.sy;
+    const nextX = clamp(drag.ox + dx, 0, Math.max(0, boardSize.width - NOTE_W));
+    const nextY = clamp(drag.oy + dy, 0, Math.max(0, boardSize.height - NOTE_H));
+    setPos({ x: nextX, y: nextY });
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    const drag = dragStateRef.current;
-    if (!drag || drag.pointerId !== e.pointerId) return;
+    const drag = draggingRef.current;
+    if (!drag || drag.pid !== e.pointerId) return;
     const el = cardRef.current;
     if (el && el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
-    dragStateRef.current = null;
-    onPositionCommit(note.x, note.y);
+    draggingRef.current = null;
+    onCommitPosition(pos.x, pos.y);
+  };
+
+  const handleSave = async () => {
+    if (!isDirty) return;
+    setSaving(true);
+    const ok = await onSaveContent(draft);
+    setSaving(false);
+    if (ok) {
+      editingRef.current = false;
+      setSavedFlash(true);
+      window.setTimeout(() => setSavedFlash(false), 1200);
+    }
+  };
+
+  const handleCancel = () => {
+    setDraft(note.content);
+    editingRef.current = false;
   };
 
   const bg = COLOR_BG[note.color] || COLOR_BG.yellow;
@@ -114,8 +161,8 @@ export function StickyNoteCard({
       onPointerCancel={handlePointerUp}
       style={{
         position: 'absolute',
-        left: note.x,
-        top: note.y,
+        left: pos.x,
+        top: pos.y,
         width: NOTE_W,
         height: NOTE_H,
         transform: `rotate(${note.rotation}deg)`,
@@ -127,6 +174,8 @@ export function StickyNoteCard({
         flexDirection: 'column',
         overflow: 'hidden',
         userSelect: 'none',
+        outline: isDirty ? '2px solid #f59e0b' : 'none',
+        outlineOffset: -2,
       }}
     >
       <div
@@ -134,14 +183,14 @@ export function StickyNoteCard({
         style={{
           height: 22,
           background: border,
-          opacity: 0.85,
+          opacity: 0.9,
           cursor: 'grab',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '0 6px',
           fontSize: '0.7rem',
-          color: 'rgba(0,0,0,0.65)',
+          color: 'rgba(0,0,0,0.7)',
           fontWeight: 600,
         }}
       >
@@ -154,7 +203,7 @@ export function StickyNoteCard({
               setShowColorPicker((v) => !v);
             }}
             title="เปลี่ยนสี"
-            style={btnStyle}
+            style={iconBtnStyle}
           >
             🎨
           </button>
@@ -162,10 +211,10 @@ export function StickyNoteCard({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              onDelete();
+              if (window.confirm('ลบโน้ตนี้?')) onDelete();
             }}
             title="ลบโน้ต"
-            style={btnStyle}
+            style={iconBtnStyle}
           >
             ✕
           </button>
@@ -212,8 +261,11 @@ export function StickyNoteCard({
       )}
 
       <textarea
-        value={note.content}
-        onChange={(e) => onContentChange(e.target.value)}
+        value={draft}
+        onChange={(e) => {
+          editingRef.current = true;
+          setDraft(e.target.value);
+        }}
         onPointerDown={(e) => e.stopPropagation()}
         placeholder="พิมพ์ข้อความ..."
         style={{
@@ -230,11 +282,41 @@ export function StickyNoteCard({
           color: '#1f2937',
         }}
       />
+
+      <div
+        style={{
+          minHeight: 30,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
+          padding: '4px 6px',
+          background: isDirty ? `${border}22` : 'rgba(0,0,0,0.04)',
+          borderTop: `1px solid ${border}55`,
+          fontSize: '0.72rem',
+        }}
+      >
+        {savedFlash && !isDirty && (
+          <span style={{ color: '#15803d', fontWeight: 600 }}>✓ บันทึกแล้ว</span>
+        )}
+        {!savedFlash && !isDirty && (
+          <span style={{ color: '#6b7280' }}>โน้ตอัปเดตอัตโนมัติ</span>
+        )}
+        {isDirty && (
+          <>
+            <button type="button" onClick={handleSave} disabled={saving} style={saveBtn}>
+              💾 {saving ? 'กำลังบันทึก...' : 'บันทึก'}
+            </button>
+            <button type="button" onClick={handleCancel} disabled={saving} style={cancelBtn}>
+              ↩ ยกเลิก
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
-}
+});
 
-const btnStyle: React.CSSProperties = {
+const iconBtnStyle: React.CSSProperties = {
   background: 'rgba(255,255,255,0.7)',
   border: 'none',
   borderRadius: 3,
@@ -247,6 +329,29 @@ const btnStyle: React.CSSProperties = {
   cursor: 'pointer',
   padding: 0,
   lineHeight: 1,
+};
+
+const saveBtn: React.CSSProperties = {
+  flex: 1,
+  padding: '4px 6px',
+  background: '#10b981',
+  color: 'white',
+  border: 'none',
+  borderRadius: 4,
+  cursor: 'pointer',
+  fontSize: '0.72rem',
+  fontWeight: 700,
+};
+
+const cancelBtn: React.CSSProperties = {
+  padding: '4px 8px',
+  background: 'white',
+  color: '#374151',
+  border: '1px solid #d1d5db',
+  borderRadius: 4,
+  cursor: 'pointer',
+  fontSize: '0.72rem',
+  fontWeight: 600,
 };
 
 function clamp(v: number, min: number, max: number) {

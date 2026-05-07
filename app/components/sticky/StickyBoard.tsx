@@ -1,20 +1,19 @@
 // app/components/sticky/StickyBoard.tsx
-// The corkboard surface inside the modal. Owns the size measurement so cards can
-// clamp themselves to the visible area. Pure presentational — all state lives in
-// useStickyNotes (passed in as `notes` + callbacks).
+// Corkboard surface: measures itself so cards can clamp to the visible area,
+// renders all active notes, and forwards a card-ref registry up to the parent
+// (the modal / page) so it can flush dirty drafts before closing.
 
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { StickyNoteCard } from './StickyNoteCard';
+import { StickyNoteCard, type StickyNoteCardHandle } from './StickyNoteCard';
 import type { StickyColor, StickyNote } from './useStickyNotes';
 
 export interface StickyBoardProps {
   notes: StickyNote[];
-  onAddNote: () => void;
-  onContentChange: (id: string, content: string) => void;
-  onPositionChange: (id: string, x: number, y: number) => void;
-  onPositionCommit: (id: string, x: number, y: number) => void;
+  registerCard?: (id: string, handle: StickyNoteCardHandle | null) => void;
+  onSaveContent: (id: string, content: string) => Promise<boolean>;
+  onCommitPosition: (id: string, x: number, y: number) => void;
   onColorChange: (id: string, color: StickyColor) => void;
   onZIndexBump: (id: string) => void;
   onDelete: (id: string) => void;
@@ -22,10 +21,9 @@ export interface StickyBoardProps {
 
 export function StickyBoard({
   notes,
-  onAddNote,
-  onContentChange,
-  onPositionChange,
-  onPositionCommit,
+  registerCard,
+  onSaveContent,
+  onCommitPosition,
   onColorChange,
   onZIndexBump,
   onDelete,
@@ -53,8 +51,7 @@ export function StickyBoard({
         position: 'relative',
         flex: 1,
         minHeight: 0,
-        background:
-          'repeating-linear-gradient(45deg, #fdf6e3 0 12px, #fbf0d3 12px 24px)',
+        background: 'repeating-linear-gradient(45deg, #fdf6e3 0 12px, #fbf0d3 12px 24px)',
         borderRadius: 8,
         border: '1px solid #e5e7eb',
         overflow: 'auto',
@@ -82,21 +79,16 @@ export function StickyBoard({
       {notes.map((n) => (
         <StickyNoteCard
           key={n.id}
+          ref={registerCard ? (h) => registerCard(n.id, h) : undefined}
           note={n}
           boardSize={size}
-          onContentChange={(content) => onContentChange(n.id, content)}
-          onPositionChange={(x, y) => onPositionChange(n.id, x, y)}
-          onPositionCommit={(x, y) => onPositionCommit(n.id, x, y)}
+          onSaveContent={(content) => onSaveContent(n.id, content)}
+          onCommitPosition={(x, y) => onCommitPosition(n.id, x, y)}
           onColorChange={(color) => onColorChange(n.id, color)}
           onZIndexBump={() => onZIndexBump(n.id)}
           onDelete={() => onDelete(n.id)}
         />
       ))}
-
-      {/* Fallback hidden button for keyboard-add (the toolbar in StickyNoteModal is the primary entry point). */}
-      <button type="button" onClick={onAddNote} aria-label="เพิ่มโน้ต" style={{ display: 'none' }}>
-        add
-      </button>
     </div>
   );
 }

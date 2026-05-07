@@ -1,11 +1,17 @@
 // app/components/sticky/useStickyNotes.ts
 // Client-side hook for the sticky-notes board on a given (contextType, contextId).
-// - load notes when the modal opens
-// - create / patch / archive notes against /api/sticky-notes
-// - keep an optimistic local copy so the UI feels instant; server is the source of truth
 //
-// Auth token: read from localStorage at call time (the same convention used by
-// the rest of the admin pages — see app/admin/sar/new/page.tsx).
+// Responsibilities:
+//   - Initial load of notes for the board
+//   - Background polling every `pollIntervalMs` (default 5s) so collaborators see
+//     each other's changes without a websocket. Pauses when the tab is hidden.
+//   - Unified `patchNote(id, partial)` that updates locally first then PATCHes
+//     the server, replacing the local copy with the server's response.
+//   - `addNote`, `deleteNote`, `clearAll` for board ops.
+//
+// The cards own their *own* draft state for content + position. This hook only
+// keeps a server-mirrored list and emits patch calls when the cards explicitly
+// commit (Save button on a note, pointer-up on a drag, color change, etc.).
 
 'use client';
 
@@ -41,6 +47,7 @@ export interface UseStickyNotesOptions {
   sarId?: number | null;
   layerNo?: number | null;
   side?: 'CURRENT' | 'DESIRED' | null;
+  pollIntervalMs?: number; // default 5000; pass 0 to disable polling
 }
 
 function getToken(): string | null {
@@ -66,32 +73,74 @@ async function apiFetch(input: string, init: RequestInit = {}): Promise<any> {
 }
 
 export function useStickyNotes(opts: UseStickyNotesOptions) {
-  const { enabled, contextType, contextId, schoolId, sarId, layerNo, side } = opts;
+  const {
+    enabled,
+    contextType,
+    contextId,
+    schoolId,
+    sarId,
+    layerNo,
+    side,
+    pollIntervalMs = 5000,
+  } = opts;
   const [notes, setNotes] = useState<StickyNote[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Coalesce drag/edit patches per-id so we don't spam the server.
-  const patchTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  // Always-fresh notes snapshot — used by callers that need to compute joined
+  // text right after issuing PATCHes, without waiting for the next render tick.
+  const notesRef = useRef<StickyNote[]>([]);
+  useEffect(() => {
+    notesRef.current = notes;
+  }, [notes]);
 
-  const reload = useCallback(async () => {
-    if (!enabled || !contextId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const qs = new URLSearchParams({ contextType, contextId }).toString();
-      const data = (await apiFetch(`/api/sticky-notes?${qs}`)) as StickyNote[];
-      setNotes(Array.isArray(data) ? data : []);
-    } catch (err: any) {
-      setError(err?.message || 'โหลดไม่สำเร็จ');
-    } finally {
-      setLoading(false);
-    }
-  }, [enabled, contextType, contextId]);
+  const reload = useCallback(
+    async (silent = false) => {
+      if (!enabled || !contextId) return;
+      if (!silent) setLoading(true);
+      setError(null);
+      try {
+        const qs = new URLSearchParams({ contextType, contextId }).toString();
+        const data = (await apiFetch(`/api/sticky-notes?${qs}`)) as StickyNote[];
+        setNotes(Array.isArray(data) ? data : []);
+      } catch (err: any) {
+        setError(err?.message || 'โหลดไม่สำเร็จ');
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [enabled, contextType, contextId],
+  );
 
+  // Initial load.
   useEffect(() => {
     if (enabled) reload();
   }, [enabled, reload]);
+
+  // Background polling — same idea as the dashboard's 5s tick.
+  useEffect(() => {
+    if (!enabled) return;
+    if (!pollIntervalMs || pollIntervalMs <= 0) return;
+    const tick = () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      reload(true).catch(() => null);
+    };
+    const timer = setInterval(tick, pollIntervalMs);
+    const onVis = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        reload(true).catch(() => null);
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVis);
+    }
+    return () => {
+      clearInterval(timer);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVis);
+      }
+    };
+  }, [enabled, pollIntervalMs, reload]);
 
   const addNote = useCallback(
     async (overrides?: Partial<Pick<StickyNote, 'content' | 'color' | 'x' | 'y' | 'rotation'>>) => {
@@ -99,10 +148,11 @@ export function useStickyNotes(opts: UseStickyNotesOptions) {
         setError('ยังไม่ได้เลือกโรงเรียน');
         return null;
       }
-      const maxZ = notes.reduce((m, n) => Math.max(m, n.zIndex), 0);
+      const list = notesRef.current;
+      const maxZ = list.reduce((m, n) => Math.max(m, n.zIndex), 0);
       const baseX = 60 + Math.floor(Math.random() * 80);
       const baseY = 60 + Math.floor(Math.random() * 60);
-      const offset = notes.length * 18;
+      const offset = list.length * 18;
       const payload = {
         contextType,
         contextId,
@@ -129,49 +179,28 @@ export function useStickyNotes(opts: UseStickyNotesOptions) {
         return null;
       }
     },
-    [contextType, contextId, schoolId, sarId, layerNo, side, notes],
+    [contextType, contextId, schoolId, sarId, layerNo, side],
   );
 
-  const updateLocal = useCallback((id: string, patch: Partial<StickyNote>) => {
-    setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch } : n)));
-  }, []);
-
-  const persistDebounced = useCallback(
-    (id: string, patch: Partial<StickyNote>, delay = 500) => {
-      const timers = patchTimers.current;
-      const prev = timers.get(id);
-      if (prev) clearTimeout(prev);
-      const handle = setTimeout(async () => {
-        try {
-          await apiFetch(`/api/sticky-notes/${id}`, {
-            method: 'PATCH',
-            body: JSON.stringify(patch),
-          });
-        } catch (err: any) {
-          setError(err?.message || 'บันทึกไม่สำเร็จ');
-        }
-      }, delay);
-      timers.set(id, handle);
+  // Optimistic local apply, then PATCH server, then replace local copy with the
+  // server's authoritative version. Returns the server-side note (or null on error).
+  const patchNote = useCallback(
+    async (id: string, patch: Partial<StickyNote>): Promise<StickyNote | null> => {
+      setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch } : n)));
+      try {
+        const updated = (await apiFetch(`/api/sticky-notes/${id}`, {
+          method: 'PATCH',
+          body: JSON.stringify(patch),
+        })) as StickyNote;
+        setNotes((prev) => prev.map((n) => (n.id === id ? updated : n)));
+        return updated;
+      } catch (err: any) {
+        setError(err?.message || 'บันทึกไม่สำเร็จ');
+        return null;
+      }
     },
     [],
   );
-
-  const persistImmediate = useCallback(async (id: string, patch: Partial<StickyNote>) => {
-    const timers = patchTimers.current;
-    const prev = timers.get(id);
-    if (prev) {
-      clearTimeout(prev);
-      timers.delete(id);
-    }
-    try {
-      await apiFetch(`/api/sticky-notes/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(patch),
-      });
-    } catch (err: any) {
-      setError(err?.message || 'บันทึกไม่สำเร็จ');
-    }
-  }, []);
 
   const deleteNote = useCallback(async (id: string) => {
     setNotes((prev) => prev.filter((n) => n.id !== id));
@@ -183,33 +212,21 @@ export function useStickyNotes(opts: UseStickyNotesOptions) {
   }, []);
 
   const clearAll = useCallback(async () => {
-    const ids = notes.map((n) => n.id);
+    const ids = notesRef.current.map((n) => n.id);
     setNotes([]);
     await Promise.all(
-      ids.map((id) =>
-        apiFetch(`/api/sticky-notes/${id}`, { method: 'DELETE' }).catch(() => null),
-      ),
+      ids.map((id) => apiFetch(`/api/sticky-notes/${id}`, { method: 'DELETE' }).catch(() => null)),
     );
-  }, [notes]);
-
-  // Flush pending patches when the consumer unmounts (e.g. modal closes).
-  useEffect(() => {
-    const timers = patchTimers.current;
-    return () => {
-      for (const t of timers.values()) clearTimeout(t);
-      timers.clear();
-    };
   }, []);
 
   return {
     notes,
+    notesRef,
     loading,
     error,
     reload,
     addNote,
-    updateLocal,
-    persistDebounced,
-    persistImmediate,
+    patchNote,
     deleteNote,
     clearAll,
   };
