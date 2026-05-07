@@ -7,6 +7,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toastSuccess, toastError } from '@/lib/toast';
+import { IcebergInput, EMPTY_ICEBERG, icebergHasContent, type Iceberg } from '@/app/components/IcebergInput';
 
 interface School { id: number; code: string | null; nameTh: string | null; name: string; }
 interface AcademicYear { id: number; year: string; }
@@ -24,8 +25,8 @@ export default function NewSarPage() {
   const [academicYearId, setAcademicYearId] = useState('');
   const [ecFile, setEcFile] = useState<File | null>(null);
   const [bsFile, setBsFile] = useState<File | null>(null);
-  const [ecText, setEcText] = useState('');
-  const [bsText, setBsText] = useState('');
+  const [ecIceberg, setEcIceberg] = useState<Iceberg>(EMPTY_ICEBERG);
+  const [bsIceberg, setBsIceberg] = useState<Iceberg>(EMPTY_ICEBERG);
   const [changeNote, setChangeNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -81,11 +82,11 @@ export default function NewSarPage() {
     schoolId: number,
     yearId: number,
     file: File | null,
-    bodyText: string,
+    iceberg: Iceberg,
   ) => {
     const fd = new FormData();
     if (file) fd.append('file', file);
-    if (bodyText.trim()) fd.append('bodyText', bodyText);
+    if (icebergHasContent(iceberg)) fd.append('bodyIceberg', JSON.stringify(iceberg));
     fd.append('schoolId', String(schoolId));
     fd.append('academicYearId', String(yearId));
     fd.append('level', level);
@@ -100,14 +101,14 @@ export default function NewSarPage() {
     return json.data;
   };
 
-  const ecHasInput = !!ecFile || ecText.trim().length > 0;
-  const bsHasInput = !!bsFile || bsText.trim().length > 0;
+  const ecHasInput = !!ecFile || icebergHasContent(ecIceberg);
+  const bsHasInput = !!bsFile || icebergHasContent(bsIceberg);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) return;
     if (!ecHasInput && !bsHasInput) {
-      toastError('กรุณาส่ง PDF หรือพิมพ์ข้อความ SAR อย่างน้อย 1 ระดับ');
+      toastError('กรุณาส่ง PDF หรือกรอกอย่างน้อย 1 ช่อง Iceberg ใน 1 ระดับ');
       return;
     }
     if (!academicYearId) { toastError('กรุณาเลือกปีการศึกษา'); return; }
@@ -118,11 +119,11 @@ export default function NewSarPage() {
     try {
       let lastId: number | null = null;
       if (ecHasInput) {
-        const r = await submit('EARLY_CHILDHOOD', resolvedSchoolId, parseInt(academicYearId, 10), ecFile, ecText);
+        const r = await submit('EARLY_CHILDHOOD', resolvedSchoolId, parseInt(academicYearId, 10), ecFile, ecIceberg);
         lastId = r.id;
       }
       if (bsHasInput) {
-        const r = await submit('BASIC_EDUCATION', resolvedSchoolId, parseInt(academicYearId, 10), bsFile, bsText);
+        const r = await submit('BASIC_EDUCATION', resolvedSchoolId, parseInt(academicYearId, 10), bsFile, bsIceberg);
         lastId = r.id;
       }
       toastSuccess('บันทึกสำเร็จ');
@@ -150,7 +151,7 @@ export default function NewSarPage() {
             📤 ส่งข้อมูล SAR
           </h1>
           <p style={{ color: '#666', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
-            ส่งได้ทั้ง <strong>ไฟล์ PDF</strong> และ/หรือ <strong>ข้อความเชิงคุณภาพ</strong> สำหรับ 2 ระดับ: ปฐมวัย + ขั้นพื้นฐาน · ทุกครั้งที่บันทึกจะเก็บเวอร์ชันใหม่ (ของเดิมไม่หาย)
+            ส่งได้ทั้ง <strong>ไฟล์ PDF</strong> และ/หรือ <strong>กรอกแบบ Iceberg Model</strong> 4 ชั้น × 2 ด้าน (สิ่งที่เป็นอยู่ ↔ สิ่งที่อยากให้เป็น) สำหรับ 2 ระดับ: ปฐมวัย + ขั้นพื้นฐาน · ไม่บังคับครบทุกช่อง · ทุกครั้งที่บันทึกจะเก็บเวอร์ชันใหม่
           </p>
 
           {error && <div style={{ padding: '0.75rem', background: '#fee', color: '#c33', borderRadius: '0.4rem', marginBottom: '1rem', fontSize: '0.875rem' }}>{error}</div>}
@@ -200,17 +201,7 @@ export default function NewSarPage() {
                 <input type="file" accept="application/pdf" onChange={(e) => setEcFile(e.target.files?.[0] || null)} style={{ ...inputStyle, padding: '0.5rem', cursor: 'pointer' }} />
                 {ecFile && <div style={{ fontSize: '0.78rem', color: '#666', marginTop: '0.25rem' }}>เลือกแล้ว: {ecFile.name} ({(ecFile.size / 1024 / 1024).toFixed(2)} MB)</div>}
               </div>
-              <div>
-                <label style={labelStyle}>📝 หรือพิมพ์ข้อความ SAR ตรงนี้ (ข้อมูลเชิงคุณภาพ baseline)</label>
-                <textarea
-                  value={ecText}
-                  onChange={(e) => setEcText(e.target.value)}
-                  rows={8}
-                  placeholder="พิมพ์ข้อมูลคุณภาพการศึกษาระดับปฐมวัย เช่น แนวทางการจัดประสบการณ์ จุดเน้น กิจกรรมที่ดำเนินการ ผลที่เกิดกับเด็ก ฯลฯ — ใช้คู่กับ PDF หรือใช้แทน PDF ก็ได้"
-                  style={{ ...inputStyle, fontFamily: 'inherit', resize: 'vertical', lineHeight: 1.5 }}
-                />
-                <div style={{ fontSize: '0.75rem', color: '#888', marginTop: '0.25rem', textAlign: 'right' }}>{ecText.length.toLocaleString()} ตัวอักษร {ecText.length > 0 && ecText.length < 10 && <span style={{ color: '#dc2626' }}>(ขั้นต่ำ 10)</span>}</div>
-              </div>
+              <IcebergInput value={ecIceberg} onChange={setEcIceberg} />
             </fieldset>
 
             <fieldset style={{ marginBottom: '1.25rem', padding: '1rem', border: '1px solid #e5e7eb', borderRadius: '0.5rem' }}>
@@ -220,17 +211,7 @@ export default function NewSarPage() {
                 <input type="file" accept="application/pdf" onChange={(e) => setBsFile(e.target.files?.[0] || null)} style={{ ...inputStyle, padding: '0.5rem', cursor: 'pointer' }} />
                 {bsFile && <div style={{ fontSize: '0.78rem', color: '#666', marginTop: '0.25rem' }}>เลือกแล้ว: {bsFile.name} ({(bsFile.size / 1024 / 1024).toFixed(2)} MB)</div>}
               </div>
-              <div>
-                <label style={labelStyle}>📝 หรือพิมพ์ข้อความ SAR ตรงนี้ (ข้อมูลเชิงคุณภาพ baseline)</label>
-                <textarea
-                  value={bsText}
-                  onChange={(e) => setBsText(e.target.value)}
-                  rows={8}
-                  placeholder="พิมพ์ข้อมูลคุณภาพการศึกษาระดับขั้นพื้นฐาน เช่น แนวการจัดการเรียนรู้ ผลสัมฤทธิ์ จุดเด่น/จุดที่ต้องพัฒนา ชุมชนแห่งการเรียนรู้ (PLC) ฯลฯ — ใช้คู่กับ PDF หรือใช้แทน PDF ก็ได้"
-                  style={{ ...inputStyle, fontFamily: 'inherit', resize: 'vertical', lineHeight: 1.5 }}
-                />
-                <div style={{ fontSize: '0.75rem', color: '#888', marginTop: '0.25rem', textAlign: 'right' }}>{bsText.length.toLocaleString()} ตัวอักษร {bsText.length > 0 && bsText.length < 10 && <span style={{ color: '#dc2626' }}>(ขั้นต่ำ 10)</span>}</div>
-              </div>
+              <IcebergInput value={bsIceberg} onChange={setBsIceberg} />
             </fieldset>
 
             <div style={{ marginBottom: '1.5rem' }}>
@@ -261,3 +242,4 @@ export default function NewSarPage() {
     </div>
   );
 }
+

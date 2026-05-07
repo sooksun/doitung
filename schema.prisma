@@ -643,6 +643,7 @@ model SarDocument {
   originalFilename String?
   filePath         String?
   bodyText         String?      @db.LongText
+  bodyIceberg      Json?
   status           SarDocStatus @default(UPLOADED)
   extractionMethod String? // 'native' | 'gemini_file_api'
   textQualityScore Float?
@@ -674,6 +675,7 @@ model SarDocumentVersion {
   versionNo   Int
   filePath    String?
   bodyText    String?  @db.LongText
+  bodyIceberg Json?
   createdById Int
   changeNote  String?
   createdAt   DateTime @default(now())

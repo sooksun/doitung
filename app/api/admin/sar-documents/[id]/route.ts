@@ -61,6 +61,8 @@ export async function GET(
       hasFile: !!doc.filePath,
       bodyText: doc.bodyText,
       hasBodyText: !!doc.bodyText,
+      bodyIceberg: (doc as any).bodyIceberg ?? null,
+      hasIceberg: !!(doc as any).bodyIceberg,
       status: doc.status,
       extractionMethod: doc.extractionMethod,
       textQualityScore: doc.textQualityScore,

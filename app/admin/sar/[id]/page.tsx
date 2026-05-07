@@ -7,8 +7,23 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { toastSuccess, toastError } from '@/lib/toast';
+import {
+  IcebergInput,
+  IcebergDisplay,
+  EMPTY_ICEBERG,
+  icebergHasContent,
+  normalizeIceberg,
+  type Iceberg,
+} from '@/app/components/IcebergInput';
 
 interface VersionRow { id: number; versionNo: number; createdAt: string; changeNote: string | null; createdBy: { name: string } | null; }
+interface IcebergLayerVal { current: string; desired: string }
+interface IcebergVal {
+  situations: IcebergLayerVal;
+  patterns: IcebergLayerVal;
+  structures: IcebergLayerVal;
+  mentalModels: IcebergLayerVal;
+}
 interface SarDetail {
   id: number;
   schoolId: number;
@@ -22,6 +37,8 @@ interface SarDetail {
   hasFile: boolean;
   bodyText: string | null;
   hasBodyText: boolean;
+  bodyIceberg: IcebergVal | null;
+  hasIceberg: boolean;
   status: string;
   extractionMethod: string | null;
   textQualityScore: number | null;
@@ -48,9 +65,9 @@ export default function SarDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [editingText, setEditingText] = useState(false);
-  const [textDraft, setTextDraft] = useState('');
-  const [textNote, setTextNote] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [icebergDraft, setIcebergDraft] = useState<Iceberg>(EMPTY_ICEBERG);
+  const [editNote, setEditNote] = useState('');
 
   const load = useCallback(async (authToken: string) => {
     try {
@@ -101,11 +118,10 @@ export default function SarDetailPage() {
     }
   };
 
-  const saveText = async () => {
+  const saveIceberg = async () => {
     if (!token || !doc) return;
-    const trimmed = textDraft.trim();
-    if (trimmed.length < 10) {
-      toastError('ข้อความต้องมีอย่างน้อย 10 ตัวอักษร');
+    if (!icebergHasContent(icebergDraft)) {
+      toastError('กรอกอย่างน้อย 1 ช่อง');
       return;
     }
     setBusy(true);
@@ -114,8 +130,8 @@ export default function SarDetailPage() {
       fd.append('schoolId', String(doc.schoolId));
       fd.append('academicYearId', String(doc.academicYearId));
       fd.append('level', doc.level);
-      fd.append('bodyText', textDraft);
-      if (textNote.trim()) fd.append('changeNote', textNote.trim());
+      fd.append('bodyIceberg', JSON.stringify(icebergDraft));
+      if (editNote.trim()) fd.append('changeNote', editNote.trim());
       const res = await fetch('/api/admin/sar-documents', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
@@ -127,8 +143,8 @@ export default function SarDetailPage() {
         return;
       }
       toastSuccess(json.message || 'บันทึกสำเร็จ');
-      setEditingText(false);
-      setTextNote('');
+      setEditing(false);
+      setEditNote('');
       await load(token);
     } catch {
       toastError('เกิดข้อผิดพลาด');
@@ -137,10 +153,10 @@ export default function SarDetailPage() {
     }
   };
 
-  const startEditText = () => {
-    setTextDraft(doc?.bodyText || '');
-    setTextNote('');
-    setEditingText(true);
+  const startEdit = () => {
+    setIcebergDraft(doc?.bodyIceberg ? normalizeIceberg(doc.bodyIceberg) : EMPTY_ICEBERG);
+    setEditNote('');
+    setEditing(true);
   };
 
   if (loading) return <div style={{ padding: '2rem', textAlign: 'center', color: '#666' }}>กำลังโหลด...</div>;
@@ -170,8 +186,9 @@ export default function SarDetailPage() {
             <div>{doc.schoolCode} {doc.schoolName} · ปีการศึกษา {doc.academicYear} · ระดับ {LEVEL_LABEL[doc.level] || doc.level}</div>
             <div style={{ fontSize: '0.8rem', color: '#888', marginTop: '0.25rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
               {doc.hasFile && doc.originalFilename && <span>📎 {doc.originalFilename}</span>}
-              {doc.hasBodyText && <span style={{ color: '#7c3aed' }}>📝 ข้อความ {doc.bodyText?.length.toLocaleString()} ตัวอักษร</span>}
-              {!doc.hasFile && !doc.hasBodyText && <span style={{ color: '#dc2626' }}>⚠️ ไม่มีข้อมูล</span>}
+              {doc.hasIceberg && <span style={{ color: '#1d4ed8' }}>🧊 Iceberg ({countIcebergCells(doc.bodyIceberg)} ช่อง)</span>}
+              {!doc.hasIceberg && doc.hasBodyText && <span style={{ color: '#7c3aed' }}>📝 ข้อความ {doc.bodyText?.length.toLocaleString()} ตัวอักษร</span>}
+              {!doc.hasFile && !doc.hasBodyText && !doc.hasIceberg && <span style={{ color: '#dc2626' }}>⚠️ ไม่มีข้อมูล</span>}
             </div>
           </div>
 
@@ -252,55 +269,42 @@ export default function SarDetailPage() {
             <Link href="/admin/sar/new" style={{ padding: '0.55rem 1rem', background: '#e5e7eb', color: '#333', borderRadius: '0.4rem', textDecoration: 'none', fontWeight: 500 }}>
               📤 บันทึกเวอร์ชันใหม่
             </Link>
-            {!editingText && (
+            {!editing && (
               <button
-                onClick={startEditText}
+                onClick={startEdit}
                 disabled={busy}
-                style={{ padding: '0.55rem 1rem', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '0.4rem', cursor: busy ? 'not-allowed' : 'pointer', fontWeight: 500 }}
+                style={{ padding: '0.55rem 1rem', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '0.4rem', cursor: busy ? 'not-allowed' : 'pointer', fontWeight: 500 }}
               >
-                {doc.hasBodyText ? '✏️ แก้ไขข้อความ' : '📝 เพิ่มข้อความ'}
+                {doc.hasIceberg ? '✏️ แก้ไข Iceberg' : '🧊 กรอก Iceberg'}
               </button>
             )}
           </div>
 
-          {/* Body text panel */}
-          {(doc.hasBodyText || editingText) && (
-            <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#faf5ff', border: '1px solid #d8b4fe', borderRadius: '0.5rem' }}>
-              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#6b21a8', marginBottom: '0.5rem' }}>
-                📝 ข้อความเชิงคุณภาพ (Baseline) — ใช้ประกอบการวิเคราะห์ AI
+          {/* Iceberg / body text panel */}
+          {(doc.hasIceberg || doc.hasBodyText || editing) && (
+            <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '0.5rem' }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#075985', marginBottom: '0.5rem' }}>
+                🧊 Iceberg Analysis (Baseline) — สิ่งที่เป็นอยู่ ↔ สิ่งที่อยากให้เป็น
               </div>
-              {editingText ? (
+              {editing ? (
                 <>
-                  <textarea
-                    value={textDraft}
-                    onChange={(e) => setTextDraft(e.target.value)}
-                    rows={12}
-                    placeholder="พิมพ์ข้อมูลคุณภาพการศึกษา ระดับ ${LEVEL_LABEL[doc.level] || doc.level} ..."
-                    style={{
-                      width: '100%', padding: '0.6rem 0.85rem', border: '1px solid #c4b5fd', borderRadius: '0.4rem',
-                      fontSize: '0.92rem', fontFamily: 'inherit', resize: 'vertical', lineHeight: 1.5, boxSizing: 'border-box',
-                    }}
-                  />
-                  <div style={{ fontSize: '0.75rem', color: '#888', marginTop: '0.25rem', textAlign: 'right' }}>
-                    {textDraft.length.toLocaleString()} ตัวอักษร{' '}
-                    {textDraft.length > 0 && textDraft.length < 10 && <span style={{ color: '#dc2626' }}>(ขั้นต่ำ 10)</span>}
-                  </div>
+                  <IcebergInput value={icebergDraft} onChange={setIcebergDraft} />
                   <input
-                    value={textNote}
-                    onChange={(e) => setTextNote(e.target.value)}
-                    placeholder="หมายเหตุการเปลี่ยนแปลง (เช่น แก้คำผิด, เพิ่มหัวข้อ PLC)"
-                    style={{ width: '100%', padding: '0.5rem 0.75rem', marginTop: '0.5rem', border: '1px solid #c4b5fd', borderRadius: '0.4rem', fontSize: '0.85rem', boxSizing: 'border-box' }}
+                    value={editNote}
+                    onChange={(e) => setEditNote(e.target.value)}
+                    placeholder="หมายเหตุการเปลี่ยนแปลง (เช่น เพิ่มชั้น mental models, ปรับ structures)"
+                    style={{ width: '100%', padding: '0.5rem 0.75rem', marginTop: '0.6rem', border: '1px solid #bae6fd', borderRadius: '0.4rem', fontSize: '0.85rem', boxSizing: 'border-box' }}
                   />
                   <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.6rem' }}>
                     <button
-                      onClick={saveText}
-                      disabled={busy || textDraft.trim().length < 10}
-                      style={{ padding: '0.5rem 1rem', background: busy || textDraft.trim().length < 10 ? '#9ca3af' : '#10b981', color: 'white', border: 'none', borderRadius: '0.4rem', cursor: busy ? 'not-allowed' : 'pointer', fontWeight: 500, fontSize: '0.88rem' }}
+                      onClick={saveIceberg}
+                      disabled={busy || !icebergHasContent(icebergDraft)}
+                      style={{ padding: '0.5rem 1rem', background: busy || !icebergHasContent(icebergDraft) ? '#9ca3af' : '#10b981', color: 'white', border: 'none', borderRadius: '0.4rem', cursor: busy ? 'not-allowed' : 'pointer', fontWeight: 500, fontSize: '0.88rem' }}
                     >
                       💾 บันทึกเวอร์ชันใหม่
                     </button>
                     <button
-                      onClick={() => { setEditingText(false); setTextNote(''); }}
+                      onClick={() => { setEditing(false); setEditNote(''); }}
                       disabled={busy}
                       style={{ padding: '0.5rem 1rem', background: '#e5e7eb', color: '#333', border: 'none', borderRadius: '0.4rem', cursor: busy ? 'not-allowed' : 'pointer', fontSize: '0.88rem' }}
                     >
@@ -308,15 +312,21 @@ export default function SarDetailPage() {
                     </button>
                   </div>
                 </>
-              ) : (
+              ) : doc.hasIceberg ? (
+                <IcebergDisplay value={normalizeIceberg(doc.bodyIceberg)} />
+              ) : doc.hasBodyText ? (
+                // Legacy bodyText (uploaded before iceberg input was added) — show as plain text
                 <div style={{
                   whiteSpace: 'pre-wrap', wordWrap: 'break-word', maxHeight: '400px', overflowY: 'auto',
-                  padding: '0.75rem', background: 'white', border: '1px solid #e9d5ff', borderRadius: '0.4rem',
+                  padding: '0.75rem', background: 'white', border: '1px solid #e0f2fe', borderRadius: '0.4rem',
                   fontSize: '0.9rem', lineHeight: 1.6, color: '#1f2937',
                 }}>
+                  <div style={{ fontSize: '0.75rem', color: '#666', marginBottom: '0.4rem', fontStyle: 'italic' }}>
+                    (ข้อความเก่าก่อนเปลี่ยนมาใช้ Iceberg — กดปุ่ม "แก้ไข Iceberg" เพื่อจัดโครงสร้างใหม่)
+                  </div>
                   {doc.bodyText}
                 </div>
-              )}
+              ) : null}
             </div>
           )}
 
@@ -354,6 +364,16 @@ export default function SarDetailPage() {
       </div>
     </div>
   );
+}
+
+function countIcebergCells(ic: IcebergVal | null): number {
+  if (!ic) return 0;
+  let n = 0;
+  for (const k of ['situations', 'patterns', 'structures', 'mentalModels'] as const) {
+    if (ic[k]?.current?.trim()?.length) n++;
+    if (ic[k]?.desired?.trim()?.length) n++;
+  }
+  return n;
 }
 
 function Stat({ label, value }: { label: string; value: string }) {

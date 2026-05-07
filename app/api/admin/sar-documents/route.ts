@@ -23,6 +23,75 @@ function uploadsRoot() {
   return path.join(process.cwd(), 'public', 'uploads', 'sar');
 }
 
+interface IcebergLayer { current: string; desired: string }
+interface Iceberg {
+  situations: IcebergLayer;
+  patterns: IcebergLayer;
+  structures: IcebergLayer;
+  mentalModels: IcebergLayer;
+}
+
+function parseIceberg(raw: unknown): Iceberg | null {
+  if (typeof raw !== 'string' || raw.trim().length === 0) return null;
+  let parsed: any;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== 'object') return null;
+  const layer = (k: string): IcebergLayer => {
+    const l = parsed[k];
+    return {
+      current: typeof l?.current === 'string' ? l.current.trim() : '',
+      desired: typeof l?.desired === 'string' ? l.desired.trim() : '',
+    };
+  };
+  return {
+    situations: layer('situations'),
+    patterns: layer('patterns'),
+    structures: layer('structures'),
+    mentalModels: layer('mentalModels'),
+  };
+}
+
+function icebergHasContent(ic: Iceberg): boolean {
+  return (
+    ic.situations.current.length > 0 || ic.situations.desired.length > 0 ||
+    ic.patterns.current.length > 0 || ic.patterns.desired.length > 0 ||
+    ic.structures.current.length > 0 || ic.structures.desired.length > 0 ||
+    ic.mentalModels.current.length > 0 || ic.mentalModels.desired.length > 0
+  );
+}
+
+// Render the structured Iceberg input as a Thai-language plain-text body.
+// This is what gets indexed into SarPage by the extract-or-ocr job, fed to SOAR
+// as evidence base, and shown to legacy consumers that only know about bodyText.
+function renderIcebergAsText(ic: Iceberg): string {
+  const sections: Array<[string, IcebergLayer]> = [
+    ['ชั้น 1: สถานการณ์ (สิ่งที่เห็นเกิดขึ้น)', ic.situations],
+    ['ชั้น 2: รูปแบบของปัญหา (สิ่งที่เกิดซ้ำ)', ic.patterns],
+    ['ชั้น 3: โครงสร้าง (กลไก/นโยบาย/ระบบที่ค้ำไว้)', ic.structures],
+    ['ชั้น 4: แบบจำลองวิธีคิด (ความเชื่อ/ค่านิยมที่ฝังลึก)', ic.mentalModels],
+  ];
+  const out: string[] = [];
+  for (const [title, layer] of sections) {
+    if (layer.current.length === 0 && layer.desired.length === 0) continue;
+    out.push(`## ${title}`);
+    if (layer.current.length > 0) {
+      out.push('สิ่งที่เป็นอยู่:');
+      out.push(layer.current);
+    }
+    if (layer.desired.length > 0) {
+      out.push('');
+      out.push('สิ่งที่อยากให้เป็น:');
+      out.push(layer.desired);
+    }
+    out.push('');
+  }
+  return out.join('\n').trim();
+}
+
 async function userMaySchool(userId: number, schoolId: number, isAdmin: boolean): Promise<boolean> {
   if (isAdmin) return true;
   const t = await prisma.teacher.findUnique({ where: { userId } });
@@ -71,6 +140,7 @@ export async function GET(request: NextRequest) {
         hasFile: !!d.filePath,
         hasBodyText: !!d.bodyText,
         bodyTextLength: d.bodyText ? d.bodyText.length : 0,
+        hasIceberg: !!(d as any).bodyIceberg,
         status: d.status,
         extractionMethod: d.extractionMethod,
         textQualityScore: d.textQualityScore,
@@ -108,19 +178,27 @@ export async function POST(request: NextRequest) {
     const changeNote = String(form.get('changeNote') || '');
     const file = form.get('file');
     const bodyTextRaw = form.get('bodyText');
+    const bodyIcebergRaw = form.get('bodyIceberg');
 
     if (!schoolIdRaw || !academicYearIdRaw || !level || !ALLOWED_LEVELS.has(level)) {
       return errorResponse('Missing or invalid fields: schoolId, academicYearId, level', 400);
     }
 
     const hasFile = file instanceof File && file.size > 0;
-    const bodyText = typeof bodyTextRaw === 'string' ? bodyTextRaw.trim() : '';
+    // bodyIceberg is the new structured input. If present, it derives bodyText.
+    // bodyText is still accepted for backward compatibility with older callers.
+    const iceberg = parseIceberg(bodyIcebergRaw);
+    const hasIceberg = !!iceberg && icebergHasContent(iceberg);
+    let bodyText = typeof bodyTextRaw === 'string' ? bodyTextRaw.trim() : '';
+    if (hasIceberg) {
+      bodyText = renderIcebergAsText(iceberg!);
+    }
     const hasBodyText = bodyText.length > 0;
 
-    if (!hasFile && !hasBodyText) {
-      return errorResponse('ต้องส่งไฟล์ PDF หรือข้อความ SAR อย่างน้อยหนึ่งอย่าง', 400);
+    if (!hasFile && !hasIceberg && !hasBodyText) {
+      return errorResponse('ต้องส่งไฟล์ PDF หรือกรอกอย่างน้อย 1 ช่อง Iceberg', 400);
     }
-    if (hasBodyText && bodyText.length < 10) {
+    if (hasBodyText && !hasIceberg && bodyText.length < 10) {
       return errorResponse('ข้อความ SAR ต้องมีอย่างน้อย 10 ตัวอักษร', 400);
     }
     if (hasFile) {
@@ -144,11 +222,12 @@ export async function POST(request: NextRequest) {
 
     const versionNo = existing ? (existing.versions[0]?.versionNo ?? 0) + 1 : 1;
 
-    // Field carry-forward: a submission that updates only one field (file XOR text)
-    // preserves the other field from the previous state, so versions are full snapshots.
+    // Field carry-forward: a submission that updates only one field (file / iceberg)
+    // preserves the others from the previous state, so versions are full snapshots.
     let nextFilePath: string | null = existing?.filePath ?? null;
     let nextOriginalFilename: string | null = existing?.originalFilename ?? null;
     let nextBodyText: string | null = existing?.bodyText ?? null;
+    let nextBodyIceberg: any = (existing as any)?.bodyIceberg ?? null;
 
     if (hasFile) {
       const f = file as File;
@@ -162,7 +241,10 @@ export async function POST(request: NextRequest) {
       nextOriginalFilename = f.name;
     }
 
-    if (hasBodyText) {
+    if (hasIceberg) {
+      nextBodyIceberg = iceberg;
+      nextBodyText = bodyText; // already rendered from iceberg above
+    } else if (hasBodyText) {
       nextBodyText = bodyText;
     }
 
@@ -174,6 +256,7 @@ export async function POST(request: NextRequest) {
           filePath: nextFilePath,
           originalFilename: nextOriginalFilename,
           bodyText: nextBodyText,
+          bodyIceberg: nextBodyIceberg ?? undefined,
           status: 'UPLOADED',
           extractionMethod: null,
           textQualityScore: null,
@@ -190,6 +273,7 @@ export async function POST(request: NextRequest) {
           versionNo,
           filePath: nextFilePath,
           bodyText: nextBodyText,
+          bodyIceberg: nextBodyIceberg ?? undefined,
           createdById: me.id,
           changeNote: changeNote || null,
         },
@@ -203,6 +287,7 @@ export async function POST(request: NextRequest) {
           originalFilename: nextOriginalFilename,
           filePath: nextFilePath,
           bodyText: nextBodyText,
+          bodyIceberg: nextBodyIceberg ?? undefined,
           status: 'UPLOADED',
           uploadedById: me.id,
         },
@@ -213,6 +298,7 @@ export async function POST(request: NextRequest) {
           versionNo: 1,
           filePath: nextFilePath,
           bodyText: nextBodyText,
+          bodyIceberg: nextBodyIceberg ?? undefined,
           createdById: me.id,
           changeNote: changeNote || null,
         },
@@ -230,6 +316,7 @@ export async function POST(request: NextRequest) {
         level,
         versionNo,
         hasFile,
+        hasIceberg,
         hasBodyText,
         bodyTextLength: hasBodyText ? bodyText.length : 0,
         originalFilename: nextOriginalFilename,
@@ -243,6 +330,7 @@ export async function POST(request: NextRequest) {
         versionNo,
         filePath: nextFilePath,
         hasBodyText: !!nextBodyText,
+        hasIceberg: !!nextBodyIceberg,
       },
       existing ? `บันทึกเวอร์ชันใหม่สำเร็จ (v${versionNo})` : 'บันทึกสำเร็จ'
     );
