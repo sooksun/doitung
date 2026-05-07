@@ -103,7 +103,24 @@ export const ICEBERG_LAYERS: Array<{
 ];
 
 // ─── Editable matrix ──────────────────────────────────────────────────────
-export function IcebergInput({ value, onChange }: { value: Iceberg; onChange: (v: Iceberg) => void }) {
+export type IcebergCellAccessoryArgs = {
+  layerKey: keyof Iceberg;
+  layerNo: 1 | 2 | 3 | 4;
+  side: 'current' | 'desired';
+};
+
+export function IcebergInput({
+  value,
+  onChange,
+  renderCellAccessory,
+}: {
+  value: Iceberg;
+  onChange: (v: Iceberg) => void;
+  // Optional slot rendered in the top-right corner of each textarea — used by
+  // /admin/sar/new to attach the Sticky Notes button to specific cells without
+  // forcing every caller (e.g. /admin/sar/[id]) to know about it.
+  renderCellAccessory?: (args: IcebergCellAccessoryArgs) => React.ReactNode;
+}) {
   const setCell = (layer: keyof Iceberg, side: 'current' | 'desired', text: string) => {
     onChange({ ...value, [layer]: { ...value[layer], [side]: text } });
   };
@@ -140,35 +157,52 @@ export function IcebergInput({ value, onChange }: { value: Iceberg; onChange: (v
         <div>📍 สิ่งที่เป็นอยู่</div>
         <div>🎯 สิ่งที่อยากให้เป็น</div>
       </div>
-      {ICEBERG_LAYERS.map(({ key, label, sublabel, bg, accent, placeholderCurrent, placeholderDesired }) => (
-        <div
-          key={key}
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '160px 1fr 1fr',
-            gap: '0.4rem',
-            marginBottom: '0.4rem',
-            alignItems: 'stretch',
-          }}
-        >
-          <div style={{ background: bg, borderLeft: `4px solid ${accent}`, padding: '0.5rem 0.6rem', borderRadius: '0.25rem' }}>
-            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: accent }}>{label}</div>
-            <div style={{ fontSize: '0.7rem', color: '#475569', lineHeight: 1.3 }}>{sublabel}</div>
+      {ICEBERG_LAYERS.map(({ key, label, sublabel, bg, accent, placeholderCurrent, placeholderDesired }, idx) => {
+        const layerNo = (idx + 1) as 1 | 2 | 3 | 4;
+        return (
+          <div
+            key={key}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '160px 1fr 1fr',
+              gap: '0.4rem',
+              marginBottom: '0.4rem',
+              alignItems: 'stretch',
+            }}
+          >
+            <div style={{ background: bg, borderLeft: `4px solid ${accent}`, padding: '0.5rem 0.6rem', borderRadius: '0.25rem' }}>
+              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: accent }}>{label}</div>
+              <div style={{ fontSize: '0.7rem', color: '#475569', lineHeight: 1.3 }}>{sublabel}</div>
+            </div>
+            <CellWithAccessory accessory={renderCellAccessory?.({ layerKey: key, layerNo, side: 'current' })}>
+              <textarea
+                value={value[key].current}
+                onChange={(e) => setCell(key, 'current', e.target.value)}
+                placeholder={placeholderCurrent}
+                style={cellStyle}
+              />
+            </CellWithAccessory>
+            <CellWithAccessory accessory={renderCellAccessory?.({ layerKey: key, layerNo, side: 'desired' })}>
+              <textarea
+                value={value[key].desired}
+                onChange={(e) => setCell(key, 'desired', e.target.value)}
+                placeholder={placeholderDesired}
+                style={{ ...cellStyle, background: '#fefce8', borderColor: '#facc15' }}
+              />
+            </CellWithAccessory>
           </div>
-          <textarea
-            value={value[key].current}
-            onChange={(e) => setCell(key, 'current', e.target.value)}
-            placeholder={placeholderCurrent}
-            style={cellStyle}
-          />
-          <textarea
-            value={value[key].desired}
-            onChange={(e) => setCell(key, 'desired', e.target.value)}
-            placeholder={placeholderDesired}
-            style={{ ...cellStyle, background: '#fefce8', borderColor: '#facc15' }}
-          />
-        </div>
-      ))}
+        );
+      })}
+    </div>
+  );
+}
+
+function CellWithAccessory({ children, accessory }: { children: React.ReactNode; accessory?: React.ReactNode }) {
+  if (!accessory) return <>{children}</>;
+  return (
+    <div style={{ position: 'relative' }}>
+      {children}
+      <div style={{ position: 'absolute', top: 4, right: 6, zIndex: 2 }}>{accessory}</div>
     </div>
   );
 }

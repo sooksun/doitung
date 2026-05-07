@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toastSuccess, toastError } from '@/lib/toast';
 import { IcebergInput, EMPTY_ICEBERG, icebergHasContent, type Iceberg } from '@/app/components/IcebergInput';
+import { StickyNoteButton } from '@/app/components/sticky/StickyNoteButton';
 
 interface School { id: number; code: string | null; nameTh: string | null; name: string; }
 interface AcademicYear { id: number; year: string; }
@@ -130,10 +131,10 @@ export default function NewSarPage() {
 
         <div style={{ background: 'white', padding: '2rem', borderRadius: '0.5rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#333', marginBottom: '0.25rem' }}>
-            📤 ส่งข้อมูล SAR
+            📌 บันทึกข้อมูลการระดมสมอง
           </h1>
           <p style={{ color: '#666', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
-            ส่งได้ทั้ง <strong>ไฟล์ PDF</strong> และ/หรือ <strong>กรอกแบบ Iceberg Model</strong> 4 ชั้น × 2 ด้าน (สิ่งที่เป็นอยู่ ↔ สิ่งที่อยากให้เป็น) · ไม่บังคับครบทุกช่อง · ทุกครั้งที่บันทึกจะเก็บเวอร์ชันใหม่
+            ระดมสมองด้วย Sticky Notes แล้วบันทึกลงแบบ <strong>Iceberg Model</strong> 4 ชั้น × 2 ด้าน (สิ่งที่เป็นอยู่ ↔ สิ่งที่อยากให้เป็น) · แนบ <strong>ไฟล์ PDF</strong> ได้ · ไม่บังคับครบทุกช่อง · ทุกครั้งที่บันทึกจะเก็บเวอร์ชันใหม่
           </p>
 
           {error && <div style={{ padding: '0.75rem', background: '#fee', color: '#c33', borderRadius: '0.4rem', marginBottom: '1rem', fontSize: '0.875rem' }}>{error}</div>}
@@ -182,7 +183,36 @@ export default function NewSarPage() {
                 <input type="file" accept="application/pdf" onChange={(e) => setFile(e.target.files?.[0] || null)} style={{ ...inputStyle, padding: '0.5rem', cursor: 'pointer' }} />
                 {file && <div style={{ fontSize: '0.78rem', color: '#666', marginTop: '0.25rem' }}>เลือกแล้ว: {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)</div>}
               </div>
-              <IcebergInput value={iceberg} onChange={setIceberg} />
+              <IcebergInput
+                value={iceberg}
+                onChange={setIceberg}
+                renderCellAccessory={({ layerNo, side }) => {
+                  // MVP: only Layer 1 / สิ่งที่เป็นอยู่ has the brainstorming popup.
+                  if (!(layerNo === 1 && side === 'current')) return null;
+                  const ready = !!resolvedSchoolId && !!academicYearId;
+                  const contextId = ready
+                    ? `sar:draft:school:${resolvedSchoolId}:year:${academicYearId}:iceberg:L1:CURRENT`
+                    : 'sar:draft:placeholder';
+                  return (
+                    <StickyNoteButton
+                      contextType="ICEBERG_CELL"
+                      contextId={contextId}
+                      schoolId={resolvedSchoolId}
+                      layerNo={1}
+                      side="CURRENT"
+                      title="ชั้น 1 สถานการณ์ / สิ่งที่เป็นอยู่"
+                      disabled={!ready}
+                      disabledReason="กรุณาเลือกโรงเรียนและปีการศึกษาก่อน"
+                      onApplyText={(text) =>
+                        setIceberg((prev) => ({
+                          ...prev,
+                          situations: { ...prev.situations, current: text },
+                        }))
+                      }
+                    />
+                  );
+                }}
+              />
             </fieldset>
 
             <div style={{ marginBottom: '1.5rem' }}>

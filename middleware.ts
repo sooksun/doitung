@@ -17,6 +17,7 @@ const protectedApiRoutes = [
   '/api/admin',
   '/api/ai',
   '/api/feature-flags',
+  '/api/sticky-notes',
 ];
 
 export function middleware(request: NextRequest) {
