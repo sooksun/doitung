@@ -18,6 +18,9 @@ import { EvaluationSessionDto, PaginatedResponse } from '@/lib/api-types';
 
 export async function GET(request: NextRequest) {
   try {
+    const me = await requireAuth(request);
+    const isAdmin = hasRole(me, 'ADMIN');
+
     const searchParams = request.nextUrl.searchParams;
     const instrumentId = parseIntParam(searchParams, 'instrumentId');
     const schoolId = parseIntParam(searchParams, 'schoolId');
@@ -43,20 +46,31 @@ export async function GET(request: NextRequest) {
       where.status = { not: EvaluationStatus.ARCHIVED };
     }
 
-    // Handle schoolId and networkId
-    if (schoolId !== undefined) {
-      where.schoolId = schoolId;
-    } else if (networkId !== undefined) {
-      // Get schools in network
-      const networkMembers = await prisma.schoolNetworkMember.findMany({
-        where: { networkId, isActive: true },
+    // School-isolation: non-admins can only see evaluations of their own school.
+    // Admin can pass ?schoolId=… or ?networkId=… freely; non-admins get their school
+    // forced regardless of the query string. Users with no Teacher binding fall back
+    // to "only my own evaluations" so they don't accidentally see other schools.
+    if (isAdmin) {
+      if (schoolId !== undefined) {
+        where.schoolId = schoolId;
+      } else if (networkId !== undefined) {
+        const networkMembers = await prisma.schoolNetworkMember.findMany({
+          where: { networkId, isActive: true },
+          select: { schoolId: true },
+        });
+        const schoolIds = networkMembers.map((m) => m.schoolId);
+        where.schoolId = schoolIds.length > 0 ? { in: schoolIds } : -1;
+      }
+    } else {
+      const teacher = await prisma.teacher.findUnique({
+        where: { userId: me.id },
         select: { schoolId: true },
       });
-      const schoolIds = networkMembers.map((m) => m.schoolId);
-      if (schoolIds.length > 0) {
-        where.schoolId = { in: schoolIds };
+      if (teacher) {
+        where.schoolId = teacher.schoolId;
       } else {
-        where.schoolId = -1; // No schools in network
+        // Unbound non-admin → see only sessions they created
+        where.evaluatorId = me.id;
       }
     }
 
@@ -181,7 +195,13 @@ export async function GET(request: NextRequest) {
     };
 
     return successResponse(response);
-  } catch (error) {
+  } catch (error: any) {
+    if (typeof error?.message === 'string' && error.message.startsWith('Unauthorized')) {
+      return errorResponse(error.message, 401);
+    }
+    if (typeof error?.message === 'string' && error.message.startsWith('Forbidden')) {
+      return errorResponse(error.message, 403);
+    }
     return handleApiError(error);
   }
 }
