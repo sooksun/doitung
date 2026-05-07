@@ -205,23 +205,25 @@ export async function DELETE(
 
     const existing = await prisma.evaluationSession.findUnique({
       where: { id },
-      select: { evaluatorId: true },
+      select: { evaluatorId: true, status: true },
     });
     if (!existing) return errorResponse('ไม่พบการประเมินที่ต้องการ', 404);
     if (existing.evaluatorId !== me.id && !hasRole(me, 'ADMIN')) {
-      return errorResponse('คุณสามารถลบได้เฉพาะการประเมินของตนเองเท่านั้น', 403);
+      return errorResponse('คุณสามารถเคลียร์ได้เฉพาะการประเมินของตนเองเท่านั้น', 403);
+    }
+    if (existing.status === 'ARCHIVED') {
+      return successResponse({ id, status: existing.status }, 'รายการนี้ถูกเคลียร์อยู่แล้ว');
     }
 
-    // Delete related data (cascade)
-    await prisma.evaluationResponse.deleteMany({
-      where: { evaluationSessionId: id },
-    });
-
-    await prisma.evaluationSession.delete({
+    // Soft-delete: mark as ARCHIVED so dashboards/lists hide it but the responses
+    // (scores, comments) and AI run history are preserved for audit and recovery.
+    const archived = await prisma.evaluationSession.update({
       where: { id },
+      data: { status: EvaluationStatus.ARCHIVED },
+      select: { id: true, status: true },
     });
 
-    return successResponse(null, 'ลบการประเมินสำเร็จ');
+    return successResponse(archived, 'เคลียร์รายการประเมินสำเร็จ (ซ่อนจากรายการ ข้อมูลยังอยู่)');
   } catch (error: any) {
     if (error?.message?.startsWith('Unauthorized')) return errorResponse(error.message, 401);
     return handleApiError(error);

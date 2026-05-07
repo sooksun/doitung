@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
     const termId = parseIntParam(searchParams, 'termId');
     const evaluatorId = parseIntParam(searchParams, 'evaluatorId');
     const status = searchParams.get('status') as EvaluationStatus | null;
+    const includeArchived = searchParams.get('includeArchived') === 'true';
 
     const { page, limit, skip } = parsePagination(searchParams);
 
@@ -34,7 +35,13 @@ export async function GET(request: NextRequest) {
     if (academicYearId !== undefined) where.academicYearId = academicYearId;
     if (termId !== undefined) where.termId = termId;
     if (evaluatorId !== undefined) where.evaluatorId = evaluatorId;
-    if (status) where.status = status;
+    if (status) {
+      // Explicit status filter wins — caller can pass status=ARCHIVED to view cleared items
+      where.status = status;
+    } else if (!includeArchived) {
+      // Default: hide soft-deleted (ARCHIVED) rows from the list
+      where.status = { not: EvaluationStatus.ARCHIVED };
+    }
 
     // Handle schoolId and networkId
     if (schoolId !== undefined) {

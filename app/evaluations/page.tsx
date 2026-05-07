@@ -88,6 +88,29 @@ export default function EvaluationsPage() {
     }
   };
 
+  const handleClear = async (id: number) => {
+    if (!token) return;
+    const ok = confirm(
+      `ต้องการเคลียร์รายการประเมิน #${id} ใช่หรือไม่?\n\nรายการจะถูกซ่อนจากหน้านี้ทันที\nคะแนนและความคิดเห็นยังถูกเก็บไว้ในระบบ (สามารถกู้คืนได้โดย admin)`
+    );
+    if (!ok) return;
+    try {
+      const res = await fetch(`/api/evaluations/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        alert(json.error || 'เคลียร์ไม่สำเร็จ');
+        return;
+      }
+      // Optimistic remove: drop the row immediately so the UI feels responsive
+      setEvaluations((prev) => prev.filter((e) => e.id !== id));
+    } catch {
+      alert('เกิดข้อผิดพลาด');
+    }
+  };
+
   const getStatusColor = (status: string) => {
     const colors: Record<string, { bg: string; text: string }> = {
       'DRAFT': { bg: '#fef3c7', text: '#92400e' },
@@ -245,6 +268,23 @@ export default function EvaluationsPage() {
                       >
                         ดูรายละเอียด
                       </Link>
+                      {(meId === evaluation.evaluatorId || isAdmin) && evaluation.status !== 'ARCHIVED' && (
+                        <button
+                          onClick={() => handleClear(evaluation.id)}
+                          title="ซ่อนรายการนี้ (Soft delete — ข้อมูลยังอยู่ในระบบ)"
+                          style={{
+                            padding: '0.25rem 0.75rem',
+                            background: '#fee2e2',
+                            color: '#991b1b',
+                            border: '1px solid #fca5a5',
+                            borderRadius: '0.25rem',
+                            cursor: 'pointer',
+                            fontSize: '0.875rem',
+                          }}
+                        >
+                          🗑️ เคลียร์
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
