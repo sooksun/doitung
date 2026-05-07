@@ -1,5 +1,7 @@
 // app/admin/sar/new/page.tsx
-// Upload SAR PDF for a school+year+level. Auto-fills school for non-admin.
+// Submit SAR data for a school+year. One Iceberg matrix + optional PDF per submission.
+// `level` is fixed to BASIC_EDUCATION on this form — the previous early-childhood/basic
+// split was consolidated into a single SAR per school/year on user request.
 
 'use client';
 
@@ -23,10 +25,8 @@ export default function NewSarPage() {
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [schoolInput, setSchoolInput] = useState('');
   const [academicYearId, setAcademicYearId] = useState('');
-  const [ecFile, setEcFile] = useState<File | null>(null);
-  const [bsFile, setBsFile] = useState<File | null>(null);
-  const [ecIceberg, setEcIceberg] = useState<Iceberg>(EMPTY_ICEBERG);
-  const [bsIceberg, setBsIceberg] = useState<Iceberg>(EMPTY_ICEBERG);
+  const [file, setFile] = useState<File | null>(null);
+  const [iceberg, setIceberg] = useState<Iceberg>(EMPTY_ICEBERG);
   const [changeNote, setChangeNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -77,38 +77,14 @@ export default function NewSarPage() {
     }).catch(() => setError('โหลดข้อมูลไม่สำเร็จ'));
   }, [router]);
 
-  const submit = async (
-    level: 'EARLY_CHILDHOOD' | 'BASIC_EDUCATION',
-    schoolId: number,
-    yearId: number,
-    file: File | null,
-    iceberg: Iceberg,
-  ) => {
-    const fd = new FormData();
-    if (file) fd.append('file', file);
-    if (icebergHasContent(iceberg)) fd.append('bodyIceberg', JSON.stringify(iceberg));
-    fd.append('schoolId', String(schoolId));
-    fd.append('academicYearId', String(yearId));
-    fd.append('level', level);
-    if (changeNote) fd.append('changeNote', changeNote);
-    const res = await fetch('/api/admin/sar-documents', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: fd,
-    });
-    const json = await res.json();
-    if (!res.ok || !json.success) throw new Error(json.error || `Submit failed (${level})`);
-    return json.data;
-  };
-
-  const ecHasInput = !!ecFile || icebergHasContent(ecIceberg);
-  const bsHasInput = !!bsFile || icebergHasContent(bsIceberg);
+  // Single submission: one PDF + one Iceberg, level hardcoded to BASIC_EDUCATION.
+  const hasInput = !!file || icebergHasContent(iceberg);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) return;
-    if (!ecHasInput && !bsHasInput) {
-      toastError('กรุณาส่ง PDF หรือกรอกอย่างน้อย 1 ช่อง Iceberg ใน 1 ระดับ');
+    if (!hasInput) {
+      toastError('กรุณาส่ง PDF หรือกรอกอย่างน้อย 1 ช่อง Iceberg');
       return;
     }
     if (!academicYearId) { toastError('กรุณาเลือกปีการศึกษา'); return; }
@@ -117,17 +93,23 @@ export default function NewSarPage() {
     setSubmitting(true);
     setError('');
     try {
-      let lastId: number | null = null;
-      if (ecHasInput) {
-        const r = await submit('EARLY_CHILDHOOD', resolvedSchoolId, parseInt(academicYearId, 10), ecFile, ecIceberg);
-        lastId = r.id;
-      }
-      if (bsHasInput) {
-        const r = await submit('BASIC_EDUCATION', resolvedSchoolId, parseInt(academicYearId, 10), bsFile, bsIceberg);
-        lastId = r.id;
-      }
+      const fd = new FormData();
+      if (file) fd.append('file', file);
+      if (icebergHasContent(iceberg)) fd.append('bodyIceberg', JSON.stringify(iceberg));
+      fd.append('schoolId', String(resolvedSchoolId));
+      fd.append('academicYearId', academicYearId);
+      fd.append('level', 'BASIC_EDUCATION');
+      if (changeNote) fd.append('changeNote', changeNote);
+
+      const res = await fetch('/api/admin/sar-documents', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || 'Submit failed');
       toastSuccess('บันทึกสำเร็จ');
-      router.push(lastId ? `/admin/sar/${lastId}` : '/admin/sar');
+      router.push(json.data?.id ? `/admin/sar/${json.data.id}` : '/admin/sar');
     } catch (err: any) {
       setError(err.message || 'บันทึกไม่สำเร็จ');
       toastError(err.message || 'บันทึกไม่สำเร็จ');
@@ -151,7 +133,7 @@ export default function NewSarPage() {
             📤 ส่งข้อมูล SAR
           </h1>
           <p style={{ color: '#666', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
-            ส่งได้ทั้ง <strong>ไฟล์ PDF</strong> และ/หรือ <strong>กรอกแบบ Iceberg Model</strong> 4 ชั้น × 2 ด้าน (สิ่งที่เป็นอยู่ ↔ สิ่งที่อยากให้เป็น) สำหรับ 2 ระดับ: ปฐมวัย + ขั้นพื้นฐาน · ไม่บังคับครบทุกช่อง · ทุกครั้งที่บันทึกจะเก็บเวอร์ชันใหม่
+            ส่งได้ทั้ง <strong>ไฟล์ PDF</strong> และ/หรือ <strong>กรอกแบบ Iceberg Model</strong> 4 ชั้น × 2 ด้าน (สิ่งที่เป็นอยู่ ↔ สิ่งที่อยากให้เป็น) · ไม่บังคับครบทุกช่อง · ทุกครั้งที่บันทึกจะเก็บเวอร์ชันใหม่
           </p>
 
           {error && <div style={{ padding: '0.75rem', background: '#fee', color: '#c33', borderRadius: '0.4rem', marginBottom: '1rem', fontSize: '0.875rem' }}>{error}</div>}
@@ -195,23 +177,12 @@ export default function NewSarPage() {
             </div>
 
             <fieldset style={{ marginBottom: '1.25rem', padding: '1rem', border: '1px solid #e5e7eb', borderRadius: '0.5rem' }}>
-              <legend style={{ padding: '0 0.5rem', fontWeight: 600, color: '#333' }}>SAR ระดับปฐมวัย</legend>
               <div style={{ marginBottom: '0.75rem' }}>
                 <label style={labelStyle}>📎 ไฟล์ PDF (ถ้ามี)</label>
-                <input type="file" accept="application/pdf" onChange={(e) => setEcFile(e.target.files?.[0] || null)} style={{ ...inputStyle, padding: '0.5rem', cursor: 'pointer' }} />
-                {ecFile && <div style={{ fontSize: '0.78rem', color: '#666', marginTop: '0.25rem' }}>เลือกแล้ว: {ecFile.name} ({(ecFile.size / 1024 / 1024).toFixed(2)} MB)</div>}
+                <input type="file" accept="application/pdf" onChange={(e) => setFile(e.target.files?.[0] || null)} style={{ ...inputStyle, padding: '0.5rem', cursor: 'pointer' }} />
+                {file && <div style={{ fontSize: '0.78rem', color: '#666', marginTop: '0.25rem' }}>เลือกแล้ว: {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)</div>}
               </div>
-              <IcebergInput value={ecIceberg} onChange={setEcIceberg} />
-            </fieldset>
-
-            <fieldset style={{ marginBottom: '1.25rem', padding: '1rem', border: '1px solid #e5e7eb', borderRadius: '0.5rem' }}>
-              <legend style={{ padding: '0 0.5rem', fontWeight: 600, color: '#333' }}>SAR ระดับขั้นพื้นฐาน</legend>
-              <div style={{ marginBottom: '0.75rem' }}>
-                <label style={labelStyle}>📎 ไฟล์ PDF (ถ้ามี)</label>
-                <input type="file" accept="application/pdf" onChange={(e) => setBsFile(e.target.files?.[0] || null)} style={{ ...inputStyle, padding: '0.5rem', cursor: 'pointer' }} />
-                {bsFile && <div style={{ fontSize: '0.78rem', color: '#666', marginTop: '0.25rem' }}>เลือกแล้ว: {bsFile.name} ({(bsFile.size / 1024 / 1024).toFixed(2)} MB)</div>}
-              </div>
-              <IcebergInput value={bsIceberg} onChange={setBsIceberg} />
+              <IcebergInput value={iceberg} onChange={setIceberg} />
             </fieldset>
 
             <div style={{ marginBottom: '1.5rem' }}>
@@ -222,10 +193,10 @@ export default function NewSarPage() {
             <div style={{ display: 'flex', gap: '0.75rem', borderTop: '1px solid #e5e7eb', paddingTop: '1rem' }}>
               <button
                 type="submit"
-                disabled={submitting || (!ecHasInput && !bsHasInput) || !resolvedSchoolId || !academicYearId}
+                disabled={submitting || !hasInput || !resolvedSchoolId || !academicYearId}
                 style={{
                   padding: '0.7rem 1.5rem',
-                  background: submitting || (!ecHasInput && !bsHasInput) || !resolvedSchoolId || !academicYearId ? '#9ca3af' : '#10b981',
+                  background: submitting || !hasInput || !resolvedSchoolId || !academicYearId ? '#9ca3af' : '#10b981',
                   color: 'white', border: 'none', borderRadius: '0.4rem', fontSize: '0.95rem', fontWeight: 600,
                   cursor: submitting ? 'not-allowed' : 'pointer',
                 }}
