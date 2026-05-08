@@ -11,10 +11,12 @@ import {
   IcebergInput,
   IcebergDisplay,
   EMPTY_ICEBERG,
+  ICEBERG_LAYERS,
   icebergHasContent,
   normalizeIceberg,
   type Iceberg,
 } from '@/app/components/IcebergInput';
+import { StickyNoteButton } from '@/app/components/sticky/StickyNoteButton';
 
 interface VersionRow { id: number; versionNo: number; createdAt: string; changeNote: string | null; createdBy: { name: string } | null; }
 interface IcebergLayerVal { current: string; desired: string }
@@ -180,7 +182,7 @@ export default function SarDetailPage() {
 
         <div style={{ background: 'white', padding: '2rem', borderRadius: '0.5rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#333', marginBottom: '0.5rem' }}>
-            📄 SAR #{doc.id}
+            📌 แก้ไขข้อมูลการระดมสมอง <span style={{ color: '#9ca3af', fontWeight: 500, fontSize: '1.1rem' }}>#{doc.id}</span>
           </h1>
           <div style={{ color: '#666', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
             <div>{doc.schoolCode} {doc.schoolName} · ปีการศึกษา {doc.academicYear} · ระดับ {LEVEL_LABEL[doc.level] || doc.level}</div>
@@ -288,7 +290,35 @@ export default function SarDetailPage() {
               </div>
               {editing ? (
                 <>
-                  <IcebergInput value={icebergDraft} onChange={setIcebergDraft} />
+                  <IcebergInput
+                    value={icebergDraft}
+                    onChange={setIcebergDraft}
+                    renderCellAccessory={({ layerNo, side }) => {
+                      // Edit-mode boards are scoped to THIS SarDocument id, so
+                      // they're separate from the draft boards used on
+                      // /admin/sar/new (those use sar:draft:school:..:year:..).
+                      // Same school + same Iceberg layer → same shareable
+                      // board across edits, different from the original draft.
+                      const sideKey = side === 'current' ? 'CURRENT' : 'DESIRED';
+                      const sideLabel = side === 'current' ? 'สิ่งที่เป็นอยู่' : 'สิ่งที่อยากให้เป็น';
+                      const layerCfg = ICEBERG_LAYERS[layerNo - 1];
+                      const contextId = `sar:${doc.id}:iceberg:L${layerNo}:${sideKey}`;
+                      return (
+                        <StickyNoteButton
+                          contextType="ICEBERG_CELL"
+                          contextId={contextId}
+                          schoolId={doc.schoolId}
+                          title={`${layerCfg.label} / ${sideLabel}`}
+                          onApplyText={(text) =>
+                            setIcebergDraft((prev) => ({
+                              ...prev,
+                              [layerCfg.key]: { ...prev[layerCfg.key], [side]: text },
+                            }))
+                          }
+                        />
+                      );
+                    }}
+                  />
                   <input
                     value={editNote}
                     onChange={(e) => setEditNote(e.target.value)}
