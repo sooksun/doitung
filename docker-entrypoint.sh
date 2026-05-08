@@ -34,13 +34,20 @@ echo "[2/5] Deduping legacy StickyBoard rows (must run before db push)..."
 # few ms when there are no duplicates.
 node /app/scripts/dedupe-sticky-boards.js || echo "  Dedupe warning (continuing — db push will surface any remaining issue)"
 
-echo "[3/5] Running database migrations..."
+echo "[3/6] Running database migrations..."
 npx prisma db push --schema /app/schema.prisma --accept-data-loss 2>&1 || echo "  Migration warning (continuing)"
 
-echo "[4/5] Seeding initial data..."
+echo "[4/6] Converging Q-Model instrument set..."
+# Idempotent. Collapses legacy Q_MODEL + duplicate Q-MODEL-2568 rows into a
+# single canonical instrument so the seed step below can predictably create
+# the 4 sections + 47 indicators (with rubrics) on it. See the script header
+# for the full history this fixes.
+node /app/scripts/migrate-q-model-instrument.js || echo "  Q-Model migration warning (continuing — seed will surface remaining issues)"
+
+echo "[5/6] Seeding initial data..."
 node /app/scripts/seed-production.js || echo "  Seed warning (continuing)"
 
-echo "[5/5] Starting Next.js on port ${PORT:-9901}..."
+echo "[6/6] Starting Next.js on port ${PORT:-9901}..."
 echo "====================================="
 
 exec node server.js
