@@ -118,6 +118,18 @@ export function toastConfirm(
 
   const confirmBg = danger ? '#ef4444' : '#4f46e5';
 
+  const buttonStyle = (bg: string, color: string): React.CSSProperties => ({
+    padding: '0.4rem 0.95rem',
+    background: bg,
+    color,
+    border: 'none',
+    borderRadius: '0.4rem',
+    cursor: 'pointer',
+    fontSize: '0.85rem',
+    fontWeight: 600,
+    fontFamily: 'inherit',
+  });
+
   return new Promise<boolean>((resolve) => {
     // Guard so the dismissal path (X button, programmatic dismiss, route
     // change) doesn't double-fire after a user already pressed a button.
@@ -156,17 +168,7 @@ export function toastConfirm(
                 settle(false);
                 closeToast?.();
               }}
-              style={{
-                padding: '0.4rem 0.95rem',
-                background: '#e5e7eb',
-                color: '#374151',
-                border: 'none',
-                borderRadius: '0.4rem',
-                cursor: 'pointer',
-                fontSize: '0.85rem',
-                fontWeight: 600,
-                fontFamily: 'inherit',
-              }}
+              style={buttonStyle('#e5e7eb', '#374151')}
             >
               {cancelLabel}
             </button>
@@ -176,17 +178,7 @@ export function toastConfirm(
                 settle(true);
                 closeToast?.();
               }}
-              style={{
-                padding: '0.4rem 0.95rem',
-                background: confirmBg,
-                color: 'white',
-                border: 'none',
-                borderRadius: '0.4rem',
-                cursor: 'pointer',
-                fontSize: '0.85rem',
-                fontWeight: 600,
-                fontFamily: 'inherit',
-              }}
+              style={buttonStyle(confirmBg, 'white')}
             >
               {confirmLabel}
             </button>
