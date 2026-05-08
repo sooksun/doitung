@@ -1,6 +1,13 @@
 // app/components/IcebergInput.tsx
 // Iceberg-Model 4-layer × 2-perspective input matrix.
 // Used by /admin/sar/new and /admin/sar/[id] edit panel.
+//
+// Visual matches the workshop slide: a "STEP 4" arrow header, two coloured
+// column pills (สิ่งที่เป็นอยู่ pink, สิ่งที่อยากให้เกิด teal), four horizontal
+// layers cut by an iceberg silhouette, a red vertical centre line dividing
+// the two perspectives, and the layer labels pulled out to the right column.
+// Backwards-compatible with the previous data shape — only the labels and
+// styling changed.
 
 'use client';
 
@@ -9,10 +16,10 @@ import React from 'react';
 // ─── Types ────────────────────────────────────────────────────────────────
 export type IcebergLayer = { current: string; desired: string };
 export type Iceberg = {
-  situations: IcebergLayer;     // ชั้น 1
-  patterns: IcebergLayer;        // ชั้น 2
-  structures: IcebergLayer;      // ชั้น 3
-  mentalModels: IcebergLayer;    // ชั้น 4
+  situations: IcebergLayer;     // ชั้น 1 — ปรากฏการณ์ปัญหาของนักเรียน
+  patterns: IcebergLayer;        // ชั้น 2 — แบบแผนพฤติกรรมของครู
+  structures: IcebergLayer;      // ชั้น 3 — โครงสร้างระบบในโรงเรียน
+  mentalModels: IcebergLayer;    // ชั้น 4 — ค่านิยมและคุณค่า
 };
 
 export const EMPTY_ICEBERG: Iceberg = {
@@ -53,54 +60,178 @@ export function normalizeIceberg(raw: unknown): Iceberg {
 }
 
 // ─── Layer config ─────────────────────────────────────────────────────────
-// Top to bottom (surface → depth) with progressively darker blue accents,
-// matching the rendering on /evaluations/:id/insights.
+// Top to bottom (surface → depth). The labels are the workshop's framing
+// ("ปรากฏการณ์ปัญหาของนักเรียน" instead of the old generic "1 · สถานการณ์")
+// — they describe WHO the symptom belongs to at each depth: students at the
+// surface, teacher behaviour just below, school structures deeper, then
+// values/beliefs at the deepest layer.
 export const ICEBERG_LAYERS: Array<{
   key: keyof Iceberg;
   label: string;
   sublabel: string;
-  bg: string;
-  accent: string;
   placeholderCurrent: string;
   placeholderDesired: string;
 }> = [
   {
     key: 'situations',
-    label: '1 · สถานการณ์',
-    sublabel: 'สิ่งที่เห็นเกิดขึ้นในโรงเรียน/บริบทสังคมตอนนี้',
-    bg: '#eff6ff',
-    accent: '#1d4ed8',
-    placeholderCurrent: 'เช่น เด็กในชุมชนลดลง ขาดแคลนครู ผู้ปกครองทำงานนอกพื้นที่',
-    placeholderDesired: 'เช่น ทุกห้องมีครูเพียงพอ ผู้ปกครองมีส่วนร่วม',
+    label: 'ปรากฏการณ์ปัญหาของนักเรียน',
+    sublabel: 'สิ่งที่เห็นได้ในห้องเรียน/โรงเรียนตอนนี้',
+    placeholderCurrent: 'เช่น เด็กขาดเรียนซ้ำ ๆ ผลสัมฤทธิ์ต่ำ พฤติกรรมก้าวร้าว',
+    placeholderDesired: 'เช่น เด็กมาเรียนสม่ำเสมอ ผลสัมฤทธิ์ดี ใส่ใจการเรียน',
   },
   {
     key: 'patterns',
-    label: '2 · รูปแบบของปัญหา',
-    sublabel: 'อะไรเกิดซ้ำๆ จนกลายเป็นเทรนด์',
-    bg: '#dbeafe',
-    accent: '#1e40af',
-    placeholderCurrent: 'เช่น เด็กขาดเรียนซ้ำในวันเปิดเทอม ครูทำเอกสารแทนสอน',
-    placeholderDesired: 'เช่น เด็กมาเรียนสม่ำเสมอ ครูใช้เวลาส่วนใหญ่กับห้องเรียน',
+    label: 'แบบแผนพฤติกรรมของครู',
+    sublabel: 'สิ่งที่ครูทำซ้ำ ๆ จนเป็นรูปแบบประจำ',
+    placeholderCurrent: 'เช่น ครูสอนแบบบรรยาย ใช้เวลากับเอกสารมากกว่าห้องเรียน',
+    placeholderDesired: 'เช่น ครูใช้ Active Learning เน้นนักเรียนเป็นศูนย์กลาง',
   },
   {
     key: 'structures',
-    label: '3 · โครงสร้าง',
-    sublabel: 'นโยบาย ระบบ ทรัพยากร ภาระงานที่ค้ำรูปแบบไว้',
-    bg: '#bfdbfe',
-    accent: '#1e3a8a',
+    label: 'โครงสร้างระบบในโรงเรียน',
+    sublabel: 'นโยบาย ระบบ ทรัพยากร ภาระงานที่ค้ำพฤติกรรมข้างบนไว้',
     placeholderCurrent: 'เช่น ภาระเอกสารมาก งบจำกัด ตารางสอนแน่น',
     placeholderDesired: 'เช่น มีระบบ PLC ตารางสอนยืดหยุ่น งบฯ พอเพียง',
   },
   {
     key: 'mentalModels',
-    label: '4 · แบบจำลองวิธีคิด',
-    sublabel: 'ความเชื่อ ค่านิยม ทัศนคติที่ฝังลึก',
-    bg: '#93c5fd',
-    accent: '#0c1a4d',
+    label: 'ค่านิยมและคุณค่า (ครู ผอ. ผู้ปกครอง)',
+    sublabel: 'ความเชื่อ/ค่านิยมที่ฝังลึกของผู้ใหญ่รอบเด็ก',
     placeholderCurrent: 'เช่น "การประเมินเพื่อแสดงผลงาน" "เด็กชนบทเรียนได้แค่ระดับหนึ่ง"',
     placeholderDesired: 'เช่น "การประเมินเพื่อพัฒนา" "เด็กทุกคนมีศักยภาพไม่จำกัด"',
   },
 ];
+
+// ─── Common visuals ───────────────────────────────────────────────────────
+const TITLE_BAR_BG = '#22c2ad';        // teal arrow header
+const PILL_PINK_BG = '#fbcfe8';        // "สิ่งที่เป็นอยู่" pill
+const PILL_PINK_FG = '#831843';
+const PILL_TEAL_BG = '#99f6e4';        // "สิ่งที่อยากให้เกิด" pill
+const PILL_TEAL_FG = '#134e4a';
+const RIGHT_LABEL_COL = '180px';
+const ROW_GAP = '0.7rem';
+const COL_GAP = '0.65rem';
+const RED_LINE = '#dc2626';
+const ICEBERG_STROKE = '#1f2937';
+
+function StepArrowTitle() {
+  return (
+    <div
+      style={{
+        display: 'inline-block',
+        background: TITLE_BAR_BG,
+        color: 'white',
+        padding: '0.55rem 1.6rem 0.55rem 1rem',
+        clipPath: 'polygon(0% 0%, 96% 0%, 100% 50%, 96% 100%, 0% 100%)',
+        fontWeight: 700,
+        fontSize: '0.92rem',
+        marginBottom: '0.85rem',
+        letterSpacing: '0.01em',
+      }}
+    >
+      STEP 4 : วิเคราะห์ความซับซ้อนของสถานการณ์ปัญหา (ภูเขาน้ำแข็ง)
+    </div>
+  );
+}
+
+function ColumnPill({ kind, children }: { kind: 'pink' | 'teal'; children: React.ReactNode }) {
+  const bg = kind === 'pink' ? PILL_PINK_BG : PILL_TEAL_BG;
+  const fg = kind === 'pink' ? PILL_PINK_FG : PILL_TEAL_FG;
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center' }}>
+      <span
+        style={{
+          background: bg,
+          color: fg,
+          padding: '0.35rem 1.5rem',
+          borderRadius: 4,
+          fontWeight: 700,
+          fontSize: '0.92rem',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {children}
+      </span>
+    </div>
+  );
+}
+
+// Iceberg silhouette + red centre divider, drawn behind the textareas. The
+// SVG is positioned to span columns 1 + 2 only (input area) and stretches
+// to the full body height; preserveAspectRatio="none" lets it conform to
+// whatever aspect ratio the grid ends up with.
+function IcebergCurve() {
+  return (
+    <svg
+      viewBox="0 0 100 100"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+      style={{
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        left: 0,
+        // Reach right up to the gutter before the right-side label column.
+        right: `calc(${RIGHT_LABEL_COL} + ${COL_GAP})`,
+        width: 'auto',
+        height: '100%',
+        pointerEvents: 'none',
+        zIndex: 0,
+      }}
+    >
+      {/* Iceberg outline — pointed at top + bottom, widest at middle.
+          `vectorEffect: non-scaling-stroke` keeps the line at the requested
+          CSS pixel width regardless of how the SVG is stretched, so we
+          specify it in px-equivalent units (1.5 ≈ visible at all sizes). */}
+      <path
+        d="M 50 0 Q 0 50, 50 100 Q 100 50, 50 0 Z"
+        fill="none"
+        stroke={ICEBERG_STROKE}
+        strokeWidth="1.5"
+        vectorEffect="non-scaling-stroke"
+      />
+      {/* Red vertical centre line dividing the two perspectives. */}
+      <line
+        x1="50"
+        y1="0"
+        x2="50"
+        y2="100"
+        stroke={RED_LINE}
+        strokeWidth="1.5"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+}
+
+function RightSideLabel({ label, sublabel }: { label: string; sublabel: string }) {
+  return (
+    <div style={{ paddingLeft: '0.4rem' }}>
+      <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#1f2937', lineHeight: 1.25 }}>
+        {label}
+      </div>
+      {sublabel && (
+        <div style={{ fontSize: '0.7rem', color: '#6b7280', lineHeight: 1.35, marginTop: 2 }}>
+          {sublabel}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const TEXTAREA_BASE: React.CSSProperties = {
+  width: '100%',
+  minHeight: '78px',
+  padding: '0.55rem 0.7rem',
+  fontSize: '0.85rem',
+  border: '1px solid #d1d5db',
+  borderRadius: '0.4rem',
+  fontFamily: 'inherit',
+  resize: 'vertical',
+  lineHeight: 1.5,
+  boxSizing: 'border-box',
+  background: 'white',
+};
 
 // ─── Editable matrix ──────────────────────────────────────────────────────
 export type IcebergCellAccessoryArgs = {
@@ -117,82 +248,72 @@ export function IcebergInput({
   value: Iceberg;
   onChange: (v: Iceberg) => void;
   // Optional slot rendered in the top-right corner of each textarea — used by
-  // /admin/sar/new to attach the Sticky Notes button to specific cells without
-  // forcing every caller (e.g. /admin/sar/[id]) to know about it.
+  // /admin/sar/new and the SAR edit panel to attach the Sticky Notes button
+  // to specific cells.
   renderCellAccessory?: (args: IcebergCellAccessoryArgs) => React.ReactNode;
 }) {
   const setCell = (layer: keyof Iceberg, side: 'current' | 'desired', text: string) => {
     onChange({ ...value, [layer]: { ...value[layer], [side]: text } });
   };
-  const cellStyle: React.CSSProperties = {
-    width: '100%',
-    minHeight: '70px',
-    padding: '0.5rem 0.65rem',
-    fontSize: '0.85rem',
-    border: '1px solid #d1d5db',
-    borderRadius: '0.35rem',
-    fontFamily: 'inherit',
-    resize: 'vertical',
-    lineHeight: 1.5,
-    boxSizing: 'border-box',
-  };
+
   return (
     <div style={{ marginTop: '0.5rem' }}>
-      <div style={{ fontSize: '0.85rem', fontWeight: 500, color: '#333', marginBottom: '0.5rem' }}>
-        🧊 Iceberg Analysis · 4 ชั้น × 2 ด้าน (ไม่บังคับครบทุกช่อง)
-      </div>
+      <StepArrowTitle />
+
+      {/* Column header pills */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '160px 1fr 1fr',
-          gap: '0.4rem',
-          fontSize: '0.72rem',
-          fontWeight: 700,
-          color: '#6b7280',
-          marginBottom: '0.3rem',
-          paddingLeft: '0.25rem',
+          gridTemplateColumns: `1fr 1fr ${RIGHT_LABEL_COL}`,
+          gap: COL_GAP,
+          marginBottom: '0.6rem',
         }}
       >
-        <div></div>
-        <div>📍 สิ่งที่เป็นอยู่</div>
-        <div>🎯 สิ่งที่อยากให้เป็น</div>
+        <ColumnPill kind="pink">📍 สิ่งที่เป็นอยู่</ColumnPill>
+        <ColumnPill kind="teal">🎯 สิ่งที่อยากให้เกิด</ColumnPill>
+        <div />
       </div>
-      {ICEBERG_LAYERS.map(({ key, label, sublabel, bg, accent, placeholderCurrent, placeholderDesired }, idx) => {
-        const layerNo = (idx + 1) as 1 | 2 | 3 | 4;
-        return (
-          <div
-            key={key}
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '160px 1fr 1fr',
-              gap: '0.4rem',
-              marginBottom: '0.4rem',
-              alignItems: 'stretch',
-            }}
-          >
-            <div style={{ background: bg, borderLeft: `4px solid ${accent}`, padding: '0.5rem 0.6rem', borderRadius: '0.25rem' }}>
-              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: accent }}>{label}</div>
-              <div style={{ fontSize: '0.7rem', color: '#475569', lineHeight: 1.3 }}>{sublabel}</div>
+
+      {/* Body: 4 layer rows × (current / desired / right-label) — with iceberg
+          curve + red divider drawn behind cols 1+2. */}
+      <div style={{ position: 'relative' }}>
+        <IcebergCurve />
+        {ICEBERG_LAYERS.map(({ key, label, sublabel, placeholderCurrent, placeholderDesired }, idx) => {
+          const layerNo = (idx + 1) as 1 | 2 | 3 | 4;
+          return (
+            <div
+              key={key}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: `1fr 1fr ${RIGHT_LABEL_COL}`,
+                gap: COL_GAP,
+                marginBottom: ROW_GAP,
+                alignItems: 'center',
+                position: 'relative',
+                zIndex: 1,
+              }}
+            >
+              <CellWithAccessory accessory={renderCellAccessory?.({ layerKey: key, layerNo, side: 'current' })}>
+                <textarea
+                  value={value[key].current}
+                  onChange={(e) => setCell(key, 'current', e.target.value)}
+                  placeholder={placeholderCurrent}
+                  style={TEXTAREA_BASE}
+                />
+              </CellWithAccessory>
+              <CellWithAccessory accessory={renderCellAccessory?.({ layerKey: key, layerNo, side: 'desired' })}>
+                <textarea
+                  value={value[key].desired}
+                  onChange={(e) => setCell(key, 'desired', e.target.value)}
+                  placeholder={placeholderDesired}
+                  style={{ ...TEXTAREA_BASE, background: '#fefce8', borderColor: '#facc15' }}
+                />
+              </CellWithAccessory>
+              <RightSideLabel label={label} sublabel={sublabel} />
             </div>
-            <CellWithAccessory accessory={renderCellAccessory?.({ layerKey: key, layerNo, side: 'current' })}>
-              <textarea
-                value={value[key].current}
-                onChange={(e) => setCell(key, 'current', e.target.value)}
-                placeholder={placeholderCurrent}
-                style={cellStyle}
-              />
-            </CellWithAccessory>
-            <CellWithAccessory accessory={renderCellAccessory?.({ layerKey: key, layerNo, side: 'desired' })}>
-              <textarea
-                value={value[key].desired}
-                onChange={(e) => setCell(key, 'desired', e.target.value)}
-                placeholder={placeholderDesired}
-                style={{ ...cellStyle, background: '#fefce8', borderColor: '#facc15' }}
-              />
-            </CellWithAccessory>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -208,63 +329,71 @@ function CellWithAccessory({ children, accessory }: { children: React.ReactNode;
 }
 
 // ─── Read-only display ────────────────────────────────────────────────────
+// Matches the editable matrix's layout (curve + red divider + right-side
+// labels) so a saved SAR document looks the same as the form that produced
+// it.
 export function IcebergDisplay({ value }: { value: Iceberg }) {
   return (
     <div>
+      <StepArrowTitle />
+
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '160px 1fr 1fr',
-          gap: '0.4rem',
-          fontSize: '0.72rem',
-          fontWeight: 700,
-          color: '#6b7280',
-          marginBottom: '0.3rem',
-          paddingLeft: '0.25rem',
+          gridTemplateColumns: `1fr 1fr ${RIGHT_LABEL_COL}`,
+          gap: COL_GAP,
+          marginBottom: '0.6rem',
         }}
       >
-        <div></div>
-        <div>📍 สิ่งที่เป็นอยู่</div>
-        <div>🎯 สิ่งที่อยากให้เป็น</div>
+        <ColumnPill kind="pink">📍 สิ่งที่เป็นอยู่</ColumnPill>
+        <ColumnPill kind="teal">🎯 สิ่งที่อยากให้เกิด</ColumnPill>
+        <div />
       </div>
-      {ICEBERG_LAYERS.map(({ key, label, sublabel, bg, accent }) => (
-        <div
-          key={key}
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '160px 1fr 1fr',
-            gap: '0.4rem',
-            marginBottom: '0.4rem',
-            alignItems: 'stretch',
-          }}
-        >
-          <div style={{ background: bg, borderLeft: `4px solid ${accent}`, padding: '0.5rem 0.6rem', borderRadius: '0.25rem' }}>
-            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: accent }}>{label}</div>
-            <div style={{ fontSize: '0.7rem', color: '#475569', lineHeight: 1.3 }}>{sublabel}</div>
+
+      <div style={{ position: 'relative' }}>
+        <IcebergCurve />
+        {ICEBERG_LAYERS.map(({ key, label, sublabel }) => (
+          <div
+            key={key}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: `1fr 1fr ${RIGHT_LABEL_COL}`,
+              gap: COL_GAP,
+              marginBottom: ROW_GAP,
+              alignItems: 'center',
+              position: 'relative',
+              zIndex: 1,
+            }}
+          >
+            <ReadOnlyCell text={value[key].current} placeholder="—" />
+            <ReadOnlyCell text={value[key].desired} placeholder="—" highlight />
+            <RightSideLabel label={label} sublabel={sublabel} />
           </div>
-          <ReadOnlyCell text={value[key].current} placeholder="—" />
-          <ReadOnlyCell text={value[key].desired} placeholder="—" highlight />
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
 
 function ReadOnlyCell({ text, placeholder, highlight }: { text: string; placeholder: string; highlight?: boolean }) {
   if (!text || text.trim().length === 0) {
-    return <div style={{ padding: '0.5rem 0.6rem', fontSize: '0.85rem', color: '#9ca3af', fontStyle: 'italic' }}>{placeholder}</div>;
+    return (
+      <div style={{ padding: '0.55rem 0.7rem', fontSize: '0.85rem', color: '#9ca3af', fontStyle: 'italic' }}>
+        {placeholder}
+      </div>
+    );
   }
   return (
     <div
       style={{
         whiteSpace: 'pre-wrap',
         wordWrap: 'break-word',
-        padding: '0.5rem 0.6rem',
+        padding: '0.55rem 0.7rem',
         fontSize: '0.85rem',
         color: '#1f2937',
         lineHeight: 1.5,
         background: highlight ? '#fefce8' : '#f9fafb',
-        borderRadius: '0.35rem',
+        borderRadius: '0.4rem',
         borderLeft: highlight ? '3px solid #eab308' : '3px solid #d1d5db',
       }}
     >
