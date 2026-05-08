@@ -124,7 +124,7 @@ export default function NewSarPage() {
 
   return (
     <div style={{ minHeight: '100vh', padding: '2rem', background: '#f5f5f5' }}>
-      <div style={{ maxWidth: '700px', margin: '0 auto' }}>
+      <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
         <Link href="/admin/sar" style={{ display: 'inline-block', marginBottom: '1rem', padding: '0.4rem 0.85rem', background: '#667eea', color: 'white', borderRadius: '0.4rem', textDecoration: 'none', fontSize: '0.9rem' }}>
           ← กลับ
         </Link>
