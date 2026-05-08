@@ -166,7 +166,7 @@ export default function SarDetailPage() {
     return (
       <div style={{ padding: '2rem', textAlign: 'center' }}>
         <p style={{ color: '#ef4444', marginBottom: '1rem' }}>{error || 'ไม่พบเอกสาร'}</p>
-        <Link href="/admin/sar" style={{ color: '#667eea', textDecoration: 'none' }}>← กลับไปคลังหลักฐาน</Link>
+        <Link href="/admin/sar" style={{ color: '#667eea', textDecoration: 'none' }}>← กลับไปคลังข้อมูลการระดมสมอง</Link>
       </div>
     );
   }

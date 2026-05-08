@@ -371,7 +371,7 @@ export default function DashboardPage() {
               textAlign: 'center'
             }}
           >
-            📚 คลังหลักฐาน SAR
+            📚 คลังข้อมูลการระดมสมอง
           </Link>
           <Link
             href="/admin/settings/feature-flags"
