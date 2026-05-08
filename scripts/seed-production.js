@@ -4,6 +4,7 @@
 
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
+const Q_MODEL_RUBRICS = require('./data/q-model-rubrics');
 
 const prisma = new PrismaClient();
 
@@ -230,6 +231,10 @@ async function main() {
 
     for (let i = 0; i < dim.items.length; i++) {
       const item = dim.items[i];
+      // Always upsert levelDescriptors so the rubric stays in sync with the
+      // canonical PDF whenever this seed re-runs (idempotent: re-running with
+      // unchanged rubrics is a no-op at the DB level).
+      const rubric = Q_MODEL_RUBRICS[item.code] || null;
       const existingInd = await prisma.indicator.findFirst({ where: { instrumentId: qInstrument.id, itemCode: item.code } });
       if (!existingInd) {
         await prisma.indicator.create({
@@ -237,12 +242,18 @@ async function main() {
             instrumentId: qInstrument.id, sectionId: section.id, itemCode: item.code,
             textTh: item.text, textEn: item.code,
             scaleType: 'LIKERT_1_5', minScore: 1, maxScore: 5, isActive: true,
+            levelDescriptors: rubric,
           },
+        });
+      } else if (rubric) {
+        await prisma.indicator.update({
+          where: { id: existingInd.id },
+          data: { levelDescriptors: rubric },
         });
       }
     }
   }
-  console.log('✓ Q-Model instrument with 4 sections (47 indicators) created');
+  console.log('✓ Q-Model instrument with 4 sections (47 indicators) created + rubrics synced');
 
   console.log('');
   console.log('🎉 Seed complete!');

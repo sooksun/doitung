@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -23,6 +23,10 @@ interface Indicator {
   textTh: string;
   minScore: number;
   maxScore: number;
+  // 5-level rubric (level 1..5 → descriptor text). Stored as Json on the
+  // Indicator row in DB; surfaced as a foldable row under each item so the
+  // assessor can read the scoring criteria without leaving the page.
+  levelDescriptors: Record<string, string> | null;
 }
 
 interface ResponseMap {
@@ -72,6 +76,8 @@ export default function AssessmentPage() {
   const [sections, setSections] = useState<Section[]>([]);
   const [indicators, setIndicators] = useState<Indicator[]>([]);
   const [responses, setResponses] = useState<ResponseMap>({});
+  // Indicator IDs whose rubric panel is currently expanded.
+  const [openRubricIds, setOpenRubricIds] = useState<Set<number>>(new Set());
   const [activeTab, setActiveTab] = useState<number | 'all'>('all');
   const [darkMode, setDarkMode] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -593,67 +599,159 @@ export default function AssessmentPage() {
                       const rowBg = idx % 2 === 0
                         ? (darkMode ? 'transparent' : 'white')
                         : (darkMode ? 'rgba(255,255,255,0.02)' : '#fafafa');
+                      const rubric = ind.levelDescriptors as Record<string, string> | null;
+                      const hasRubric = !!rubric && Object.keys(rubric).length > 0;
+                      const isOpen = openRubricIds.has(ind.id);
                       return (
-                        <tr key={ind.id} style={{ background: rowBg }}>
-                          {/* Indicator text */}
-                          <td style={{
-                            padding: '0.75rem 1rem', color: textColor,
-                            borderBottom: `1px solid ${borderColor}`,
-                            lineHeight: '1.5',
-                          }}>
-                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-                              {bothAnswered
-                                ? <span style={{ color: '#10b981', flexShrink: 0, marginTop: '1px' }}>✓</span>
-                                : <span style={{ color: borderColor, flexShrink: 0, marginTop: '1px' }}>○</span>
-                              }
-                              <span>{ind.textTh}</span>
-                            </div>
-                          </td>
-
-                          {/* สภาพที่เป็นอยู่ — score2 — purple */}
-                          {[1, 2, 3, 4, 5].map((v) => (
-                            <td key={v} style={{
-                              textAlign: 'center', padding: '0.75rem 0',
-                              borderBottom: `1px solid ${borderColor}`,
-                              background: resp.score2 === v ? purpleLight : undefined,
+                        <React.Fragment key={ind.id}>
+                          <tr style={{ background: rowBg }}>
+                            {/* Indicator text + rubric disclosure toggle */}
+                            <td style={{
+                              padding: '0.75rem 1rem', color: textColor,
+                              // No bottom border when the rubric row is open — they merge into one cell.
+                              borderBottom: isOpen ? 'none' : `1px solid ${borderColor}`,
+                              lineHeight: '1.5',
                             }}>
-                              <input
-                                type="radio"
-                                name={`ind-${ind.id}-score2`}
-                                value={v}
-                                checked={resp.score2 === v}
-                                disabled={submitted || saving === ind.id}
-                                onChange={() => saveResponse(ind.id, 'score2', v)}
-                                style={{
-                                  accentColor: '#7c3aed',
-                                  width: '18px', height: '18px', cursor: submitted ? 'not-allowed' : 'pointer',
-                                }}
-                              />
+                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                                {bothAnswered
+                                  ? <span style={{ color: '#10b981', flexShrink: 0, marginTop: '1px' }}>✓</span>
+                                  : <span style={{ color: borderColor, flexShrink: 0, marginTop: '1px' }}>○</span>
+                                }
+                                <div style={{ flex: 1 }}>
+                                  <span>{ind.textTh}</span>
+                                  {hasRubric && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setOpenRubricIds((prev) => {
+                                        const next = new Set(prev);
+                                        if (next.has(ind.id)) next.delete(ind.id);
+                                        else next.add(ind.id);
+                                        return next;
+                                      })}
+                                      title={isOpen ? 'ซ่อนเกณฑ์การให้คะแนน' : 'ดูเกณฑ์การให้คะแนน 5 ระดับ'}
+                                      style={{
+                                        marginLeft: '0.5rem',
+                                        padding: '2px 8px',
+                                        fontSize: '0.72rem',
+                                        background: isOpen
+                                          ? (darkMode ? 'rgba(99,102,241,0.25)' : '#e0e7ff')
+                                          : 'transparent',
+                                        color: isOpen
+                                          ? (darkMode ? '#c7d2fe' : '#4338ca')
+                                          : (darkMode ? '#a5b4fc' : '#6366f1'),
+                                        border: `1px solid ${isOpen ? (darkMode ? '#6366f1' : '#a5b4fc') : (darkMode ? '#4f46e5' : '#c7d2fe')}`,
+                                        borderRadius: 4,
+                                        cursor: 'pointer',
+                                        fontWeight: 600,
+                                        verticalAlign: 'middle',
+                                        whiteSpace: 'nowrap',
+                                      }}
+                                    >
+                                      {isOpen ? '▼ ซ่อนเกณฑ์' : '▶ ดูเกณฑ์'}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
                             </td>
-                          ))}
 
-                          {/* สภาพที่พึงประสงค์ — score — blue */}
-                          {[1, 2, 3, 4, 5].map((v) => (
-                            <td key={v} style={{
-                              textAlign: 'center', padding: '0.75rem 0',
-                              borderBottom: `1px solid ${borderColor}`,
-                              background: resp.score === v ? blueLight : undefined,
-                            }}>
-                              <input
-                                type="radio"
-                                name={`ind-${ind.id}-score`}
-                                value={v}
-                                checked={resp.score === v}
-                                disabled={submitted || saving === ind.id}
-                                onChange={() => saveResponse(ind.id, 'score', v)}
-                                style={{
-                                  accentColor: '#2563eb',
-                                  width: '18px', height: '18px', cursor: submitted ? 'not-allowed' : 'pointer',
-                                }}
-                              />
-                            </td>
-                          ))}
-                        </tr>
+                            {/* สภาพที่เป็นอยู่ — score2 — purple */}
+                            {[1, 2, 3, 4, 5].map((v) => (
+                              <td key={v} style={{
+                                textAlign: 'center', padding: '0.75rem 0',
+                                borderBottom: isOpen ? 'none' : `1px solid ${borderColor}`,
+                                background: resp.score2 === v ? purpleLight : undefined,
+                              }}>
+                                <input
+                                  type="radio"
+                                  name={`ind-${ind.id}-score2`}
+                                  value={v}
+                                  checked={resp.score2 === v}
+                                  disabled={submitted || saving === ind.id}
+                                  onChange={() => saveResponse(ind.id, 'score2', v)}
+                                  style={{
+                                    accentColor: '#7c3aed',
+                                    width: '18px', height: '18px', cursor: submitted ? 'not-allowed' : 'pointer',
+                                  }}
+                                />
+                              </td>
+                            ))}
+
+                            {/* สภาพที่พึงประสงค์ — score — blue */}
+                            {[1, 2, 3, 4, 5].map((v) => (
+                              <td key={v} style={{
+                                textAlign: 'center', padding: '0.75rem 0',
+                                borderBottom: isOpen ? 'none' : `1px solid ${borderColor}`,
+                                background: resp.score === v ? blueLight : undefined,
+                              }}>
+                                <input
+                                  type="radio"
+                                  name={`ind-${ind.id}-score`}
+                                  value={v}
+                                  checked={resp.score === v}
+                                  disabled={submitted || saving === ind.id}
+                                  onChange={() => saveResponse(ind.id, 'score', v)}
+                                  style={{
+                                    accentColor: '#2563eb',
+                                    width: '18px', height: '18px', cursor: submitted ? 'not-allowed' : 'pointer',
+                                  }}
+                                />
+                              </td>
+                            ))}
+                          </tr>
+
+                          {/* Foldable rubric panel — spans the whole row */}
+                          {isOpen && hasRubric && (
+                            <tr style={{ background: darkMode ? 'rgba(99,102,241,0.06)' : '#f5f3ff' }}>
+                              <td colSpan={11} style={{
+                                padding: '0.75rem 1.25rem 1rem',
+                                borderBottom: `1px solid ${borderColor}`,
+                                borderTop: `1px dashed ${darkMode ? '#4f46e5' : '#c7d2fe'}`,
+                                color: textColor,
+                                fontSize: '0.85rem',
+                                lineHeight: 1.6,
+                              }}>
+                                <div style={{
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  color: darkMode ? '#a5b4fc' : '#4338ca',
+                                  marginBottom: '0.5rem',
+                                  textTransform: 'uppercase',
+                                  letterSpacing: '0.04em',
+                                }}>
+                                  เกณฑ์การให้คะแนน · 5 ระดับ
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.4rem 0.85rem' }}>
+                                  {[5, 4, 3, 2, 1].map((lvl) => {
+                                    const text = rubric?.[String(lvl)];
+                                    if (!text) return null;
+                                    const isSelectedCurrent = resp.score2 === lvl;
+                                    const isSelectedDesired = resp.score === lvl;
+                                    const highlight = isSelectedCurrent || isSelectedDesired;
+                                    return (
+                                      <React.Fragment key={lvl}>
+                                        <div style={{
+                                          fontWeight: 700,
+                                          color: highlight ? '#ffffff' : (darkMode ? '#e0e7ff' : '#1f2937'),
+                                          background: highlight
+                                            ? (isSelectedDesired ? '#2563eb' : '#7c3aed')
+                                            : (darkMode ? 'rgba(255,255,255,0.06)' : '#e5e7eb'),
+                                          borderRadius: 4,
+                                          padding: '2px 10px',
+                                          fontSize: '0.78rem',
+                                          alignSelf: 'flex-start',
+                                          whiteSpace: 'nowrap',
+                                        }}>
+                                          ระดับ {lvl}
+                                        </div>
+                                        <div style={{ color: textColor }}>{text}</div>
+                                      </React.Fragment>
+                                    );
+                                  })}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       );
                     })}
                   </tbody>

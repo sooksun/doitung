@@ -2,6 +2,10 @@
 // Dev seed — mirrors scripts/seed-production.js: 4 Q-Model sections × 47 indicators, no OKR.
 import { PrismaClient, RoleType } from '@prisma/client';
 import { hashPassword } from '../lib/auth';
+// CommonJS interop — the rubric file is JS so it stays callable from both
+// `node scripts/seed-production.js` and `tsx prisma/seed.ts`.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const Q_MODEL_RUBRICS: Record<string, Record<number, string>> = require('../scripts/data/q-model-rubrics');
 
 const prisma = new PrismaClient();
 
@@ -263,6 +267,9 @@ async function main() {
           minScore: 1,
           maxScore: 5,
           isActive: true,
+          // 5-level rubric pulled from the canonical PDF; surfaced on the
+          // assessment page as a foldable row under each indicator.
+          levelDescriptors: Q_MODEL_RUBRICS[item.code] ?? undefined,
         },
       });
     }
