@@ -96,6 +96,13 @@ export async function DELETE(
     const before = await prisma.sarDocument.findUnique({ where: { id } });
     if (!before) return errorResponse('ไม่พบเอกสาร', 404);
 
+    // Idempotent: if already archived, skip the update + audit write so
+    // repeated DELETE calls (e.g. retry after a flaky network) don't pile
+    // up no-op audit rows.
+    if (before.status === 'ARCHIVED') {
+      return successResponse({ id, status: before.status }, 'อยู่ในสถานะเก็บถาวรอยู่แล้ว');
+    }
+
     const after = await prisma.sarDocument.update({
       where: { id },
       data: { status: 'ARCHIVED' },
