@@ -92,7 +92,7 @@ export default function LiveDashboardPage() {
     if (!token) return;
     const headers = { Authorization: `Bearer ${token}` };
     Promise.all([
-      fetch('/api/schools', { headers }).then((r) => r.json()),
+      fetch('/api/schools?isActive=true', { headers }).then((r) => r.json()),
       fetch('/api/networks', { headers }).then((r) => r.json()),
       fetch('/api/academic-years', { headers }).then((r) => r.json()),
       fetch('/api/terms', { headers }).then((r) => r.json()),

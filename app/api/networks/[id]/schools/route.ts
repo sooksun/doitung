@@ -16,10 +16,15 @@ export async function GET(
       return errorResponse('Invalid network ID', 400);
     }
 
+    // member.isActive = the school is currently part of the network.
+    // school.isActive = the school itself is operational (admin toggle).
+    // Dropdowns that consume this endpoint should only see schools that
+    // satisfy BOTH — membership active AND school active.
     const members = await prisma.schoolNetworkMember.findMany({
       where: {
         networkId,
         isActive: true,
+        school: { isActive: true },
       },
       include: {
         school: true,

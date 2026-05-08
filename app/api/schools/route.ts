@@ -1,5 +1,11 @@
 // app/api/schools/route.ts
 // GET /api/schools - List schools
+//
+// Default: returns only active schools so dropdown pickers / scope filters
+// hide schools an admin has switched off in /admin/schools. Admins who need
+// the full list (active + inactive) use /api/admin/schools instead. To
+// explicitly opt in to deactivated entries from this endpoint, callers can
+// pass ?isActive=false or ?isActive=any.
 
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -8,12 +14,15 @@ import { successResponse, errorResponse, handleApiError } from '@/lib/api-utils'
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
-    const isActive = searchParams.get('isActive');
+    const isActiveParam = searchParams.get('isActive');
 
     const where: any = {};
-    if (isActive !== null) {
-      where.isActive = isActive === 'true';
+    if (isActiveParam === null || isActiveParam === 'true') {
+      where.isActive = true;
+    } else if (isActiveParam === 'false') {
+      where.isActive = false;
     }
+    // Any other value (e.g. 'any', 'all') → no isActive filter
 
     const schools = await prisma.school.findMany({
       where,
