@@ -99,7 +99,7 @@ export function useStickyNotes(opts: UseStickyNotesOptions) {
       } catch (err: any) {
         if (err?.status === 410) {
           setClosed(true);
-          setError('บอร์ดถูกปิดโดยเจ้าของแล้ว');
+          setError('บอร์ดถูกเก็บไว้ — เจ้าของสามารถเปิดใช้งานอีกครั้งจากช่องเดิม');
         } else {
           setError(err?.message || 'โหลดไม่สำเร็จ');
         }
@@ -115,7 +115,9 @@ export function useStickyNotes(opts: UseStickyNotesOptions) {
   }, [enabled, reload]);
 
   // Background polling (5s). Pauses while the document is hidden; resumes on
-  // visibility change. Stops permanently once the board is reported CLOSED.
+  // visibility change. Stops once the board is reported ARCHIVED — the owner
+  // can reactivate it later by reopening the same context, but until then we
+  // don't keep hammering 410 responses.
   useEffect(() => {
     if (!enabled || !boardKey) return;
     if (closed) return;

@@ -57,7 +57,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const board = await prisma.stickyBoard.findUnique({ where: { id: note.boardId } });
     if (!board) return errorResponse('ไม่พบบอร์ดที่ผูกอยู่', 404);
     if (board.status !== 'ACTIVE') {
-      return errorResponse('บอร์ดนี้ถูกปิดโดยเจ้าของแล้ว', 410);
+      return errorResponse('บอร์ดนี้ถูกเก็บไว้ — เจ้าของสามารถเปิดใช้งานอีกครั้งจากช่องเดิม', 410);
     }
 
     const body = await request.json().catch(() => null);
@@ -80,13 +80,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     if (Number.isFinite(body.y)) data.y = Math.round(body.y);
     if (Number.isFinite(body.rotation)) data.rotation = Math.max(-15, Math.min(15, Math.round(body.rotation)));
     if (Number.isFinite(body.zIndex)) data.zIndex = Math.round(body.zIndex);
-    if (body.status === 'ACTIVE' || body.status === 'ARCHIVED') {
-      // Lifecycle change is treated like a delete — author or owner only.
-      if (!author && !isOwner) {
-        return errorResponse('ต้องเป็นผู้เขียนหรือเจ้าของบอร์ด', 403);
-      }
-      data.status = body.status;
-    }
+    // Note: lifecycle changes (status ACTIVE/ARCHIVED) deliberately go through
+    // DELETE, not PATCH — keeps the soft-delete path single-purpose. If a
+    // future feature ever needs PATCH-driven status flips, re-add the branch
+    // along with explicit author-or-owner authorization.
 
     if (Object.keys(data).length === 0) return errorResponse('ไม่มีฟิลด์ให้อัปเดต', 400);
 
@@ -131,7 +128,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       const board = await prisma.stickyBoard.findUnique({ where: { id: note.boardId } });
       if (!board) return errorResponse('ไม่พบบอร์ดที่ผูกอยู่', 404);
       if (board.status !== 'ACTIVE') {
-        return errorResponse('บอร์ดนี้ถูกปิดโดยเจ้าของแล้ว', 410);
+        return errorResponse('บอร์ดนี้ถูกเก็บไว้ — เจ้าของสามารถเปิดใช้งานอีกครั้งจากช่องเดิม', 410);
       }
 
       const ctx = await loadCaller(request);

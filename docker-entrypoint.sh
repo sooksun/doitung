@@ -27,13 +27,20 @@ until node -e "
 done
 echo "  Database is reachable!"
 
-echo "[2/4] Running database migrations..."
+echo "[2/5] Deduping legacy StickyBoard rows (must run before db push)..."
+# StickyBoard gained a @@unique([contextType, contextId]) constraint. Any
+# duplicates left over from the earlier non-unique implementation would make
+# the next `prisma db push` fail. The script is idempotent — it exits in a
+# few ms when there are no duplicates.
+node /app/scripts/dedupe-sticky-boards.js || echo "  Dedupe warning (continuing — db push will surface any remaining issue)"
+
+echo "[3/5] Running database migrations..."
 npx prisma db push --schema /app/schema.prisma --accept-data-loss 2>&1 || echo "  Migration warning (continuing)"
 
-echo "[3/4] Seeding initial data..."
+echo "[4/5] Seeding initial data..."
 node /app/scripts/seed-production.js || echo "  Seed warning (continuing)"
 
-echo "[4/4] Starting Next.js on port ${PORT:-9901}..."
+echo "[5/5] Starting Next.js on port ${PORT:-9901}..."
 echo "====================================="
 
 exec node server.js

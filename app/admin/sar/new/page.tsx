@@ -202,8 +202,6 @@ export default function NewSarPage() {
                       contextType="ICEBERG_CELL"
                       contextId={contextId}
                       schoolId={resolvedSchoolId}
-                      layerNo={layerNo}
-                      side={sideKey}
                       title={`${layerCfg.label} / ${sideLabel}`}
                       disabled={!ready}
                       disabledReason="กรุณาเลือกโรงเรียนและปีการศึกษาก่อน"

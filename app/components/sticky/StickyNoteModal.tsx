@@ -12,13 +12,15 @@ import { createPortal } from 'react-dom';
 import { StickyBoardSurface } from './StickyBoardSurface';
 import { buildStickyHeaders } from '@/lib/sticky-guest';
 
+// Local view of /api/sticky-boards/get-or-create response (only the fields
+// the modal actually uses).
 interface BoardInfo {
   id: string;
   shareKey: string;
   ownerUserId: number;
   ownerName: string | null;
   schoolId: number;
-  status: 'ACTIVE' | 'CLOSED';
+  status: 'ACTIVE' | 'ARCHIVED';
   isOwner: boolean;
 }
 
@@ -29,8 +31,6 @@ export interface StickyNoteModalProps {
   contextType: string;
   contextId: string;
   schoolId: number | null;
-  layerNo?: number | null;
-  side?: 'CURRENT' | 'DESIRED' | null;
   onApplyText: (joined: string) => void;
 }
 
@@ -135,12 +135,30 @@ export function StickyNoteModal({
           overflow: 'hidden',
         }}
       >
-        {boardLoading && (
+        {!schoolId && (
+          // Defensive fallback: in practice the StickyNoteButton's `disabled`
+          // guard prevents the modal from opening without schoolId, but if
+          // some other caller mounts the modal directly we still show a
+          // friendly message instead of an empty white card.
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem', color: '#92400e', textAlign: 'center' }}>
+            <div style={{ fontSize: '2.5rem' }}>⚠️</div>
+            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#1f2937', marginTop: '0.5rem' }}>
+              ไม่พบข้อมูลโรงเรียน
+            </div>
+            <div style={{ fontSize: '0.9rem', marginTop: '0.5rem', maxWidth: 480, color: '#4b5563' }}>
+              กรุณาเข้าสู่ระบบใหม่ หรือเลือกโรงเรียนก่อนใช้งาน Sticky Notes
+            </div>
+            <button type="button" onClick={onClose} style={{ marginTop: '1.25rem', padding: '0.6rem 1.2rem', background: '#10b981', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 700, fontSize: '0.9rem' }}>
+              ปิด
+            </button>
+          </div>
+        )}
+        {schoolId && boardLoading && (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6366f1' }}>
             กำลังเปิดบอร์ด...
           </div>
         )}
-        {boardError && (
+        {schoolId && boardError && (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem', color: '#dc2626' }}>
             <div style={{ fontSize: '1.05rem', fontWeight: 700 }}>เปิดบอร์ดไม่สำเร็จ</div>
             <div style={{ fontSize: '0.9rem', marginTop: '0.5rem' }}>{boardError}</div>
@@ -149,7 +167,7 @@ export function StickyNoteModal({
             </button>
           </div>
         )}
-        {board && (
+        {schoolId && board && (
           <StickyBoardSurface
             title={title}
             boardId={board.id}

@@ -38,7 +38,8 @@ export interface StickyBoardSurfaceProps {
   closeLabel?: string;
   /** Called after dirty-flush and (optionally) board-close. Receives joined note text. */
   onClose: (joined: string) => Promise<void> | void;
-  /** When true (modal/owner case), pressing Close also marks the board CLOSED on the server. */
+  /** When true, pressing Close ALSO marks the board ARCHIVED on the server (owner-only).
+   *  Default false: closing the modal/page is purely a local UI dismiss. */
   closeAlsoClosesBoard?: boolean;
 
   /** Hide the "ล้างบอร์ด" button (e.g. for non-owner standalone view). */
@@ -117,7 +118,7 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
 
   const handleAdd = async () => {
     if (closed) {
-      toastError('บอร์ดถูกปิดแล้ว');
+      toastError('บอร์ดถูกเก็บไว้แล้ว');
       return;
     }
     await addNote();
@@ -197,17 +198,17 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
     await onClose(joined);
   };
 
-  // Closed-state UI: replace the whole surface so users can't keep poking the
-  // board after the owner shut it down.
+  // Archived-state UI: replace the whole surface so users can't keep poking
+  // the board until the owner reactivates it from the original context.
   if (closed) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '2rem', textAlign: 'center', color: '#6b7280' }}>
-        <div style={{ fontSize: '3rem' }}>🔒</div>
+        <div style={{ fontSize: '3rem' }}>📦</div>
         <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#1f2937', marginTop: '0.5rem' }}>
-          บอร์ดถูกปิดโดยเจ้าของแล้ว
+          บอร์ดถูกเก็บไว้
         </div>
         <div style={{ fontSize: '0.9rem', marginTop: '0.5rem', maxWidth: 480 }}>
-          link นี้ใช้ไม่ได้แล้ว — ขอลิงก์ใหม่จากเจ้าของหากต้องการระดมสมองรอบใหม่
+          เจ้าของเก็บบอร์ดนี้ไว้ — เปิดใช้งานอีกครั้งได้โดยให้เจ้าของกด &quot;ระดมสมอง&quot; ที่ช่องเดิม โน้ตทั้งหมดและลิงก์เดิมจะกลับมา
         </div>
         <button type="button" onClick={() => onClose('')} style={{ ...successBtn, marginTop: '1.25rem' }}>
           ปิดหน้านี้

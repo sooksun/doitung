@@ -1,9 +1,10 @@
 // app/api/sticky-boards/by-key/[shareKey]/route.ts
 // GET /api/sticky-boards/by-key/:shareKey
 // PUBLIC — no Bearer required. Lets unauthenticated guests resolve a share
-// link to a board so they can decide whether to show notes or a "closed by
-// owner" message. Returns 404 only if the key doesn't exist; for closed boards
-// we still return 200 with status=CLOSED so the page can render the right UX.
+// link to a board so they can decide whether to show notes or a "board has
+// been archived" message. Returns 404 only if the key doesn't exist; for
+// archived boards we still return 200 with status=ARCHIVED so the page can
+// render the right UX.
 
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';

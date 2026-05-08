@@ -397,3 +397,50 @@
 **สถานะ**: Phase 1 กำลังดำเนินการ  
 **Next Tasks**: Seed data, Backend API setup
 
+---
+
+## Phase: Sticky Notes / Collaborative Brainstorming Board ✅ Deploy แล้ว
+
+ระบบ Post-it บอร์ดบนช่อง Iceberg ของ `/admin/sar/new` รองรับการแชร์ลิงก์ให้
+ทั้งผู้ใช้ที่ login และ guest มาร่วมระดมสมองได้พร้อมกัน
+
+### Schema + Migration
+- [x] เพิ่ม `StickyBoard` model พร้อม shareKey (40-hex), ownerUserId, schoolId, status (ACTIVE | ARCHIVED), closedAt
+- [x] เพิ่ม `@@unique([contextType, contextId])` กันบอร์ดซ้ำเวลามีคนเปิดพร้อมกัน
+- [x] ขยาย `StickyNote` ด้วย boardId (FK), authorToken (sha256 ของ guest token), authorName
+- [x] `scripts/dedupe-sticky-boards.js` — รวมบอร์ดซ้ำก่อน apply unique constraint
+- [x] `docker-entrypoint.sh` รัน dedupe ก่อน `prisma db push` ทุก deploy
+
+### API
+- [x] `POST /api/sticky-boards/get-or-create` ใช้ `prisma.stickyBoard.upsert`
+- [x] `GET /api/sticky-boards/by-key/:shareKey` — public, รวมข้อมูลสำหรับ /sticky page
+- [x] `POST /api/sticky-boards/:id/close` — owner archive (reversible)
+- [x] `POST /api/sticky-boards/:id/clear` — owner-only soft archive ทุก note
+- [x] `/api/sticky-notes` รองรับทั้ง Bearer token และ `X-Sticky-Guest-Token` header
+- [x] In-memory rate limit (60 POST/min/IP/board) บน POST notes
+
+### Client
+- [x] `useStickyNotes` hook — 5s polling, optimistic patch, archived-state guard
+- [x] `StickyNoteCard` — draft state per note + Save/Cancel; canEditContent / canDelete flags
+- [x] `StickyBoardSurface` — toolbar + corkboard + fullscreen toggle (เป็น viewport เต็ม)
+- [x] `StickyNoteModal` — render ผ่าน React portal กัน stacking-context bleed-through
+- [x] `app/sticky/page.tsx` — standalone shareable page รองรับ guest + ใส่ชื่อแสดง
+- [x] เพิ่มปุ่มระดมสมองครบทั้ง 8 ช่องของ Iceberg (4 ชั้น × 2 ด้าน)
+- [x] Fallback message เมื่อ schoolId เป็น null ใน modal
+
+### Documentation
+- [x] `README_STICKY_ICEBERG.md` — feature overview, authorization matrix, security & sharing notes
+- [x] อัปเดต `context.md` ให้สะท้อนสถาปัตยกรรมใหม่
+- [x] CLAUDE.md เพิ่ม "ภาษาที่ใช้ตอบ" บอกให้ตอบไทยเป็นค่าเริ่มต้น
+
+### Future / TODO (ต้องทำในรอบถัดไป)
+- [ ] เพิ่ม **automated test framework** (Vitest หรือ Jest)
+  - ทดสอบ get-or-create idempotency: POST 2 ครั้ง → คาดหวัง same id + shareKey
+  - ทดสอบ authorization matrix (owner/author/guest cross-edit/delete)
+  - ทดสอบ archive → reactivate cycle
+  - **ตอนนี้** การทดสอบยังเป็น manual curl chain ใน README ส่วน "Testing locally yourself"
+- [ ] ย้าย rate limit จาก in-memory `Map` → **Redis** เมื่อ scale > 1 app instance
+  (TODO comment อยู่ที่ `app/api/sticky-notes/route.ts` ใกล้ `POST_BUCKETS`)
+- [ ] (Optional) ย้าย guest token จาก localStorage → `httpOnly` cookie เพื่อปิดช่อง XSS exposure
+- [ ] (Optional) ผูกการเปลี่ยนแปลงในบอร์ดเข้ากับ LINE OA notification
+

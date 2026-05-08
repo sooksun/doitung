@@ -19,7 +19,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       return errorResponse('Forbidden: เฉพาะเจ้าของบอร์ดเท่านั้น', 403);
     }
     if (board.status !== 'ACTIVE') {
-      return errorResponse('บอร์ดถูกปิดไปแล้ว — ไม่สามารถล้างได้', 410);
+      return errorResponse('บอร์ดถูกเก็บไว้แล้ว — ต้องเปิดใช้งานก่อนจึงจะล้างได้', 410);
     }
 
     const result = await prisma.stickyNote.updateMany({

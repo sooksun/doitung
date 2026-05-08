@@ -364,3 +364,26 @@
 **สถานะ**: Phase 1 กำลังดำเนินการ  
 **Next Steps**: สร้าง seed data และเริ่มทำ Backend API
 
+---
+
+## Phase: Sticky Notes / Collaborative Brainstorming ✅ Deployed
+
+### ภาพรวม
+ระบบบอร์ดระดมสมองแบบ Post-it ผูกกับช่อง Iceberg บนหน้า SAR
+แชร์ลิงก์ให้คนภายนอกร่วมเขียนได้ ทั้งคน login และ guest
+
+### สิ่งที่เสร็จในรอบนี้
+- Schema: `StickyBoard` + `StickyNote` พร้อม `@@unique([contextType, contextId])`
+- API: get-or-create ใช้ `prisma.upsert` ป้องกัน race condition; archive/reactivate cycle
+- Client: 5s polling, draft-with-Save/Cancel ต่อ note, fullscreen toggle, portal-based modal
+- รองรับ guest (ไม่ต้อง login), แชร์ลิงก์ผ่าน shareKey 160-bit
+- เอกสาร: `README_STICKY_ICEBERG.md` + manual verification curl chain
+
+### Roadmap ต่อ
+| Priority | งาน | สถานะ |
+|---|---|---|
+| Med  | เพิ่ม automated test framework (Vitest) | TODO ใน tasks.md |
+| Low  | ย้าย rate limit → Redis เมื่อ scale | TODO comment ใน code |
+| Low  | guest token → httpOnly cookie (ปิด XSS) | optional |
+| Low  | LINE OA notification ตอน note ใหม่ | optional |
+

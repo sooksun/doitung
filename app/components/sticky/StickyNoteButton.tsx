@@ -9,10 +9,11 @@ import { StickyNoteModal } from './StickyNoteModal';
 
 export interface StickyNoteButtonProps {
   contextType: string;
+  // contextId encodes layer + side already (e.g. "...iceberg:L1:CURRENT") so
+  // we don't expose layerNo / side as separate props on this component —
+  // anyone consuming the data can parse contextId.
   contextId: string;
   schoolId: number | null;
-  layerNo?: number | null;
-  side?: 'CURRENT' | 'DESIRED' | null;
   title: string;
   disabled?: boolean;
   disabledReason?: string;
@@ -23,8 +24,6 @@ export function StickyNoteButton({
   contextType,
   contextId,
   schoolId,
-  layerNo = null,
-  side = null,
   title,
   disabled = false,
   disabledReason,
@@ -71,8 +70,6 @@ export function StickyNoteButton({
           contextType={contextType}
           contextId={contextId}
           schoolId={schoolId}
-          layerNo={layerNo}
-          side={side}
           onApplyText={onApplyText}
         />
       )}

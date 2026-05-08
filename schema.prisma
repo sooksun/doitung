@@ -801,16 +801,24 @@ model StickyBoard {
   schoolId    Int
   contextType String
   contextId   String    @db.VarChar(255)
-  status      String    @default("ACTIVE") // ACTIVE | CLOSED
-  closedAt    DateTime?
+  // ACTIVE  → board is in use, anyone with the shareKey can collaborate.
+  // ARCHIVED → board is hidden from active flows but the row + notes are
+  //            preserved. get-or-create reactivates the row to ACTIVE the
+  //            next time the same (contextType, contextId) is opened, so
+  //            collaborators continue exactly where they left off.
+  status      String    @default("ACTIVE") // ACTIVE | ARCHIVED
+  closedAt    DateTime? // set when status flips to ARCHIVED; cleared on reactivate
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   notes StickyNote[]
 
-  @@index([shareKey])
-  @@index([contextType, contextId, status])
+  // (contextType, contextId) uniquely identifies one board across the
+  // lifetime of a context. The compound unique key both prevents the
+  // duplicate-on-race condition that the non-unique version had AND gives
+  // upsert in get-or-create the index it needs.
+  @@unique([contextType, contextId])
   @@index([ownerUserId])
   @@index([schoolId])
 }

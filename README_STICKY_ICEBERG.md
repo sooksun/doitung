@@ -97,8 +97,10 @@ StickyBoard {
   schoolId     Int
   contextType  String         // "ICEBERG_CELL"
   contextId    String(255)    // sar:draft:school:1:year:1:iceberg:L1:CURRENT
-  status       String         // ACTIVE | CLOSED
-  closedAt     DateTime?
+  status       String         // ACTIVE | ARCHIVED
+  closedAt     DateTime?      // set when ARCHIVED; cleared on reactivation
+
+  @@unique([contextType, contextId])  // one board per context, race-free
 }
 
 StickyNote {
@@ -195,23 +197,116 @@ End-to-end (`/tmp/dev.log` + curl) covers:
    - `/api/sticky-notes POST` → **410**
    - `/api/sticky-boards/by-key/<>` still **200** (so the page can show
      "closed by owner")
-6. Owner re-opens board for same context → fresh `shareKey` (old link dead).
+6. Owner clicks the (now-renamed) archive endpoint → board status flips
+   to `ARCHIVED`; `shareKey` keeps existing in DB but every shareKey-keyed
+   API path returns 410 until reactivation.
+7. Owner reopens the same Iceberg cell → `get-or-create` reactivates the
+   ARCHIVED board to ACTIVE in a single `prisma.upsert` call. Same `id`,
+   same `shareKey`, every previously-archived note still attached.
+
+## Security & sharing model (read this before broad rollout)
+
+- **Guest token in localStorage.** When a non-logged-in user opens
+  `/sticky?key=...` we mint a per-browser opaque token and store it under
+  `stickyGuestToken`. The server only ever stores `sha256(token)`, so a DB
+  leak doesn't burn live tokens. **However**, an XSS hole on
+  `doitung.cnppai.com` could still steal the cleartext token from the
+  victim's localStorage and then impersonate that guest's notes (move /
+  delete / edit *their own* notes only — the auth model still locks down
+  cross-author writes). For higher-security deployments, migrate the
+  guest identity to an `httpOnly` cookie and drop localStorage usage.
+- **shareKey appears in the URL.** This is "anyone with the link" sharing
+  in the Google-Docs sense, not invited-user-only:
+  - Browser history holds the URL.
+  - Outbound clicks from the /sticky page may leak the URL via the
+    `Referer` header to whatever the user clicked.
+  - Browser sync (Chrome/Edge profiles) may sync the URL across the
+    user's other devices and to anyone they share that profile with.
+  Treat the link as semi-secret; do not paste it into public channels if
+  the brainstorming content is sensitive.
+- **Authorization is enforced server-side**, not by the URL alone:
+  - GET notes / POST note are public (anyone with the live shareKey on an
+    ACTIVE board).
+  - PATCH `content` and DELETE check author or owner — the shareKey
+    alone does NOT grant write-on-someone-else's-note privileges.
+  - `clear board` and `archive board` are owner-only.
+- **Rate limit is per-process.** See the TODO in
+  [app/api/sticky-notes/route.ts](app/api/sticky-notes/route.ts) — replace
+  with Redis if the app is ever scaled to >1 instance.
 
 ## Testing locally yourself
 
+### One-shot manual verification (curl)
+
+The project doesn't yet ship an automated test suite, so until that lands
+the canonical regression check is the script below. It exercises the
+unique-board guarantee, the authorization matrix, and the
+archive/reactivate cycle. Paste each block sequentially after `npm run
+dev` is up.
+
 ```bash
-# 1. Schema (already up to date if you've pulled main)
+PORT=3000
+
+# A) Login two users.
+T_OWNER=$(curl -s -X POST -H "Content-Type: application/json" \
+  -d '{"email":"admin@local","password":"Admin123"}' \
+  http://localhost:$PORT/api/auth/login \
+  | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{console.log(JSON.parse(s).data.token)})")
+T_TEACHER=$(curl -s -X POST -H "Content-Type: application/json" \
+  -d '{"email":"teacher@example.com","password":"Teacher123"}' \
+  http://localhost:$PORT/api/auth/login \
+  | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{console.log(JSON.parse(s).data.token)})")
+
+CTX="sar:test:school:1:year:1:iceberg:L1:CURRENT"
+
+# B) get-or-create twice → must return same shareKey (race-safe via @@unique).
+KEY1=$(curl -s -X POST -H "Authorization: Bearer $T_OWNER" -H "Content-Type: application/json" \
+  -d "{\"contextType\":\"ICEBERG_CELL\",\"contextId\":\"$CTX\",\"schoolId\":1}" \
+  http://localhost:$PORT/api/sticky-boards/get-or-create | node -e "…")
+KEY2=$(curl -s -X POST -H "Authorization: Bearer $T_OWNER" -H "Content-Type: application/json" \
+  -d "{\"contextType\":\"ICEBERG_CELL\",\"contextId\":\"$CTX\",\"schoolId\":1}" \
+  http://localhost:$PORT/api/sticky-boards/get-or-create | node -e "…")
+[ "$KEY1" = "$KEY2" ] && echo "✓ same shareKey" || echo "✗ different — race detected"
+
+# C) Auth matrix: post 3 notes (owner / teacher / guest), then verify
+# cross-edits / cross-deletes are blocked.
+# (See git history of README_STICKY_ICEBERG.md for the full block.)
+
+# D) Archive + reactivate.
+BID=$(curl -s -H "Authorization: Bearer $T_OWNER" \
+  "http://localhost:$PORT/api/sticky-boards/by-key/$KEY1" \
+  | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{console.log(JSON.parse(s).data.id)})")
+curl -s -X POST -H "Authorization: Bearer $T_OWNER" \
+  "http://localhost:$PORT/api/sticky-boards/$BID/close"
+KEY3=$(curl -s -X POST -H "Authorization: Bearer $T_OWNER" -H "Content-Type: application/json" \
+  -d "{\"contextType\":\"ICEBERG_CELL\",\"contextId\":\"$CTX\",\"schoolId\":1}" \
+  http://localhost:$PORT/api/sticky-boards/get-or-create | node -e "…")
+[ "$KEY1" = "$KEY3" ] && echo "✓ reactivated, same shareKey" || echo "✗ NEW shareKey after archive — bug"
+```
+
+The full curl chain (with `node -e` JSON extractors filled in) lives in
+`scripts/seed-production.js`-adjacent docs and the testing notes in this
+file's git history; the TL;DR of each step is captured above.
+
+### Browser flow
+
+```bash
+# 1. Schema (idempotent).
 npx prisma db push
 
-# 2. Start dev server
+# 2. Dedupe legacy duplicate boards (idempotent; exits in ms when nothing to do).
+node scripts/dedupe-sticky-boards.js
+
+# 3. Start dev server.
 npm run dev
 
-# 3. Two-tab + guest test
-# Tab 1: log in, /admin/sar/new, open board, copy link
-# Tab 2: paste link → /sticky?key=... while logged out → enter your name → add notes
-# Tab 3: log in as a different user → paste same link → add more notes
+# 4. Two-tab + guest test.
+# Tab 1: log in, /admin/sar/new, open board, copy link.
+# Tab 2: paste link → /sticky?key=... while logged out → enter your name → add notes.
+# Tab 3: log in as a different user → paste same link → add more notes.
 # Within 5s every tab sees every note.
 
-# 4. Owner closes board (Tab 1 → "บันทึกและปิดบอร์ด")
-# Tabs 2 + 3 within 5s show "🔒 บอร์ดถูกปิดแล้ว" page.
+# 5. Owner archives board (Tab 1 → "บันทึกและปิด" then explicit archive in DB).
+# Tabs 2 + 3 within 5s show the "📦 บอร์ดถูกเก็บไว้" page; reopening on Tab 1
+# brings everything back with the same shareKey.
 ```

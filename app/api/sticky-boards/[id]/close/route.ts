@@ -1,8 +1,16 @@
 // app/api/sticky-boards/[id]/close/route.ts
 // POST /api/sticky-boards/:id/close
-// Owner-only. Marks the board CLOSED. Every subsequent shareKey-keyed call to
-// /api/sticky-notes returns 410 Gone, and /sticky?key=... shows a friendly
-// "closed by owner" message.
+//
+// Owner-only. Archives the board: status flips to ARCHIVED and closedAt is
+// set to "now". Notes attached to the board are preserved (no cascading
+// delete). The accompanying shareKey returns 410 Gone from /api/sticky-notes
+// while the board is archived, but **archive is reversible** — opening the
+// same Iceberg cell via /api/sticky-boards/get-or-create flips status back
+// to ACTIVE and the original shareKey resumes working.
+//
+// (The route name is kept as `/close` for URL stability. The successful
+// response message describes the actual semantics: archive, not permanent
+// close.)
 
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -19,18 +27,21 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     if (board.ownerUserId !== me.id) {
       return errorResponse('Forbidden: เฉพาะเจ้าของบอร์ดเท่านั้น', 403);
     }
-    if (board.status === 'CLOSED') {
-      return successResponse({ id: board.id, status: 'CLOSED', closedAt: board.closedAt }, 'บอร์ดถูกปิดอยู่แล้ว');
+    if (board.status === 'ARCHIVED') {
+      return successResponse(
+        { id: board.id, status: 'ARCHIVED', closedAt: board.closedAt },
+        'บอร์ดถูกเก็บไว้แล้ว — เปิดใช้งานอีกครั้งได้จากช่องเดิม',
+      );
     }
 
     const updated = await prisma.stickyBoard.update({
       where: { id },
-      data: { status: 'CLOSED', closedAt: new Date() },
+      data: { status: 'ARCHIVED', closedAt: new Date() },
     });
 
     return successResponse(
       { id: updated.id, status: updated.status, closedAt: updated.closedAt },
-      'ปิดบอร์ดสำเร็จ — link จะใช้ไม่ได้แล้ว',
+      'เก็บบอร์ดเรียบร้อย สามารถเปิดใช้งานอีกครั้งได้จากช่องเดิม',
     );
   } catch (error: any) {
     if (error?.message?.startsWith('Unauthorized')) return errorResponse(error.message, 401);

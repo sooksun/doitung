@@ -377,3 +377,36 @@ docker exec eqap_app node scripts/seed-production.js
 - [x] Seed script ใช้ 47 indicators จริงจาก SQL dump (4 groups: L1-L12, PLC1-PLC10, T1-T12, S1-S13)
 - [x] แก้ปัญหา 103 indicators ซ้ำด้วย SQL cleanup + force-clean ใน seed script
 
+### Phase ปัจจุบัน: Sticky Notes / Collaborative Board ✅ Deploy แล้ว
+ระบบระดมสมองแบบ Post-it บนช่อง Iceberg ของ `/admin/sar/new` แชร์ลิงก์ให้คนอื่น
+ร่วมระดมสมองได้ ทั้ง user ที่ login และ guest โดยไม่ต้องลงทะเบียน
+
+- [x] เพิ่ม `StickyBoard` + ขยาย `StickyNote` ใน `schema.prisma`
+  (เพิ่ม `boardId`, `authorToken`, `authorName`)
+- [x] เพิ่ม `@@unique([contextType, contextId])` บน `StickyBoard` —
+  เอกลักษณ์ของบอร์ดต่อหนึ่ง context, race-free
+- [x] `scripts/dedupe-sticky-boards.js` — รวม StickyBoard ที่ซ้ำให้เหลือใบเดียว
+  ก่อน push schema ใหม่ (ปลอดภัยรันซ้ำ)
+- [x] API endpoints
+  - `POST /api/sticky-boards/get-or-create` — ใช้ `prisma.upsert` กับ
+    compound unique key `(contextType, contextId)` แทน findFirst+create
+    เพื่อไม่ให้สร้างซ้ำเวลามีคนเปิดพร้อมกัน
+  - `GET /api/sticky-boards/by-key/:shareKey` — public lookup สำหรับ /sticky page
+  - `POST /api/sticky-boards/:id/close` — เก็บบอร์ด (status=ARCHIVED), reversible
+  - `POST /api/sticky-boards/:id/clear` — owner-only, soft-archive ทุก note
+  - `GET /api/sticky-notes?boardKey=...` — public read (board ต้อง ACTIVE)
+  - `POST/PATCH/DELETE /api/sticky-notes[/:id]` — รับ Bearer หรือ guest token
+- [x] Client: `useStickyNotes` hook (5s polling), `StickyNoteCard` (draft +
+  Save/Cancel ต่อ note), `StickyBoardSurface` (toolbar + corkboard +
+  fullscreen), `StickyNoteModal` (portal เพื่อหลุด stacking context),
+  `/sticky?key=...` standalone page
+- [x] Authorization model — see `README_STICKY_ICEBERG.md`:
+  - **Owner** (เจ้าของ): clear, archive board, มองเห็นปุ่มทั้งหมด
+  - **Author**: edit content/delete ของ note ตัวเอง
+  - **ใครก็ตามที่มี shareKey**: ดู, เพิ่ม note, ลาก/เปลี่ยนสีของใครก็ได้
+- [x] shareKey + guest token มี security trade-off ที่ documented แล้ว
+  (URL-leakage, localStorage XSS exposure)
+- [ ] **Future**: แทน in-memory rate limit ด้วย Redis ถ้า scale > 1 instance
+- [ ] **Future**: เพิ่ม automated test framework (Vitest) — ดู `tasks.md`
+- [ ] **Future**: ผูกบอร์ดกับ LINE OA notification ตอนมี note ใหม่
+

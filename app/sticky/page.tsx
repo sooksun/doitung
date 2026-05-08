@@ -24,7 +24,7 @@ interface BoardByKeyResponse {
   schoolId: number;
   contextType: string;
   contextId: string;
-  status: 'ACTIVE' | 'CLOSED';
+  status: 'ACTIVE' | 'ARCHIVED';
   closedAt: string | null;
   isOwner: boolean;
 }
@@ -117,11 +117,11 @@ function StickyPageInner() {
     );
   }
 
-  if (board.status === 'CLOSED') {
+  if (board.status === 'ARCHIVED') {
     return (
       <FullPageMessage
-        title="🔒 บอร์ดถูกปิดแล้ว"
-        message={`เจ้าของ${board.ownerName ? ` (${board.ownerName})` : ''}ได้ปิดบอร์ดไปแล้ว — ขอลิงก์ใหม่หากต้องการระดมสมองต่อ`}
+        title="📦 บอร์ดถูกเก็บไว้"
+        message={`เจ้าของ${board.ownerName ? ` (${board.ownerName})` : ''}เก็บบอร์ดนี้ไว้ — เปิดใช้งานได้อีกครั้งโดยให้เจ้าของกด "ระดมสมอง" จากช่องเดิม โน้ตทั้งหมดจะกลับมาพร้อมลิงก์เดิม`}
       />
     );
   }

@@ -1,9 +1,20 @@
 // app/api/sticky-boards/get-or-create/route.ts
 // POST /api/sticky-boards/get-or-create
+//
 // Auth required. Body: { contextType, contextId, schoolId }
-// Finds the active board for (contextType, contextId); creates a new one (with
-// the caller as owner) if none exists. Returns enough info for the client to
-// build the share URL and decide which buttons to show.
+//
+// Returns the StickyBoard for (contextType, contextId), creating it on first
+// call. Implementation detail: the route uses `prisma.stickyBoard.upsert`
+// against the @@unique([contextType, contextId]) compound key, which makes
+// the operation atomic even when two collaborators click the brainstorming
+// chip on the same fresh cell within the same millisecond — only one row
+// gets created, and the other request finds it via the unique index.
+//
+// If a prior board for the same context was archived (status = ARCHIVED),
+// upsert flips it back to ACTIVE so notes from the previous brainstorming
+// session reappear unchanged. The board's `id`, `shareKey`, and `ownerUserId`
+// are stable across reactivations — the original creator stays the owner and
+// previously-shared links keep working.
 
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -11,6 +22,7 @@ import { successResponse, errorResponse, requireAuth, hasRole } from '@/lib/api-
 import { newShareKey } from '@/lib/sticky-guest';
 
 const MAX_CONTEXT_ID_LEN = 255;
+const MAX_CONTEXT_TYPE_LEN = 64;
 
 async function userMaySchool(userId: number, schoolId: number, isAdmin: boolean): Promise<boolean> {
   if (isAdmin) return true;
@@ -27,7 +39,10 @@ export async function POST(request: NextRequest) {
     const contextType = String(body.contextType || '').trim();
     const contextId = String(body.contextId || '').trim();
     const schoolId = Number(body.schoolId);
-    if (!contextType || !contextId) return errorResponse('Missing contextType / contextId', 400);
+
+    if (!contextType) return errorResponse('Missing contextType', 400);
+    if (contextType.length > MAX_CONTEXT_TYPE_LEN) return errorResponse('contextType too long', 400);
+    if (!contextId) return errorResponse('Missing contextId', 400);
     if (contextId.length > MAX_CONTEXT_ID_LEN) return errorResponse('contextId too long', 400);
     if (!Number.isFinite(schoolId) || schoolId <= 0) return errorResponse('Missing schoolId', 400);
 
@@ -36,44 +51,20 @@ export async function POST(request: NextRequest) {
       return errorResponse('Forbidden: ไม่มีสิทธิ์เปิดบอร์ดของโรงเรียนนี้', 403);
     }
 
-    // Find any prior board for this context (most recent). We deliberately
-    // don't filter by status: if the most recent board is CLOSED, reactivate
-    // it so collaborators see the same notes and the original shareKey keeps
-    // working — opening a cell again is the user's signal that they want to
-    // continue brainstorming where they left off, not start over.
-    const existing = await prisma.stickyBoard.findFirst({
-      where: { contextType, contextId },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    if (existing) {
-      const board =
-        existing.status === 'ACTIVE'
-          ? existing
-          : await prisma.stickyBoard.update({
-              where: { id: existing.id },
-              data: { status: 'ACTIVE', closedAt: null },
-            });
-      const owner = await prisma.user.findUnique({
-        where: { id: board.ownerUserId },
-        select: { id: true, name: true },
-      });
-      return successResponse({
-        id: board.id,
-        shareKey: board.shareKey,
-        ownerUserId: board.ownerUserId,
-        ownerName: owner?.name || null,
-        schoolId: board.schoolId,
-        contextType: board.contextType,
-        contextId: board.contextId,
-        status: board.status,
-        isOwner: board.ownerUserId === me.id,
-        createdAt: board.createdAt,
-      });
-    }
-
-    const board = await prisma.stickyBoard.create({
-      data: {
+    // Atomic get-or-create against the unique (contextType, contextId) index.
+    // - On first call:    INSERT new row with caller as owner.
+    // - On repeat call:   row exists, `update` reactivates it to ACTIVE if it
+    //                     was previously archived (no-op otherwise). The
+    //                     ownerUserId / shareKey set on first INSERT are
+    //                     immutable — any number of follow-up callers see the
+    //                     same id, the same shareKey, and the same owner.
+    const board = await prisma.stickyBoard.upsert({
+      where: { contextType_contextId: { contextType, contextId } },
+      update: {
+        status: 'ACTIVE',
+        closedAt: null,
+      },
+      create: {
         shareKey: newShareKey(),
         ownerUserId: me.id,
         schoolId,
@@ -83,16 +74,21 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    const owner = await prisma.user.findUnique({
+      where: { id: board.ownerUserId },
+      select: { id: true, name: true },
+    });
+
     return successResponse({
       id: board.id,
       shareKey: board.shareKey,
       ownerUserId: board.ownerUserId,
-      ownerName: me.name,
+      ownerName: owner?.name || null,
       schoolId: board.schoolId,
       contextType: board.contextType,
       contextId: board.contextId,
       status: board.status,
-      isOwner: true,
+      isOwner: board.ownerUserId === me.id,
       createdAt: board.createdAt,
     });
   } catch (error: any) {

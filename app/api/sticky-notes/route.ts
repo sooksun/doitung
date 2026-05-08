@@ -27,6 +27,11 @@ const MAX_NAME_LEN = 80;
 
 // Tiny in-memory rate limit for POST. Resets on container restart, which is
 // fine — we just need a brake on accidental loops or low-effort abuse.
+//
+// TODO: Replace in-memory rate limiting with Redis (or similar shared store)
+// if this app is ever run with more than one instance behind a load balancer.
+// The current Map is per-process, so identical requests hitting different
+// instances each get their own bucket and the effective ceiling is N×limit.
 const POST_BUCKETS = new Map<string, { count: number; resetAt: number }>();
 const POST_LIMIT_PER_MIN = 60;
 
@@ -90,7 +95,7 @@ export async function GET(request: NextRequest) {
     const board = await prisma.stickyBoard.findUnique({ where: { shareKey: boardKey } });
     if (!board) return errorResponse('ไม่พบบอร์ด', 404);
     if (board.status !== 'ACTIVE') {
-      return errorResponse('บอร์ดนี้ถูกปิดโดยเจ้าของแล้ว', 410);
+      return errorResponse('บอร์ดนี้ถูกเก็บไว้ — เจ้าของสามารถเปิดใช้งานอีกครั้งจากช่องเดิม', 410);
     }
 
     const me = await getCurrentUser(request);
@@ -143,7 +148,7 @@ export async function POST(request: NextRequest) {
     const board = await prisma.stickyBoard.findUnique({ where: { shareKey: boardKey } });
     if (!board) return errorResponse('ไม่พบบอร์ด', 404);
     if (board.status !== 'ACTIVE') {
-      return errorResponse('บอร์ดนี้ถูกปิดโดยเจ้าของแล้ว', 410);
+      return errorResponse('บอร์ดนี้ถูกเก็บไว้ — เจ้าของสามารถเปิดใช้งานอีกครั้งจากช่องเดิม', 410);
     }
 
     const me = await getCurrentUser(request);
