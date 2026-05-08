@@ -4,7 +4,7 @@
 
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { successResponse, errorResponse, requireAuth, hasRole } from '@/lib/api-utils';
+import { successResponse, errorResponse, handleApiError, requireAuth, hasRole } from '@/lib/api-utils';
 import { logAudit } from '@/lib/audit';
 
 async function checkAccess(userId: number, schoolId: number, isAdmin: boolean): Promise<boolean> {
@@ -79,7 +79,7 @@ export async function GET(
   } catch (error: any) {
     if (error?.message?.startsWith('Unauthorized')) return errorResponse(error.message, 401);
     if (error?.message?.startsWith('Forbidden')) return errorResponse(error.message, 403);
-    return errorResponse('เกิดข้อผิดพลาด', 500);
+    return handleApiError(error);
   }
 }
 
@@ -121,6 +121,6 @@ export async function DELETE(
   } catch (error: any) {
     if (error?.message?.startsWith('Unauthorized')) return errorResponse(error.message, 401);
     if (error?.message?.startsWith('Forbidden')) return errorResponse(error.message, 403);
-    return errorResponse('เกิดข้อผิดพลาด', 500);
+    return handleApiError(error);
   }
 }
