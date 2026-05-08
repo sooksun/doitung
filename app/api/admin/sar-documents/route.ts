@@ -115,6 +115,13 @@ export async function GET(request: NextRequest) {
       where.schoolId = t.schoolId;
     }
 
+    // Soft-deleted rows live as status=ARCHIVED. Hide them from the default
+    // listing — admins who need them back can pass ?includeArchived=true.
+    const includeArchived = sp.get('includeArchived') === 'true';
+    if (!includeArchived) {
+      where.status = { not: 'ARCHIVED' };
+    }
+
     const docs = await prisma.sarDocument.findMany({
       where,
       orderBy: [{ academicYearId: 'desc' }, { level: 'asc' }],

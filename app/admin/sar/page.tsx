@@ -8,6 +8,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { toastSuccess, toastError } from '@/lib/toast';
 
 interface SarRow {
   id: number;
@@ -51,6 +52,8 @@ export default function SarListPage() {
   const [rows, setRows] = useState<SarRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const load = useCallback(async (authToken: string) => {
     try {
@@ -74,6 +77,17 @@ export default function SarListPage() {
     if (!stored) { router.push('/login'); return; }
     setToken(stored);
     load(stored);
+
+    // Soft-delete (DELETE /api/admin/sar-documents/:id) is admin-only on the
+    // server, so hide the button for school_leader / teacher viewers.
+    fetch('/api/auth/me', { headers: { Authorization: `Bearer ${stored}` } })
+      .then((r) => r.json())
+      .then((j) => {
+        if (j?.success && Array.isArray(j.data?.roles)) {
+          setIsAdmin(j.data.roles.includes('ADMIN'));
+        }
+      })
+      .catch(() => {});
   }, [router, load]);
 
   // Auto-refresh while any document is in EXTRACTING state
@@ -84,6 +98,44 @@ export default function SarListPage() {
     const id = setInterval(() => load(token), 4000);
     return () => clearInterval(id);
   }, [token, rows, load]);
+
+  // Soft-delete: backend flips status to ARCHIVED; the row is then hidden by
+  // the default listing query. The original file, body text, iceberg JSON,
+  // pages, and version history all remain on disk / in the DB so we can
+  // surface them again later if needed (e.g. via ?includeArchived=true).
+  const softDelete = async (row: SarRow) => {
+    if (!token || deletingId === row.id) return;
+    const label = `#${row.id} ${row.schoolCode ? row.schoolCode + ' ' : ''}${row.schoolName} · ปี ${row.academicYear} · ${LEVEL_LABEL[row.level] || row.level}`;
+    const ok = window.confirm(
+      `ลบรายการระดมสมอง:\n\n${label}\n\n` +
+      `รายการนี้จะถูกเก็บถาวรและไม่แสดงในรายการอีก (ข้อมูลเดิม/ไฟล์/เวอร์ชัน ยังถูกเก็บไว้)\n\n` +
+      `ยืนยันลบ?`
+    );
+    if (!ok) return;
+
+    setDeletingId(row.id);
+    // Optimistic remove from view
+    setRows((prev) => prev.filter((r) => r.id !== row.id));
+    try {
+      const res = await fetch(`/api/admin/sar-documents/${row.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) {
+        toastError(json.error || 'ลบไม่สำเร็จ');
+        // Revert: reload the full list to restore correct order
+        load(token);
+      } else {
+        toastSuccess('ลบรายการแล้ว (เก็บถาวร)');
+      }
+    } catch {
+      toastError('เกิดข้อผิดพลาด');
+      load(token);
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div style={{ minHeight: '100vh', padding: '2rem', background: '#f5f5f5' }}>
@@ -163,9 +215,31 @@ export default function SarListPage() {
                       <td style={{ padding: '0.6rem 1rem', textAlign: 'center', color: '#666' }}>{qScore}</td>
                       <td style={{ padding: '0.6rem 1rem', textAlign: 'center', color: '#666' }}>v{r.versions}</td>
                       <td style={{ padding: '0.6rem 1rem' }}>
-                        <Link href={`/admin/sar/${r.id}`} style={{ padding: '0.25rem 0.7rem', background: '#667eea', color: 'white', borderRadius: '0.3rem', textDecoration: 'none', fontSize: '0.8rem' }}>
-                          เปิด
-                        </Link>
+                        <div style={{ display: 'inline-flex', gap: '0.4rem' }}>
+                          <Link href={`/admin/sar/${r.id}`} style={{ padding: '0.25rem 0.7rem', background: '#667eea', color: 'white', borderRadius: '0.3rem', textDecoration: 'none', fontSize: '0.8rem' }}>
+                            เปิด
+                          </Link>
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => softDelete(r)}
+                              disabled={deletingId === r.id}
+                              title="ลบรายการนี้ (Soft Delete — ข้อมูลเดิมยังเก็บไว้)"
+                              style={{
+                                padding: '0.25rem 0.7rem',
+                                background: deletingId === r.id ? '#fca5a5' : '#ef4444',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '0.3rem',
+                                fontSize: '0.8rem',
+                                cursor: deletingId === r.id ? 'not-allowed' : 'pointer',
+                                fontFamily: 'inherit',
+                              }}
+                            >
+                              {deletingId === r.id ? 'กำลังลบ...' : 'ลบ'}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
