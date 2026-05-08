@@ -148,6 +148,22 @@ function renderConfirmToast(
 
   const confirmBg = danger ? '#ef4444' : '#4f46e5';
 
+  // Guard so the dismissal path (X button, programmatic dismiss, route change)
+  // doesn't double-fire after a user already pressed Confirm/Cancel. Without
+  // this, the Promise overload would never resolve when the toast is closed
+  // by any means other than the two buttons, hanging the awaiting caller.
+  let settled = false;
+  const settleConfirm = () => {
+    if (settled) return;
+    settled = true;
+    onConfirm();
+  };
+  const settleCancel = () => {
+    if (settled) return;
+    settled = true;
+    onCancel?.();
+  };
+
   toast(
     ({ closeToast }) => (
       <div style={{ padding: '0.25rem 0.5rem 0.5rem', fontFamily: 'inherit' }}>
@@ -171,7 +187,7 @@ function renderConfirmToast(
           <button
             type="button"
             onClick={() => {
-              if (onCancel) onCancel();
+              settleCancel();
               closeToast?.();
             }}
             style={{
@@ -191,7 +207,7 @@ function renderConfirmToast(
           <button
             type="button"
             onClick={() => {
-              onConfirm();
+              settleConfirm();
               closeToast?.();
             }}
             style={{
@@ -218,6 +234,7 @@ function renderConfirmToast(
       closeButton: true,
       draggable: false,
       style: { width: '320px' },
+      onClose: settleCancel,
     }
   );
 }
