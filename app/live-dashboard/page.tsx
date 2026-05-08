@@ -21,6 +21,7 @@ interface LiveData {
   totalSessions: number;
   totalResponses: number;
   activeEvaluators: number;
+  totalEvaluators: number;
   completionRate: number;
   overallQualityIndex: number;
   spiderData: Array<{ dimension: string; labelTh: string; current: number; target: number }>;
@@ -343,6 +344,14 @@ export default function LiveDashboardPage() {
                   value={liveData?.activeEvaluators ?? 0}
                   suffix=" คน"
                   style={{ fontSize: '2rem', fontWeight: 700, color: '#fbbf24', lineHeight: 1 }}
+                />
+              </KpiCard>
+
+              <KpiCard label="ครูที่ประเมินทั้งหมด" icon="👨‍🏫" color="#f472b6">
+                <AnimatedNumber
+                  value={liveData?.totalEvaluators ?? 0}
+                  suffix=" คน"
+                  style={{ fontSize: '2rem', fontWeight: 700, color: '#f472b6', lineHeight: 1 }}
                 />
               </KpiCard>
 

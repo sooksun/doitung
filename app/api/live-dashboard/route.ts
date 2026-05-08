@@ -90,6 +90,14 @@ export async function GET(request: NextRequest) {
     });
     const activeEvaluators = new Set(recentSessions.map((s) => s.evaluatorId)).size;
 
+    // All-time evaluators in scope: distinct evaluatorIds whose session has at least one response.
+    const totalEvaluatorRows = await prisma.evaluationSession.findMany({
+      where: { ...sessionWhere, responses: { some: {} } },
+      select: { evaluatorId: true },
+      distinct: ['evaluatorId'],
+    });
+    const totalEvaluators = totalEvaluatorRows.length;
+
     // Q-Model instrument
     const qModel = await prisma.instrument.findFirst({
       where: { type: 'Q_MODEL' },
@@ -278,6 +286,7 @@ export async function GET(request: NextRequest) {
       totalSessions,
       totalResponses,
       activeEvaluators,
+      totalEvaluators,
       completionRate,
       overallQualityIndex,
       spiderData,
