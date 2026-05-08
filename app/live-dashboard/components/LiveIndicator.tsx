@@ -11,6 +11,8 @@ interface LiveIndicatorProps {
   status: 'green' | 'yellow' | 'red';
   showDelta?: boolean;
   prevPercent?: number;
+  avgScore?: number;   // raw 1–5 average (สภาพที่เป็นอยู่). When provided + maxScore set,
+  maxScore?: number;   // a "(3.5 / 5)" hint is rendered next to the percent.
 }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -24,6 +26,8 @@ export default function LiveIndicator({
   percent,
   status,
   prevPercent,
+  avgScore,
+  maxScore,
 }: LiveIndicatorProps) {
   const [displayWidth, setDisplayWidth] = useState(prevPercent ?? percent);
   const rafRef = useRef<number | null>(null);
@@ -58,7 +62,7 @@ export default function LiveIndicator({
   const color = STATUS_COLOR[status] || '#818cf8';
 
   return (
-    <div style={{ marginBottom: '0.75rem' }}>
+    <div>
       <div
         style={{
           display: 'flex',
@@ -92,6 +96,18 @@ export default function LiveIndicator({
           <span style={{ fontSize: '1rem', fontWeight: 700, color }}>
             {Math.round(percent)}%
           </span>
+          {avgScore !== undefined && maxScore !== undefined && maxScore > 0 && (
+            <span
+              style={{
+                fontSize: '0.8rem',
+                fontWeight: 500,
+                color: 'rgba(255,255,255,0.55)',
+                fontFamily: 'Kanit, sans-serif',
+              }}
+            >
+              ({avgScore.toFixed(1)} / {maxScore})
+            </span>
+          )}
         </div>
       </div>
       <div

@@ -112,12 +112,14 @@ export async function GET(request: NextRequest) {
       labelTh: string;
       percent: number;
       status: 'green' | 'yellow' | 'red';
+      avgScore: number;          // avg score2 (1-5 scale, "current" / สภาพที่เป็นอยู่)
+      maxScore: number;          // upper bound of indicator scale (5 for Q-Model)
     }> = [];
 
     if (!qModel) {
       for (const dim of Q_DIMENSIONS) {
         spiderData.push({ dimension: dim.key, labelTh: dim.labelTh, current: 0, target: 0 });
-        dimensionScores.push({ dimension: dim.key, labelTh: dim.labelTh, percent: 0, status: 'red' });
+        dimensionScores.push({ dimension: dim.key, labelTh: dim.labelTh, percent: 0, status: 'red', avgScore: 0, maxScore: 5 });
       }
     } else {
       for (const dim of Q_DIMENSIONS) {
@@ -128,7 +130,7 @@ export async function GET(request: NextRequest) {
 
         if (indicators.length === 0) {
           spiderData.push({ dimension: dim.key, labelTh: dim.labelTh, current: 0, target: 0 });
-          dimensionScores.push({ dimension: dim.key, labelTh: dim.labelTh, percent: 0, status: 'red' });
+          dimensionScores.push({ dimension: dim.key, labelTh: dim.labelTh, percent: 0, status: 'red', avgScore: 0, maxScore: 5 });
           continue;
         }
 
@@ -181,7 +183,14 @@ export async function GET(request: NextRequest) {
         if (percent >= 90) status = 'green';
         else if (percent >= 70) status = 'yellow';
 
-        dimensionScores.push({ dimension: dim.key, labelTh: dim.labelTh, percent, status });
+        dimensionScores.push({
+          dimension: dim.key,
+          labelTh: dim.labelTh,
+          percent,
+          status,
+          avgScore: Math.round(avgScore2 * 10) / 10,
+          maxScore: indicators[0].maxScore,
+        });
       }
     }
 

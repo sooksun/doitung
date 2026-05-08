@@ -24,7 +24,14 @@ interface LiveData {
   completionRate: number;
   overallQualityIndex: number;
   spiderData: Array<{ dimension: string; labelTh: string; current: number; target: number }>;
-  dimensionScores: Array<{ dimension: string; labelTh: string; percent: number; status: 'green' | 'yellow' | 'red' }>;
+  dimensionScores: Array<{
+    dimension: string;
+    labelTh: string;
+    percent: number;
+    status: 'green' | 'yellow' | 'red';
+    avgScore: number;
+    maxScore: number;
+  }>;
   indicatorHealth: Array<{
     code: string | null;
     nameTh: string;
@@ -355,7 +362,7 @@ export default function LiveDashboardPage() {
               </KpiCard>
             </div>
 
-            {/* CENTER — Spider Chart */}
+            {/* CENTER — Dimension progress bars + Spider Chart */}
             <div
               style={{
                 background: 'rgba(255,255,255,0.04)',
@@ -364,9 +371,33 @@ export default function LiveDashboardPage() {
                 padding: '1rem',
                 display: 'flex',
                 flexDirection: 'column',
-                alignItems: 'center',
+                alignItems: 'stretch',
               }}
             >
+              {/* Per-dimension progress bars (moved from the bottom of the page) */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(4, 1fr)',
+                  gap: '0.5rem 1.25rem',
+                  marginBottom: '0.85rem',
+                  paddingBottom: '0.85rem',
+                  borderBottom: '1px solid rgba(255,255,255,0.06)',
+                }}
+              >
+                {(liveData?.dimensionScores ?? []).map((dim) => (
+                  <LiveIndicator
+                    key={dim.dimension}
+                    nameTh={dim.labelTh}
+                    percent={dim.percent}
+                    status={dim.status}
+                    prevPercent={prevDimScores[dim.dimension]}
+                    avgScore={dim.avgScore}
+                    maxScore={dim.maxScore}
+                  />
+                ))}
+              </div>
+
               <div style={{ fontSize: '1rem', fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: '0.5rem', textAlign: 'center' }}>
                 Assessment Pillars Comparison — 4 Main Dimensions
               </div>
@@ -516,32 +547,6 @@ export default function LiveDashboardPage() {
             </div>
           </div>
 
-          {/* ===== BOTTOM — Dimension Progress Bars ===== */}
-          <div
-            style={{
-              padding: '0.75rem 1.5rem 1rem',
-              background: 'rgba(0,0,0,0.25)',
-              borderTop: '1px solid rgba(255,255,255,0.06)',
-            }}
-          >
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-                gap: '0.75rem 2rem',
-              }}
-            >
-              {(liveData?.dimensionScores ?? []).map((dim) => (
-                <LiveIndicator
-                  key={dim.dimension}
-                  nameTh={dim.labelTh}
-                  percent={dim.percent}
-                  status={dim.status}
-                  prevPercent={prevDimScores[dim.dimension]}
-                />
-              ))}
-            </div>
-          </div>
         </>
       )}
 
