@@ -217,13 +217,14 @@ export const StickyNoteCard = forwardRef<StickyNoteCardHandle, StickyNoteCardPro
           {note.canDelete && (
             <button
               type="button"
-              onClick={(e) => {
+              onClick={async (e) => {
                 e.stopPropagation();
-                toastConfirm('โน้ตนี้จะถูกลบทันที', () => onDelete(), undefined, {
+                const ok = await toastConfirm('โน้ตนี้จะถูกลบทันที', {
                   title: 'ลบโน้ต?',
                   confirmLabel: 'ลบ',
                   danger: true,
                 });
+                if (ok) onDelete();
               }}
               title="ลบโน้ต"
               style={iconBtnStyle}

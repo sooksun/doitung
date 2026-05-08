@@ -251,82 +251,78 @@ export default function EvaluationDetailPage() {
   const handleSubmit = async () => {
     if (!token || !evaluation) return;
 
-    toastConfirm(
-      'ยืนยันการส่งแบบประเมิน? หลังจากส่งแล้วจะไม่สามารถแก้ไขได้',
-      async () => {
-        setSubmitting(true);
-        try {
-          // Save responses first
-          const responsesArray = Object.entries(responses).map(([indicatorId, data]) => ({
-            indicatorId: parseInt(indicatorId, 10),
-            score: data.score,
-            score2: data.score2 !== undefined && data.score2 !== null ? data.score2 : null,
-            comment: data.comment || null,
-          }));
+    const ok = await toastConfirm('ยืนยันการส่งแบบประเมิน? หลังจากส่งแล้วจะไม่สามารถแก้ไขได้');
+    if (!ok) return;
 
-          if (responsesArray.length > 0) {
-            await fetch(`/api/evaluations/${evaluation.id}/responses`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ responses: responsesArray }),
-            });
-          }
+    setSubmitting(true);
+    try {
+      // Save responses first
+      const responsesArray = Object.entries(responses).map(([indicatorId, data]) => ({
+        indicatorId: parseInt(indicatorId, 10),
+        score: data.score,
+        score2: data.score2 !== undefined && data.score2 !== null ? data.score2 : null,
+        comment: data.comment || null,
+      }));
 
-          // Update status to SUBMITTED
-          const res = await fetch(`/api/evaluations/${evaluation.id}`, {
-            method: 'PATCH',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ status: 'SUBMITTED' }),
-          });
-
-          const data = await res.json();
-          if (res.ok && data.success) {
-            toastSuccess('ส่งแบบประเมินสำเร็จ');
-            router.push('/evaluations');
-          } else {
-            toastError(data.error || 'ส่งแบบประเมินไม่สำเร็จ');
-          }
-        } catch (err) {
-          toastError('เกิดข้อผิดพลาดในการส่งแบบประเมิน');
-        } finally {
-          setSubmitting(false);
-        }
+      if (responsesArray.length > 0) {
+        await fetch(`/api/evaluations/${evaluation.id}/responses`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ responses: responsesArray }),
+        });
       }
-    );
+
+      // Update status to SUBMITTED
+      const res = await fetch(`/api/evaluations/${evaluation.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'SUBMITTED' }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toastSuccess('ส่งแบบประเมินสำเร็จ');
+        router.push('/evaluations');
+      } else {
+        toastError(data.error || 'ส่งแบบประเมินไม่สำเร็จ');
+      }
+    } catch (err) {
+      toastError('เกิดข้อผิดพลาดในการส่งแบบประเมิน');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleClearAll = async () => {
     if (!token || !evaluation) return;
-    toastConfirm(
-      'ยืนยันเคลียร์คะแนนทั้งหมด? คะแนนเดิมจะถูกลบและสถานะกลับเป็น "ร่าง"',
-      async () => {
-        setSaving(true);
-        try {
-          const res = await fetch(`/api/evaluations/${evaluation.id}/responses`, {
-            method: 'DELETE',
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          const data = await res.json();
-          if (res.ok && data.success) {
-            toastSuccess(data.message || 'เคลียร์คะแนนสำเร็จ');
-            // Refresh page state by re-fetching the evaluation + (now-empty) responses
-            await fetchEvaluation(token, evaluation.id);
-          } else {
-            toastError(data.error || 'เคลียร์คะแนนไม่สำเร็จ');
-          }
-        } catch {
-          toastError('เกิดข้อผิดพลาดในการเคลียร์คะแนน');
-        } finally {
-          setSaving(false);
-        }
+    const ok = await toastConfirm('ยืนยันเคลียร์คะแนนทั้งหมด? คะแนนเดิมจะถูกลบและสถานะกลับเป็น "ร่าง"');
+    if (!ok) return;
+
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/evaluations/${evaluation.id}/responses`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toastSuccess(data.message || 'เคลียร์คะแนนสำเร็จ');
+        // Refresh page state by re-fetching the evaluation + (now-empty) responses
+        await fetchEvaluation(token, evaluation.id);
+      } else {
+        toastError(data.error || 'เคลียร์คะแนนไม่สำเร็จ');
       }
-    );
+    } catch {
+      toastError('เกิดข้อผิดพลาดในการเคลียร์คะแนน');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const renderIndicatorInput = (indicator: Section['indicators'][0]) => {

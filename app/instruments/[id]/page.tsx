@@ -201,35 +201,31 @@ export default function InstrumentDetailPage() {
   const handleDeleteSection = async (sectionId: number) => {
     if (!token || !id) return;
 
-    toastConfirm(
-      'คุณแน่ใจหรือไม่ว่าต้องการลบ Section นี้?',
-      async () => {
-        try {
-          const res = await fetch(`/api/instruments/${id}/sections/${sectionId}`, {
-            method: 'DELETE',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
-          });
+    const ok = await toastConfirm('คุณแน่ใจหรือไม่ว่าต้องการลบ Section นี้?');
+    if (!ok) return;
 
-          const data = await res.json();
+    try {
+      const res = await fetch(`/api/instruments/${id}/sections/${sectionId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
 
-          if (!res.ok) {
-            toastError(data.error || 'เกิดข้อผิดพลาดในการลบ Section');
-            return;
-          }
+      const data = await res.json();
 
-          // Refresh
-          toastSuccess('ลบ Section สำเร็จ');
-          if (token) {
-            fetchInstrument(token, parseInt(id));
-          }
-        } catch (err) {
-          console.error(err);
-          toastError('เกิดข้อผิดพลาดในการลบ Section');
-        }
+      if (!res.ok) {
+        toastError(data.error || 'เกิดข้อผิดพลาดในการลบ Section');
+        return;
       }
-    );
+
+      // Refresh
+      toastSuccess('ลบ Section สำเร็จ');
+      fetchInstrument(token, parseInt(id));
+    } catch (err) {
+      console.error(err);
+      toastError('เกิดข้อผิดพลาดในการลบ Section');
+    }
   };
 
   if (loading) {
