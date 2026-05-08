@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { toastInfo } from '@/lib/toast';
 
 interface DashboardSummary {
   completionRate: number;
@@ -230,7 +231,7 @@ export default function ReportsPage() {
                 fontSize: '1rem',
                 fontWeight: '500'
               }}
-              onClick={() => alert('Export PDF - Coming soon!')}
+              onClick={() => toastInfo('Export PDF — กำลังพัฒนา')}
             >
               📄 Export PDF
             </button>
@@ -245,7 +246,7 @@ export default function ReportsPage() {
                 fontSize: '1rem',
                 fontWeight: '500'
               }}
-              onClick={() => alert('Export Excel - Coming soon!')}
+              onClick={() => toastInfo('Export Excel — กำลังพัฒนา')}
             >
               📊 Export Excel
             </button>

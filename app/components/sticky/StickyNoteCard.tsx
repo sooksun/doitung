@@ -15,6 +15,7 @@
 
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { StickyColor, StickyNote } from './useStickyNotes';
+import { toastConfirm } from '@/lib/toast';
 
 const COLOR_BG: Record<StickyColor, string> = {
   yellow: '#fef3c7',
@@ -218,7 +219,11 @@ export const StickyNoteCard = forwardRef<StickyNoteCardHandle, StickyNoteCardPro
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                if (window.confirm('ลบโน้ตนี้?')) onDelete();
+                toastConfirm('โน้ตนี้จะถูกลบทันที', () => onDelete(), undefined, {
+                  title: 'ลบโน้ต?',
+                  confirmLabel: 'ลบ',
+                  danger: true,
+                });
               }}
               title="ลบโน้ต"
               style={iconBtnStyle}

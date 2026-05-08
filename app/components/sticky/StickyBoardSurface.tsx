@@ -26,7 +26,7 @@ import {
   useStickyNotes,
   type StickyColor,
 } from './useStickyNotes';
-import { toastError, toastSuccess } from '@/lib/toast';
+import { toastError, toastSuccess, toastConfirm } from '@/lib/toast';
 
 export interface StickyBoardSurfaceProps {
   title: string;
@@ -130,7 +130,11 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
       toastError('เฉพาะเจ้าของบอร์ดเท่านั้นที่ล้างบอร์ดได้');
       return;
     }
-    if (!window.confirm('ล้างโน้ตทั้งหมดบนบอร์ด?')) return;
+    const ok = await toastConfirm(
+      `จะลบโน้ตทั้งหมด ${notes.length} ใบจากบอร์ดนี้`,
+      { title: 'ล้างบอร์ด?', confirmLabel: 'ล้าง', danger: true }
+    );
+    if (!ok) return;
     const result = await clearBoardOwner(boardId);
     if (result) {
       toastSuccess(`ล้างโน้ต ${result.cleared} ใบสำเร็จ`);

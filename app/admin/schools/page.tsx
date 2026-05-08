@@ -11,7 +11,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { toastSuccess, toastError } from '@/lib/toast';
+import { toastSuccess, toastError, toastConfirm } from '@/lib/toast';
 
 interface SchoolRow {
   id: number;
@@ -72,10 +72,9 @@ export default function AdminSchoolsPage() {
     if (!token || busy === school.id) return;
 
     if (!nextValue && school.sessionCount > 0) {
-      const ok = window.confirm(
-        `โรงเรียน "${school.nameTh || school.name}" มีการประเมิน ${school.sessionCount} รายการ\n\n` +
-        `การปิดใช้งานจะซ่อนโรงเรียนนี้จาก dashboard และตัวเลือกทั่วไป (ข้อมูลเดิมยังอยู่ครบ)\n\n` +
-        `ยืนยันปิดใช้งาน?`
+      const ok = await toastConfirm(
+        `โรงเรียน "${school.nameTh || school.name}" มีการประเมิน ${school.sessionCount} รายการ\n\nการปิดใช้งานจะซ่อนโรงเรียนนี้จาก dashboard และตัวเลือกทั่วไป (ข้อมูลเดิมยังอยู่ครบ)`,
+        { title: 'ปิดใช้งานโรงเรียน?', confirmLabel: 'ปิดใช้งาน', cancelLabel: 'ยกเลิก', danger: true }
       );
       if (!ok) return;
     }

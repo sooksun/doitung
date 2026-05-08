@@ -7,6 +7,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
+import { toastConfirm } from '@/lib/toast';
 
 interface Section {
   id: number;
@@ -212,7 +213,10 @@ export default function AssessmentPage() {
 
   const handleClearAll = async () => {
     if (!token || !sessionId) return;
-    const ok = window.confirm('ยืนยันเคลียร์คะแนนทั้งหมด?\nคะแนนเดิมจะถูกลบและสถานะกลับเป็น "ร่าง"');
+    const ok = await toastConfirm(
+      'คะแนนเดิมจะถูกลบและสถานะกลับเป็น "ร่าง"',
+      { title: 'เคลียร์คะแนนทั้งหมด?', confirmLabel: 'เคลียร์', danger: true }
+    );
     if (!ok) return;
     try {
       const res = await fetch(`/api/evaluations/${sessionId}/responses`, {
@@ -241,7 +245,10 @@ export default function AssessmentPage() {
       return r && r.score !== null && r.score2 !== null;
     }).length;
     if (answered < total) {
-      const ok = window.confirm(`ยังตอบไม่ครบ (${answered}/${total} ข้อ)\nต้องการส่งแบบประเมินเลยหรือไม่?`);
+      const ok = await toastConfirm(
+        `ตอบแล้ว ${answered}/${total} ข้อ\n\nต้องการส่งแบบประเมินเลยหรือไม่?`,
+        { title: 'ยังตอบไม่ครบ', confirmLabel: 'ส่งเลย', danger: false }
+      );
       if (!ok) return;
     }
     setSubmitting(true);

@@ -8,7 +8,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { toastSuccess, toastError } from '@/lib/toast';
+import { toastSuccess, toastError, toastConfirm } from '@/lib/toast';
 
 interface SarRow {
   id: number;
@@ -94,10 +94,9 @@ export default function SarListPage() {
   const softDelete = async (row: SarRow) => {
     if (!token || deletingId === row.id) return;
     const label = `#${row.id} ${row.schoolCode ? row.schoolCode + ' ' : ''}${row.schoolName} · ปี ${row.academicYear} · ${LEVEL_LABEL[row.level] || row.level}`;
-    const ok = window.confirm(
-      `ลบรายการระดมสมอง:\n\n${label}\n\n` +
-      `รายการนี้จะถูกเก็บถาวรและไม่แสดงในรายการอีก (ข้อมูลเดิม/ไฟล์/เวอร์ชัน ยังถูกเก็บไว้)\n\n` +
-      `ยืนยันลบ?`
+    const ok = await toastConfirm(
+      `${label}\n\nรายการนี้จะถูกเก็บถาวรและไม่แสดงในรายการอีก\n(ข้อมูลเดิม / ไฟล์ / เวอร์ชัน ยังเก็บไว้ครบ)`,
+      { title: 'ลบรายการระดมสมอง?', confirmLabel: 'ลบ', cancelLabel: 'ยกเลิก', danger: true }
     );
     if (!ok) return;
 

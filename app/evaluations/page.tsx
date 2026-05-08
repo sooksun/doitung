@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { toastError, toastConfirm } from '@/lib/toast';
 
 interface Evaluation {
   id: number;
@@ -90,8 +91,9 @@ export default function EvaluationsPage() {
 
   const handleClear = async (id: number) => {
     if (!token) return;
-    const ok = confirm(
-      `ต้องการเคลียร์รายการประเมิน #${id} ใช่หรือไม่?\n\nรายการจะถูกซ่อนจากหน้านี้ทันที\nคะแนนและความคิดเห็นยังถูกเก็บไว้ในระบบ (สามารถกู้คืนได้โดย admin)`
+    const ok = await toastConfirm(
+      `ต้องการเคลียร์รายการประเมิน #${id} ใช่หรือไม่?\n\nรายการจะถูกซ่อนจากหน้านี้ทันที — คะแนนและความคิดเห็นยังถูกเก็บไว้ในระบบ (admin กู้คืนได้)`,
+      { title: 'เคลียร์รายการประเมิน', confirmLabel: 'เคลียร์', danger: true }
     );
     if (!ok) return;
     try {
@@ -101,13 +103,13 @@ export default function EvaluationsPage() {
       });
       const json = await res.json();
       if (!res.ok || !json.success) {
-        alert(json.error || 'เคลียร์ไม่สำเร็จ');
+        toastError(json.error || 'เคลียร์ไม่สำเร็จ');
         return;
       }
       // Optimistic remove: drop the row immediately so the UI feels responsive
       setEvaluations((prev) => prev.filter((e) => e.id !== id));
     } catch {
-      alert('เกิดข้อผิดพลาด');
+      toastError('เกิดข้อผิดพลาด');
     }
   };
 

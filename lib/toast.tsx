@@ -84,55 +84,129 @@ export const toastPromise = <T,>(
   ) as Promise<T>;
 };
 
+export interface ToastConfirmOptions {
+  /** Optional bold heading shown above the message */
+  title?: string;
+  /** Confirm button label (default: "ยืนยัน") */
+  confirmLabel?: string;
+  /** Cancel button label (default: "ยกเลิก") */
+  cancelLabel?: string;
+  /** Style the confirm button as a destructive action (red). Default true. */
+  danger?: boolean;
+}
+
 /**
- * Confirm dialog using toast (custom implementation)
- * Note: This is a simple implementation. For complex confirm dialogs, consider using a modal library.
+ * Confirm dialog rendered as a toast.
+ *
+ * Two call styles:
+ *   1. Callback (legacy): toastConfirm(msg, onConfirm, onCancel?, options?)
+ *   2. Promise: const ok = await toastConfirm(msg, options); if (ok) { ... }
+ *
+ * The message body honours `\n` (whiteSpace: pre-line) so multi-line prompts
+ * render correctly without HTML.
  */
-export const toastConfirm = (
+export function toastConfirm(message: string, options?: ToastConfirmOptions): Promise<boolean>;
+export function toastConfirm(
   message: string,
   onConfirm: () => void,
-  onCancel?: () => void
-): void => {
-  const toastId = toast(
+  onCancel?: () => void,
+  options?: ToastConfirmOptions
+): void;
+export function toastConfirm(
+  message: string,
+  arg2?: ToastConfirmOptions | (() => void),
+  arg3?: () => void,
+  arg4?: ToastConfirmOptions
+): void | Promise<boolean> {
+  // Promise overload — caller passed only options (or nothing) as arg2.
+  if (typeof arg2 !== 'function') {
+    const opts = (arg2 as ToastConfirmOptions | undefined) ?? {};
+    return new Promise<boolean>((resolve) => {
+      renderConfirmToast(message, () => resolve(true), () => resolve(false), opts);
+    });
+  }
+
+  // Callback overload.
+  const onConfirm = arg2 as () => void;
+  const onCancel = arg3;
+  const opts = arg4 ?? {};
+  renderConfirmToast(message, onConfirm, onCancel, opts);
+}
+
+function renderConfirmToast(
+  message: string,
+  onConfirm: () => void,
+  onCancel: (() => void) | undefined,
+  opts: ToastConfirmOptions
+): void {
+  const {
+    title,
+    confirmLabel = 'ยืนยัน',
+    cancelLabel = 'ยกเลิก',
+    danger = true,
+  } = opts;
+
+  const confirmBg = danger ? '#ef4444' : '#4f46e5';
+
+  toast(
     ({ closeToast }) => (
-      <div style={{ padding: '0.5rem' }}>
-        <div style={{ marginBottom: '1rem', fontWeight: '500' }}>{message}</div>
+      <div style={{ padding: '0.25rem 0.5rem 0.5rem', fontFamily: 'inherit' }}>
+        {title && (
+          <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: '0.4rem', color: '#111827' }}>
+            {title}
+          </div>
+        )}
+        <div
+          style={{
+            marginBottom: '0.85rem',
+            fontSize: '0.875rem',
+            color: '#374151',
+            whiteSpace: 'pre-line',
+            lineHeight: 1.5,
+          }}
+        >
+          {message}
+        </div>
         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
           <button
-            onClick={() => {
-              onConfirm();
-              closeToast();
-            }}
-            style={{
-              padding: '0.5rem 1rem',
-              background: '#ef4444',
-              color: 'white',
-              border: 'none',
-              borderRadius: '0.375rem',
-              cursor: 'pointer',
-              fontSize: '0.875rem',
-              fontWeight: '500',
-            }}
-          >
-            ยืนยัน
-          </button>
-          <button
+            type="button"
             onClick={() => {
               if (onCancel) onCancel();
-              closeToast();
+              closeToast?.();
             }}
             style={{
-              padding: '0.5rem 1rem',
-              background: '#6b7280',
-              color: 'white',
+              padding: '0.4rem 0.95rem',
+              background: '#e5e7eb',
+              color: '#374151',
               border: 'none',
-              borderRadius: '0.375rem',
+              borderRadius: '0.4rem',
               cursor: 'pointer',
-              fontSize: '0.875rem',
-              fontWeight: '500',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              fontFamily: 'inherit',
             }}
           >
-            ยกเลิก
+            {cancelLabel}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onConfirm();
+              closeToast?.();
+            }}
+            style={{
+              padding: '0.4rem 0.95rem',
+              background: confirmBg,
+              color: 'white',
+              border: 'none',
+              borderRadius: '0.4rem',
+              cursor: 'pointer',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              fontFamily: 'inherit',
+            }}
+          >
+            {confirmLabel}
           </button>
         </div>
       </div>
@@ -142,9 +216,11 @@ export const toastConfirm = (
       autoClose: false,
       closeOnClick: false,
       closeButton: true,
+      draggable: false,
+      style: { width: '320px' },
     }
   );
-};
+}
 
 /**
  * Alert using toast (simple alert replacement)
