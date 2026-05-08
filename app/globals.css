@@ -1,5 +1,5 @@
 /* app/globals.css */
-/* Global styles */
+/* Global styles + design tokens (DE Design v2) */
 
 * {
   box-sizing: border-box;
@@ -24,17 +24,95 @@ body {
 }
 
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
+  /* legacy tokens (keep — old pages still reference these via fallback values) */
+  --foreground-rgb: 17, 24, 39;
+  --background-start-rgb: 248, 250, 252;
   --background-end-rgb: 255, 255, 255;
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
-  }
+  /* === DE Design tokens v2 ============================================ */
+  /* Brand — refreshed from #667eea/#764ba2 to a more cohesive indigo→violet */
+  --de-brand-50:  #eef2ff;
+  --de-brand-100: #e0e7ff;
+  --de-brand-200: #c7d2fe;
+  --de-brand-300: #a5b4fc;
+  --de-brand-400: #818cf8;
+  --de-brand-500: #6366f1;
+  --de-brand-600: #4f46e5;
+  --de-brand-700: #4338ca;
+  --de-brand-800: #3730a3;
+  --de-brand-900: #312e81;
+
+  --de-accent-500: #8b5cf6;
+  --de-accent-600: #7c3aed;
+  --de-accent-700: #6d28d9;
+
+  /* Neutrals (slate) */
+  --de-ink-50:  #f8fafc;
+  --de-ink-100: #f1f5f9;
+  --de-ink-200: #e2e8f0;
+  --de-ink-300: #cbd5e1;
+  --de-ink-400: #94a3b8;
+  --de-ink-500: #64748b;
+  --de-ink-600: #475569;
+  --de-ink-700: #334155;
+  --de-ink-800: #1e293b;
+  --de-ink-900: #0f172a;
+
+  /* Semantic — keep parity with traffic light at indicator level */
+  --de-success-500: #10b981;
+  --de-success-600: #059669;
+  --de-warning-500: #f59e0b;
+  --de-warning-600: #d97706;
+  --de-danger-500:  #f43f5e;
+  --de-danger-600:  #e11d48;
+  --de-info-500:    #0ea5e9;
+
+  /* Surface */
+  --de-surface:        #ffffff;
+  --de-surface-muted:  #f8fafc;
+  --de-surface-sunken: #f1f5f9;
+  --de-surface-glass:  rgba(255, 255, 255, 0.72);
+
+  /* Brand gradient — used on hero / login backdrops */
+  --de-gradient-brand: linear-gradient(135deg, #4f46e5 0%, #7c3aed 55%, #c026d3 100%);
+  --de-gradient-brand-soft: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%);
+
+  /* Spacing scale (rem) */
+  --de-space-1: 0.25rem;
+  --de-space-2: 0.5rem;
+  --de-space-3: 0.75rem;
+  --de-space-4: 1rem;
+  --de-space-5: 1.25rem;
+  --de-space-6: 1.5rem;
+  --de-space-8: 2rem;
+  --de-space-10: 2.5rem;
+  --de-space-12: 3rem;
+  --de-space-16: 4rem;
+
+  /* Radius */
+  --de-radius-sm: 0.375rem;
+  --de-radius-md: 0.5rem;
+  --de-radius-lg: 0.75rem;
+  --de-radius-xl: 1rem;
+  --de-radius-2xl: 1.5rem;
+  --de-radius-pill: 9999px;
+
+  /* Shadow */
+  --de-shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --de-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --de-shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.05);
+  --de-shadow-lg: 0 10px 20px -8px rgba(15, 23, 42, 0.18), 0 4px 8px -4px rgba(15, 23, 42, 0.08);
+  --de-shadow-xl: 0 24px 48px -16px rgba(67, 56, 202, 0.28), 0 12px 24px -12px rgba(15, 23, 42, 0.12);
+  --de-shadow-glow: 0 0 0 4px rgba(99, 102, 241, 0.18);
+
+  /* Motion */
+  --de-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --de-duration-fast: 120ms;
+  --de-duration-base: 200ms;
+  --de-duration-slow: 320ms;
+
+  /* Typography */
+  --de-font-sans: 'Kanit', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 a {
@@ -47,10 +125,42 @@ a {
 
 /* Toast customization */
 .Toastify__toast {
-  font-family: 'Kanit', sans-serif;
+  font-family: var(--de-font-sans);
 }
 
 .Toastify__toast-body {
-  font-family: 'Kanit', sans-serif;
+  font-family: var(--de-font-sans);
 }
 
+/* === DE Design v2 utility classes ====================================== */
+/* Opt-in only — pages keep their inline style unless they import these.   */
+
+.de-app-shell {
+  min-height: 100vh;
+  font-family: var(--de-font-sans);
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(124, 58, 237, 0.18), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(79, 70, 229, 0.16), transparent 60%),
+    var(--de-surface-muted);
+  color: var(--de-ink-900);
+}
+
+.de-container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding-left: var(--de-space-6);
+  padding-right: var(--de-space-6);
+}
+
+.de-focus-ring:focus-visible {
+  outline: none;
+  box-shadow: var(--de-shadow-glow);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
