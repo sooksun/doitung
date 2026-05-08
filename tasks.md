@@ -444,3 +444,46 @@
 - [ ] (Optional) ย้าย guest token จาก localStorage → `httpOnly` cookie เพื่อปิดช่อง XSS exposure
 - [ ] (Optional) ผูกการเปลี่ยนแปลงในบอร์ดเข้ากับ LINE OA notification
 
+---
+
+## Phase: Q-Model Rubric บนหน้า Assessment ✅ Deploy แล้ว
+
+แสดงเกณฑ์การให้คะแนน 5 ระดับ (รับจาก PDF
+`2025_12_03แบบประเมินโรงเรียน_editedV.2(2).pdf`) ใต้แต่ละตัวชี้วัดของหน้า
+`/assessment/[id]` แบบ collapsible — ผู้ประเมินกาคะแนนได้แม่นขึ้นโดยไม่
+ต้องเปิด PDF อ้างอิงข้างนอก
+
+### Data + Seed
+- [x] เพิ่ม `scripts/data/q-model-rubrics.js` — เกณฑ์ครบ 47 ตัวชี้วัด
+  (L1–12, PLC1–10, T1–12, S1–13) × 5 ระดับ
+- [x] `Indicator.levelDescriptors` (Json?) เก็บ rubric ใน DB
+- [x] `scripts/seed-production.js` upsert rubric แบบ idempotent —
+  เปรียบเทียบ JSON ก่อน emit UPDATE ลด `updatedAt` churn
+- [x] `prisma/seed.ts` ใช้ rubric ตัวเดียวกันผ่าน CommonJS interop
+
+### UI
+- [x] ปุ่ม "▶ ดูเกณฑ์" / "▼ ซ่อนเกณฑ์" ติดข้อความตัวชี้วัดแต่ละแถว
+- [x] Row ขยาย (`colSpan=11`) แสดงเกณฑ์ 5 ระดับ (5 → 1 จากเก่งสุด)
+- [x] Highlight ระดับที่ rater เลือก: ม่วงสำหรับ score2, น้ำเงินสำหรับ score
+
+### One-shot: Q-Model instrument migration
+DB เก่ามี Q-Model instrument ซ้ำ 2 ตัว + section ซ้ำ + รหัสเก่า. เขียน
+`scripts/migrate-q-model-instrument.js` ที่ converge ให้เหลือ canonical
+ตัวเดียว 47 ตัวชี้วัด
+
+- [x] Wrap ใน `prisma.$transaction` — ถ้าพลาดกลางคัน rollback
+- [x] Fast-path idempotency check (1 instrument, 47 canonical itemCodes,
+  code = `Q-MODEL-2568`) → exit ภายใน ms
+- [x] **ไม่อยู่ใน docker-entrypoint** — destructive too risky ที่จะรันทุก
+  boot. Run-book: `docker exec eqap_app node /app/scripts/migrate-q-model-instrument.js`
+  ทำครั้งเดียวต่อ env แล้วปล่อย
+- [ ] **Future**: เมื่อ converge ครบทุก env แล้ว ลบ migration script ทิ้งได้
+
+### Future / TODO
+- [ ] เพิ่ม **automated test** สำหรับ migration script
+  (idempotency, polluted-DB → canonical, no-op cases) — ตอนนี้ verify
+  ด้วย manual run บน local DB เท่านั้น
+- [ ] (Optional) เพิ่ม PDF version/checksum ใน
+  `scripts/data/q-model-rubrics.js` เพื่อช่วย detect drift เมื่อ PDF อัปเดต
+- [ ] (Optional) Accessibility: เพิ่ม `aria-expanded` / `aria-controls` ที่
+  ปุ่ม disclosure เพื่อ screen readers

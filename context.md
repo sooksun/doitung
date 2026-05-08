@@ -410,3 +410,46 @@ docker exec eqap_app node scripts/seed-production.js
 - [ ] **Future**: เพิ่ม automated test framework (Vitest) — ดู `tasks.md`
 - [ ] **Future**: ผูกบอร์ดกับ LINE OA notification ตอนมี note ใหม่
 
+### Phase ปัจจุบัน: Q-Model Rubric บนหน้า Assessment ✅ Deploy แล้ว
+ในแต่ละแถวของ `/assessment/[id]` มีปุ่ม "▶ ดูเกณฑ์" ที่กางแสดงเกณฑ์
+การให้คะแนน 5 ระดับ (รับจาก
+`2025_12_03แบบประเมินโรงเรียน_editedV.2(2).pdf`) พร้อม highlight ระดับที่
+rater กำลังเลือก — ม่วงสำหรับ score2 (สภาพที่เป็นอยู่), น้ำเงินสำหรับ
+score (สภาพที่พึงประสงค์)
+
+- [x] `scripts/data/q-model-rubrics.js` — ที่เก็บ rubric ทั้ง 47 ตัวชี้วัด
+  (L1–12, PLC1–10, T1–12, S1–13) ใช้ร่วมโดย dev seed (`prisma/seed.ts`)
+  และ prod seed (`scripts/seed-production.js`)
+- [x] `Indicator.levelDescriptors` (Json?) เก็บ rubric ของแต่ละข้อใน DB
+- [x] หน้า Assessment เพิ่ม `openRubricIds: Set<number>` state +
+  collapsible row (`colSpan=11`) ที่ render เกณฑ์ลงไปใต้ตัวชี้วัด
+- [x] `seed-production.js` ทำ idempotent update — เปรียบเทียบ
+  `JSON.stringify(levelDescriptors)` ก่อน emit UPDATE เพื่อไม่ churn
+  `updatedAt` ทุก boot
+
+### One-shot: Q-Model instrument migration (ทำครั้งเดียวต่อ env)
+DB เก่าก่อน May 2026 cleanup เคยมี Q-Model instrument 2 ตัว (legacy
+`Q_MODEL` กับ duplicate `Q-MODEL-2568`) + section ซ้ำ + indicators
+รหัสเก่า (Q-L-01 ฯลฯ) → `/assessment/[id]` แสดง 72 ตัว แทนที่จะเป็น 47
+
+**Run-book** (ทำครั้งเดียวต่อ environment ที่ยังไม่ได้ converge):
+```bash
+docker exec eqap_app node /app/scripts/migrate-q-model-instrument.js
+```
+
+`scripts/migrate-q-model-instrument.js`:
+- เลือก canonical instrument (most sessions → smallest id)
+- ลบ duplicate Q-Model rows (เฉพาะที่ session=0)
+- Rename canonical → code='Q-MODEL-2568'
+- Wipe legacy/duplicate sections + indicators (และ EvaluationResponse
+  ที่อ้างถึง — โดย default จะลบ smoke-test data ของรหัสเก่า)
+- ทุกอย่างอยู่ใน `prisma.$transaction` — ถ้าตัดกลางคันจะ rollback
+- มี idempotent fast-path: ถ้า DB อยู่ในสภาพ canonical อยู่แล้ว, exit ภายใน ms
+
+**ไม่ได้รวมไว้ใน docker-entrypoint** เพราะเป็น destructive script ที่ถ้า
+ทำงานบน DB ที่มีคน custom indicator เพิ่มเข้ามาเอง อาจลบโดยไม่ได้ตั้งใจ —
+รันด้วยตัวเองครั้งเดียวต่อ env แล้วปล่อยไว้
+
+- [ ] **Future**: เมื่อ converge ครบทุก env แล้ว (dev / staging / prod)
+  สามารถลบ `scripts/migrate-q-model-instrument.js` ทิ้งได้
+

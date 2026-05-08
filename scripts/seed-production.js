@@ -231,9 +231,10 @@ async function main() {
 
     for (let i = 0; i < dim.items.length; i++) {
       const item = dim.items[i];
-      // Always upsert levelDescriptors so the rubric stays in sync with the
-      // canonical PDF whenever this seed re-runs (idempotent: re-running with
-      // unchanged rubrics is a no-op at the DB level).
+      // Sync levelDescriptors so the rubric stays in step with the canonical
+      // PDF — but ONLY emit an UPDATE when the stored JSON actually differs,
+      // so a no-op container reboot doesn't churn `updatedAt` on all 47 rows
+      // every time.
       const rubric = Q_MODEL_RUBRICS[item.code] || null;
       const existingInd = await prisma.indicator.findFirst({ where: { instrumentId: qInstrument.id, itemCode: item.code } });
       if (!existingInd) {
@@ -246,14 +247,18 @@ async function main() {
           },
         });
       } else if (rubric) {
-        await prisma.indicator.update({
-          where: { id: existingInd.id },
-          data: { levelDescriptors: rubric },
-        });
+        const currentJson = JSON.stringify(existingInd.levelDescriptors ?? null);
+        const nextJson = JSON.stringify(rubric);
+        if (currentJson !== nextJson) {
+          await prisma.indicator.update({
+            where: { id: existingInd.id },
+            data: { levelDescriptors: rubric },
+          });
+        }
       }
     }
   }
-  console.log('✓ Q-Model instrument with 4 sections (47 indicators) created + rubrics synced');
+  console.log('✓ Q-Model instrument with 4 sections (47 indicators) created + rubrics in sync');
 
   console.log('');
   console.log('🎉 Seed complete!');

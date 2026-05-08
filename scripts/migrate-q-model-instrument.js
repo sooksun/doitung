@@ -94,123 +94,126 @@ async function main() {
 
     console.log(`  Q-Model migration: chose instrument id=${canonicalId} as canonical (most sessions, smallest id wins ties).`);
 
-    // 1) Drop other Q-Model instruments — but only if they have zero sessions.
-    //    Anything with sessions stays; if the chosen canonical isn't the first
-    //    with sessions we already accounted for that.
-    for (const inst of instruments) {
-      if (inst.id === canonicalId) continue;
-      const sessions = sessionCountById.get(inst.id) || 0;
-      if (sessions > 0) {
-        console.log(`    SKIP: instrument id=${inst.id} (code=${inst.code}) has ${sessions} session(s); leaving it alone.`);
-        continue;
-      }
-      // Wipe its indicators (responses against them — should be none on a
-      // zero-session instrument, but we guard anyway) and sections.
-      const indicatorIds = (await prisma.indicator.findMany({
-        where: { instrumentId: inst.id },
-        select: { id: true },
-      })).map((r) => r.id);
-      if (indicatorIds.length > 0) {
-        await prisma.evaluationResponse.deleteMany({ where: { indicatorId: { in: indicatorIds } } });
-        await prisma.oKRKeyResultIndicator.deleteMany({ where: { indicatorId: { in: indicatorIds } } });
-        await prisma.sarEvidenceLink.deleteMany({ where: { indicatorId: { in: indicatorIds } } });
-        await prisma.indicator.deleteMany({ where: { id: { in: indicatorIds } } });
-      }
-      await prisma.instrumentSection.deleteMany({ where: { instrumentId: inst.id } });
-      await prisma.instrument.delete({ where: { id: inst.id } });
-      console.log(`    Dropped duplicate instrument id=${inst.id} (code=${inst.code}).`);
-    }
-
-    // 2) Rename the canonical instrument's code so seed-production.js's
-    //    upsert-by-code lands on this row.
-    const canonical = await prisma.instrument.findUnique({ where: { id: canonicalId } });
-    if (canonical && canonical.code !== 'Q-MODEL-2568') {
-      // Make sure the target code is free first. (It shouldn't be — we just
-      // dropped the duplicate above — but defend against partially-applied
-      // migrations.)
-      const collision = await prisma.instrument.findUnique({ where: { code: 'Q-MODEL-2568' } });
-      if (collision && collision.id !== canonicalId) {
-        throw new Error(`Cannot rename canonical instrument: code 'Q-MODEL-2568' is taken by id=${collision.id}.`);
-      }
-      await prisma.instrument.update({
-        where: { id: canonicalId },
-        data: {
-          code: 'Q-MODEL-2568',
-          nameTh: 'แบบประเมิน Q-Model ปี 2568',
-          nameEn: 'Q-Model Assessment 2568',
-          version: '1.0',
-          isActive: true,
-        },
-      });
-      console.log(`    Renamed instrument id=${canonicalId} code → 'Q-MODEL-2568'.`);
-    }
-
-    // 3) Wipe legacy sections + indicators on the canonical row. Anything
-    //    whose itemCode isn't L#/PLC#/T#/S# is legacy. We also drop
-    //    duplicates within the canonical set so the post-condition is
-    //    "exactly 47 indicators across 4 sections".
-    const allIndicators = await prisma.indicator.findMany({
-      where: { instrumentId: canonicalId },
-      select: { id: true, itemCode: true },
-    });
-
-    // Legacy: anything that isn't a canonical itemCode.
-    const legacyIds = allIndicators
-      .filter((r) => !isCanonicalCode(r.itemCode))
-      .map((r) => r.id);
-
-    // Duplicate canonical rows: keep the lowest id per itemCode, drop the rest.
-    const seen = new Set();
-    const dupIds = [];
-    for (const r of allIndicators.filter((r) => isCanonicalCode(r.itemCode))) {
-      if (seen.has(r.itemCode)) dupIds.push(r.id);
-      else seen.add(r.itemCode);
-    }
-
-    const toDrop = [...legacyIds, ...dupIds];
-    if (toDrop.length > 0) {
-      const responseCount = await prisma.evaluationResponse.count({
-        where: { indicatorId: { in: toDrop } },
-      });
-      if (responseCount > 0) {
-        console.log(`    Wiping ${responseCount} EvaluationResponse row(s) on legacy/duplicate indicators.`);
-        await prisma.evaluationResponse.deleteMany({ where: { indicatorId: { in: toDrop } } });
-      }
-      await prisma.oKRKeyResultIndicator.deleteMany({ where: { indicatorId: { in: toDrop } } });
-      await prisma.sarEvidenceLink.deleteMany({ where: { indicatorId: { in: toDrop } } });
-      await prisma.indicator.deleteMany({ where: { id: { in: toDrop } } });
-      console.log(`    Dropped ${legacyIds.length} legacy + ${dupIds.length} duplicate indicator(s) from instrument id=${canonicalId}.`);
-    }
-
-    // Drop sections that aren't in the canonical 4. Also dedupe canonical
-    // sections (Q-Leadership, Q-PLC, Q-Learning, Q-Students) so each appears
-    // exactly once.
-    const allSections = await prisma.instrumentSection.findMany({
-      where: { instrumentId: canonicalId },
-      orderBy: { id: 'asc' },
-      select: { id: true, nameEn: true },
-    });
+    // Everything below is a destructive sequence of writes. Wrap in a single
+    // interactive transaction so a partial failure (DB hang, container kill)
+    // rolls back instead of leaving the schema half-migrated.
     const CANONICAL_SECTION_NAMES = new Set(['Q-Leadership', 'Q-PLC', 'Q-Learning', 'Q-Students']);
-    const sectionDropIds = [];
-    const seenSections = new Set();
-    for (const s of allSections) {
-      if (!CANONICAL_SECTION_NAMES.has(s.nameEn)) {
-        sectionDropIds.push(s.id);
-        continue;
-      }
-      if (seenSections.has(s.nameEn)) sectionDropIds.push(s.id);
-      else seenSections.add(s.nameEn);
-    }
-    if (sectionDropIds.length > 0) {
-      // Detach indicators from to-be-dropped sections (they may have already
-      // been deleted above, but defend against straggling rows).
-      await prisma.indicator.updateMany({
-        where: { sectionId: { in: sectionDropIds } },
-        data: { sectionId: null },
-      });
-      await prisma.instrumentSection.deleteMany({ where: { id: { in: sectionDropIds } } });
-      console.log(`    Dropped ${sectionDropIds.length} legacy/duplicate section(s) from instrument id=${canonicalId}.`);
-    }
+    await prisma.$transaction(
+      async (tx) => {
+        // 1) Drop other Q-Model instruments — but only if they have zero sessions.
+        //    Anything with sessions stays; we already chose the busiest as canonical.
+        for (const inst of instruments) {
+          if (inst.id === canonicalId) continue;
+          const sessions = sessionCountById.get(inst.id) || 0;
+          if (sessions > 0) {
+            console.log(`    SKIP: instrument id=${inst.id} (code=${inst.code}) has ${sessions} session(s); leaving it alone.`);
+            continue;
+          }
+          const indicatorIds = (await tx.indicator.findMany({
+            where: { instrumentId: inst.id },
+            select: { id: true },
+          })).map((r) => r.id);
+          if (indicatorIds.length > 0) {
+            await tx.evaluationResponse.deleteMany({ where: { indicatorId: { in: indicatorIds } } });
+            await tx.oKRKeyResultIndicator.deleteMany({ where: { indicatorId: { in: indicatorIds } } });
+            await tx.sarEvidenceLink.deleteMany({ where: { indicatorId: { in: indicatorIds } } });
+            await tx.indicator.deleteMany({ where: { id: { in: indicatorIds } } });
+          }
+          await tx.instrumentSection.deleteMany({ where: { instrumentId: inst.id } });
+          await tx.instrument.delete({ where: { id: inst.id } });
+          console.log(`    Dropped duplicate instrument id=${inst.id} (code=${inst.code}).`);
+        }
+
+        // 2) Rename the canonical instrument's code so seed-production.js's
+        //    upsert-by-code lands on this row.
+        const canonical = await tx.instrument.findUnique({ where: { id: canonicalId } });
+        if (canonical && canonical.code !== 'Q-MODEL-2568') {
+          const collision = await tx.instrument.findUnique({ where: { code: 'Q-MODEL-2568' } });
+          if (collision && collision.id !== canonicalId) {
+            // The whole transaction will roll back from this throw, leaving
+            // the original layout intact.
+            throw new Error(`Cannot rename canonical instrument: code 'Q-MODEL-2568' is taken by id=${collision.id}.`);
+          }
+          await tx.instrument.update({
+            where: { id: canonicalId },
+            data: {
+              code: 'Q-MODEL-2568',
+              nameTh: 'แบบประเมิน Q-Model ปี 2568',
+              nameEn: 'Q-Model Assessment 2568',
+              version: '1.0',
+              isActive: true,
+            },
+          });
+          console.log(`    Renamed instrument id=${canonicalId} code → 'Q-MODEL-2568'.`);
+        }
+
+        // 3) Wipe legacy sections + indicators on the canonical row. Anything
+        //    whose itemCode isn't L#/PLC#/T#/S# is legacy. We also drop
+        //    duplicates within the canonical set so the post-condition is
+        //    "exactly 47 indicators across 4 sections".
+        const allIndicators = await tx.indicator.findMany({
+          where: { instrumentId: canonicalId },
+          select: { id: true, itemCode: true },
+        });
+
+        const legacyIds = allIndicators
+          .filter((r) => !isCanonicalCode(r.itemCode))
+          .map((r) => r.id);
+
+        const seen = new Set();
+        const dupIds = [];
+        for (const r of allIndicators.filter((r) => isCanonicalCode(r.itemCode))) {
+          if (seen.has(r.itemCode)) dupIds.push(r.id);
+          else seen.add(r.itemCode);
+        }
+
+        const toDrop = [...legacyIds, ...dupIds];
+        if (toDrop.length > 0) {
+          const responseCount = await tx.evaluationResponse.count({
+            where: { indicatorId: { in: toDrop } },
+          });
+          if (responseCount > 0) {
+            console.log(`    Wiping ${responseCount} EvaluationResponse row(s) on legacy/duplicate indicators.`);
+            await tx.evaluationResponse.deleteMany({ where: { indicatorId: { in: toDrop } } });
+          }
+          await tx.oKRKeyResultIndicator.deleteMany({ where: { indicatorId: { in: toDrop } } });
+          await tx.sarEvidenceLink.deleteMany({ where: { indicatorId: { in: toDrop } } });
+          await tx.indicator.deleteMany({ where: { id: { in: toDrop } } });
+          console.log(`    Dropped ${legacyIds.length} legacy + ${dupIds.length} duplicate indicator(s) from instrument id=${canonicalId}.`);
+        }
+
+        // 4) Drop sections that aren't in the canonical 4. Also dedupe canonical
+        //    sections so each appears exactly once.
+        const allSections = await tx.instrumentSection.findMany({
+          where: { instrumentId: canonicalId },
+          orderBy: { id: 'asc' },
+          select: { id: true, nameEn: true },
+        });
+        const sectionDropIds = [];
+        const seenSections = new Set();
+        for (const s of allSections) {
+          if (!CANONICAL_SECTION_NAMES.has(s.nameEn)) {
+            sectionDropIds.push(s.id);
+            continue;
+          }
+          if (seenSections.has(s.nameEn)) sectionDropIds.push(s.id);
+          else seenSections.add(s.nameEn);
+        }
+        if (sectionDropIds.length > 0) {
+          await tx.indicator.updateMany({
+            where: { sectionId: { in: sectionDropIds } },
+            data: { sectionId: null },
+          });
+          await tx.instrumentSection.deleteMany({ where: { id: { in: sectionDropIds } } });
+          console.log(`    Dropped ${sectionDropIds.length} legacy/duplicate section(s) from instrument id=${canonicalId}.`);
+        }
+      },
+      // Bump the interactive-transaction timeout above the default 5s — a
+      // first run on a polluted DB does cascading deletes across multiple
+      // tables (response → indicator → section → instrument) and can take
+      // several seconds. Idempotent re-runs return in milliseconds.
+      { maxWait: 10_000, timeout: 30_000 },
+    );
 
     console.log('  Q-Model migration: done. seed-production.js will now create the 4 canonical sections + 47 indicators with rubric on this row.');
   } finally {
