@@ -112,7 +112,6 @@ const RIGHT_LABEL_COL = '180px';
 const ROW_GAP = '0.7rem';
 const COL_GAP = '0.65rem';
 const RED_LINE = '#dc2626';
-const ICEBERG_STROKE = '#1f2937';
 
 function StepArrowTitle() {
   return (
@@ -157,14 +156,12 @@ function ColumnPill({ kind, children }: { kind: 'pink' | 'teal'; children: React
 }
 
 // Iceberg silhouette + red centre divider, drawn behind the textareas. The
-// SVG is positioned to span columns 1 + 2 only (input area) and stretches
-// to the full body height; preserveAspectRatio="none" lets it conform to
-// whatever aspect ratio the grid ends up with.
+// container is positioned to span columns 1 + 2 only (input area) and
+// stretches to the full body height. The PNG asset has a transparent
+// background so the textareas (white) read clearly on top of it.
 function IcebergCurve() {
   return (
-    <svg
-      viewBox="0 0 100 100"
-      preserveAspectRatio="none"
+    <div
       aria-hidden="true"
       style={{
         position: 'absolute',
@@ -173,34 +170,41 @@ function IcebergCurve() {
         left: 0,
         // Reach right up to the gutter before the right-side label column.
         right: `calc(${RIGHT_LABEL_COL} + ${COL_GAP})`,
-        width: 'auto',
-        height: '100%',
         pointerEvents: 'none',
         zIndex: 0,
       }}
     >
-      {/* Iceberg outline — pointed at top + bottom, widest at middle.
-          `vectorEffect: non-scaling-stroke` keeps the line at the requested
-          CSS pixel width regardless of how the SVG is stretched, so we
-          specify it in px-equivalent units (1.5 ≈ visible at all sizes). */}
-      <path
-        d="M 50 0 Q 0 50, 50 100 Q 100 50, 50 0 Z"
-        fill="none"
-        stroke={ICEBERG_STROKE}
-        strokeWidth="1.5"
-        vectorEffect="non-scaling-stroke"
+      {/* Iceberg image (transparent background). `contain` keeps the natural
+          tall aspect of the iceberg drawing, centred horizontally — the
+          textareas sit on top via the row grid's z-index 1. Mild opacity
+          so cell text stays the primary signal. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/iceberg-underwater.png"
+        alt=""
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          objectFit: 'contain',
+          objectPosition: 'center',
+          opacity: 0.55,
+        }}
       />
       {/* Red vertical centre line dividing the two perspectives. */}
-      <line
-        x1="50"
-        y1="0"
-        x2="50"
-        y2="100"
-        stroke={RED_LINE}
-        strokeWidth="1.5"
-        vectorEffect="non-scaling-stroke"
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          bottom: 0,
+          left: '50%',
+          width: 0,
+          borderLeft: `1.5px solid ${RED_LINE}`,
+          transform: 'translateX(-0.75px)',
+        }}
       />
-    </svg>
+    </div>
   );
 }
 
