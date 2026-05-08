@@ -206,14 +206,14 @@ export default function LiveDashboardPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <Link
-              href="/dashboard"
+              href="/"
               style={{
                 color: 'rgba(255,255,255,0.5)',
                 textDecoration: 'none',
                 fontSize: '0.85rem',
               }}
             >
-              ← Dashboard
+              ← หน้าหลัก
             </Link>
             <div>
               <div style={{ fontSize: '1.3rem', fontWeight: 700, lineHeight: 1.2 }}>

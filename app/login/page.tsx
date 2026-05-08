@@ -42,7 +42,7 @@ export default function LoginPage() {
         localStorage.setItem('user', JSON.stringify(data.data.user));
       }
 
-      router.push('/dashboard');
+      router.push('/live-dashboard');
     } catch {
       setError('เกิดข้อผิดพลาดในการเชื่อมต่อ');
       setLoading(false);
