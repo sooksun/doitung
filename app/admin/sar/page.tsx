@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toastSuccess, toastError, toastConfirm } from '@/lib/toast';
@@ -54,6 +54,11 @@ export default function SarListPage() {
   const [error, setError] = useState('');
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  // Rows optimistically hidden from the table — used to filter the result of
+  // every load() so a polling refresh that races with a DELETE can't briefly
+  // resurrect a row the user just archived. Entries are added before the
+  // DELETE fetch and only removed if the server rejects (revert).
+  const hiddenIdsRef = useRef<Set<number>>(new Set());
 
   const load = useCallback(async (authToken: string) => {
     try {
@@ -64,7 +69,12 @@ export default function SarListPage() {
       if (res.status === 403) { setError('คุณไม่มีสิทธิ์เข้าถึงหน้านี้'); return; }
       if (!res.ok) throw new Error();
       const json = await res.json();
-      if (json.success) setRows(json.data.items);
+      if (json.success) {
+        const items = json.data.items as SarRow[];
+        setRows(hiddenIdsRef.current.size > 0
+          ? items.filter((r) => !hiddenIdsRef.current.has(r.id))
+          : items);
+      }
     } catch {
       setError('โหลดไม่สำเร็จ');
     } finally {
@@ -111,7 +121,9 @@ export default function SarListPage() {
     if (!ok) return;
 
     setDeletingId(row.id);
-    // Optimistic remove from view
+    // Optimistic remove from view + register in hiddenIdsRef so any polling
+    // load() that lands during the DELETE round-trip filters this row out.
+    hiddenIdsRef.current.add(row.id);
     setRows((prev) => prev.filter((r) => r.id !== row.id));
     try {
       const res = await fetch(`/api/admin/sar-documents/${row.id}`, {
@@ -120,13 +132,17 @@ export default function SarListPage() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.success) {
+        // Server rejected — drop from hidden set and re-fetch to restore.
+        hiddenIdsRef.current.delete(row.id);
         toastError(json.error || 'ลบไม่สำเร็จ');
-        // Revert: reload the full list to restore correct order
         load(token);
       } else {
+        // Success — keep id in hiddenIdsRef so a stale in-flight poll
+        // response (started before the DELETE finished) can't bring it back.
         toastSuccess('ลบรายการแล้ว (เก็บถาวร)');
       }
     } catch {
+      hiddenIdsRef.current.delete(row.id);
       toastError('เกิดข้อผิดพลาด');
       load(token);
     } finally {
