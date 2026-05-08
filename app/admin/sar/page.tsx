@@ -53,7 +53,6 @@ export default function SarListPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
 
   const load = useCallback(async (authToken: string) => {
     try {
@@ -77,17 +76,6 @@ export default function SarListPage() {
     if (!stored) { router.push('/login'); return; }
     setToken(stored);
     load(stored);
-
-    // Soft-delete (DELETE /api/admin/sar-documents/:id) is admin-only on the
-    // server, so hide the button for school_leader / teacher viewers.
-    fetch('/api/auth/me', { headers: { Authorization: `Bearer ${stored}` } })
-      .then((r) => r.json())
-      .then((j) => {
-        if (j?.success && Array.isArray(j.data?.roles)) {
-          setIsAdmin(j.data.roles.includes('ADMIN'));
-        }
-      })
-      .catch(() => {});
   }, [router, load]);
 
   // Auto-refresh while any document is in EXTRACTING state
@@ -219,26 +207,24 @@ export default function SarListPage() {
                           <Link href={`/admin/sar/${r.id}`} style={{ padding: '0.25rem 0.7rem', background: '#667eea', color: 'white', borderRadius: '0.3rem', textDecoration: 'none', fontSize: '0.8rem' }}>
                             เปิด
                           </Link>
-                          {isAdmin && (
-                            <button
-                              type="button"
-                              onClick={() => softDelete(r)}
-                              disabled={deletingId === r.id}
-                              title="ลบรายการนี้ (Soft Delete — ข้อมูลเดิมยังเก็บไว้)"
-                              style={{
-                                padding: '0.25rem 0.7rem',
-                                background: deletingId === r.id ? '#fca5a5' : '#ef4444',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '0.3rem',
-                                fontSize: '0.8rem',
-                                cursor: deletingId === r.id ? 'not-allowed' : 'pointer',
-                                fontFamily: 'inherit',
-                              }}
-                            >
-                              {deletingId === r.id ? 'กำลังลบ...' : 'ลบ'}
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => softDelete(r)}
+                            disabled={deletingId === r.id}
+                            title="ลบรายการนี้ (Soft Delete — ข้อมูลเดิมยังเก็บไว้)"
+                            style={{
+                              padding: '0.25rem 0.7rem',
+                              background: deletingId === r.id ? '#fca5a5' : '#ef4444',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '0.3rem',
+                              fontSize: '0.8rem',
+                              cursor: deletingId === r.id ? 'not-allowed' : 'pointer',
+                              fontFamily: 'inherit',
+                            }}
+                          >
+                            {deletingId === r.id ? 'กำลังลบ...' : 'ลบ'}
+                          </button>
                         </div>
                       </td>
                     </tr>
