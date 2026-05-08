@@ -9,7 +9,8 @@ export type EntityType =
   | 'SarEvidenceLink'
   | 'AiAnalysisRun'
   | 'AiAnalysisOutput'
-  | 'FeatureFlag';
+  | 'FeatureFlag'
+  | 'School';
 
 export interface AuditEvent {
   userId: number;

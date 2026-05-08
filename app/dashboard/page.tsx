@@ -388,6 +388,20 @@ export default function DashboardPage() {
             🚦 Feature Flags
           </Link>
           <Link
+            href="/admin/schools"
+            style={{
+              padding: '1rem',
+              background: 'white',
+              borderRadius: '0.5rem',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              textDecoration: 'none',
+              color: '#333',
+              textAlign: 'center'
+            }}
+          >
+            🏫 ตั้งค่าโรงเรียน
+          </Link>
+          <Link
             href="/live-dashboard"
             style={{
               padding: '1rem',
