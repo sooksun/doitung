@@ -191,7 +191,10 @@ export function toastConfirm(
         closeOnClick: false,
         closeButton: true,
         draggable: false,
-        style: { width: '320px' },
+        // Cap at 320px on desktop; on narrow phones (e.g. 320px iPhone SE)
+        // shrink to viewport minus a 16px gutter so the button row doesn't
+        // get clipped at the edge.
+        style: { width: 'min(320px, calc(100vw - 32px))' },
         onClose: () => settle(false),
       }
     );
