@@ -15,6 +15,51 @@ import { StickyNoteButton } from '@/app/components/sticky/StickyNoteButton';
 interface School { id: number; code: string | null; nameTh: string | null; name: string; }
 interface AcademicYear { id: number; year: string; }
 
+// ─── Draft sticky-board scoping ────────────────────────────────────────────
+// Each "บันทึกการระดมสมองใหม่" submission needs its OWN set of sticky boards
+// so notes from a previous submission for the same school+year don't leak in.
+//
+// We achieve that by pinning the StickyBoard contextId to a per-draft `draftId`
+// kept in localStorage, keyed by (schoolId, yearId). The id is generated lazily
+// on first open and rotated (cleared) only when the user successfully submits
+// the SAR. That preserves brainstorming through page reloads / cancellations
+// (good UX) while guaranteeing the next submission starts on a fresh board.
+//
+// The corresponding stable contextId for /admin/sar/[id] (post-submit edits)
+// is `sar:${docId}:iceberg:...` and lives in that page — see [id]/page.tsx.
+const DRAFT_KEY = (schoolId: number, yearId: string | number) =>
+  `sar:draftId:school:${schoolId}:year:${yearId}`;
+
+function readDraftId(schoolId: number, yearId: string | number): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return localStorage.getItem(DRAFT_KEY(schoolId, yearId));
+  } catch {
+    return null;
+  }
+}
+
+function ensureDraftId(schoolId: number, yearId: string | number): string {
+  const existing = readDraftId(schoolId, yearId);
+  if (existing) return existing;
+  const fresh = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  try {
+    localStorage.setItem(DRAFT_KEY(schoolId, yearId), fresh);
+  } catch {
+    /* ignore quota errors — fall back to in-memory id */
+  }
+  return fresh;
+}
+
+function clearDraftId(schoolId: number, yearId: string | number) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(DRAFT_KEY(schoolId, yearId));
+  } catch {
+    /* noop */
+  }
+}
+
 export default function NewSarPage() {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
@@ -31,6 +76,7 @@ export default function NewSarPage() {
   const [changeNote, setChangeNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [draftId, setDraftId] = useState<string | null>(null);
 
   const resolvedSchoolId = useMemo(() => {
     if (boundSchoolId) return boundSchoolId;
@@ -78,6 +124,17 @@ export default function NewSarPage() {
     }).catch(() => setError('โหลดข้อมูลไม่สำเร็จ'));
   }, [router]);
 
+  // Resolve / lazily generate a draftId scoped to (school, year). Re-runs when
+  // either selector changes so the user picking a different school sees that
+  // school's pending draft (or a fresh one if none exists yet).
+  useEffect(() => {
+    if (!resolvedSchoolId || !academicYearId) {
+      setDraftId(null);
+      return;
+    }
+    setDraftId(ensureDraftId(resolvedSchoolId, academicYearId));
+  }, [resolvedSchoolId, academicYearId]);
+
   // Single submission: one PDF + one Iceberg, level hardcoded to BASIC_EDUCATION.
   const hasInput = !!file || icebergHasContent(iceberg);
 
@@ -109,6 +166,12 @@ export default function NewSarPage() {
       });
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.error || 'Submit failed');
+      // Submission succeeded — rotate the per-(school, year) draftId so the
+      // next visit to /admin/sar/new starts with a fresh sticky-note board
+      // instead of inheriting the just-consumed one.
+      if (resolvedSchoolId && academicYearId) {
+        clearDraftId(resolvedSchoolId, academicYearId);
+      }
       toastSuccess('บันทึกสำเร็จ');
       router.push(json.data?.id ? `/admin/sar/${json.data.id}` : '/admin/sar');
     } catch (err: any) {
@@ -190,12 +253,17 @@ export default function NewSarPage() {
                   // Every cell of the 4×2 matrix gets its own brainstorming
                   // board — distinct contextId ⇒ distinct StickyBoard ⇒
                   // distinct shareKey + owner + lifecycle.
-                  const ready = !!resolvedSchoolId && !!academicYearId;
+                  //
+                  // The contextId pins to a per-draft `draftId` (see top of
+                  // file) so finishing one submission and starting another
+                  // for the same school+year does NOT reload the previous
+                  // notes — the rotated id forces a fresh board.
+                  const ready = !!resolvedSchoolId && !!academicYearId && !!draftId;
                   const sideKey = side === 'current' ? 'CURRENT' : 'DESIRED';
                   const sideLabel = side === 'current' ? 'สิ่งที่เป็นอยู่' : 'สิ่งที่อยากให้เป็น';
                   const layerCfg = ICEBERG_LAYERS[layerNo - 1];
                   const contextId = ready
-                    ? `sar:draft:school:${resolvedSchoolId}:year:${academicYearId}:iceberg:L${layerNo}:${sideKey}`
+                    ? `sar:draft:${draftId}:iceberg:L${layerNo}:${sideKey}`
                     : 'sar:draft:placeholder';
                   return (
                     <StickyNoteButton
