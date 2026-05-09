@@ -1,5 +1,9 @@
 // app/live-dashboard/components/LiveIndicator.tsx
-// Animated progress bar for dimension scores
+// Animated progress bar for dimension scores — DE Design v2 (PRD §3.1)
+//
+// NOTE: The new /live-dashboard layout draws its own dimension cards directly
+// (see ld-dim-card classes in dashboard.css). This component is preserved
+// in case it's reused elsewhere — restyled to use tokens v2.
 
 'use client';
 
@@ -15,10 +19,10 @@ interface LiveIndicatorProps {
   maxScore?: number;   // a "(3.5 / 5)" hint is rendered next to the percent.
 }
 
-const STATUS_COLOR: Record<string, string> = {
-  green: '#34d399',
-  yellow: '#fbbf24',
-  red: '#f87171',
+const STATUS_VAR: Record<LiveIndicatorProps['status'], string> = {
+  green: 'var(--de-success-500)',
+  yellow: 'var(--de-warning-500)',
+  red: 'var(--de-danger-500)',
 };
 
 export default function LiveIndicator({
@@ -59,7 +63,7 @@ export default function LiveIndicator({
 
   const delta = prevPercent !== undefined ? percent - prevPercent : 0;
   const deltaDisplay = delta > 0 ? `+${delta.toFixed(1)}% ▲` : delta < 0 ? `${delta.toFixed(1)}% ▼` : '';
-  const color = STATUS_COLOR[status] || '#818cf8';
+  const color = STATUS_VAR[status];
 
   return (
     <div>
@@ -68,41 +72,41 @@ export default function LiveIndicator({
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '0.35rem',
+          marginBottom: '6px',
         }}
       >
         <span
           style={{
-            fontSize: '0.95rem',
+            fontSize: '14px',
             fontWeight: 600,
-            color: '#e2e8f0',
-            fontFamily: 'Kanit, sans-serif',
+            color: 'var(--de-ink-800)',
+            fontFamily: 'var(--de-font-sans)',
           }}
         >
           {nameTh}
         </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {delta !== 0 && (
             <span
               style={{
-                fontSize: '0.75rem',
-                color: delta > 0 ? '#34d399' : '#f87171',
+                fontSize: '12px',
+                color: delta > 0 ? 'var(--de-success-500)' : 'var(--de-danger-500)',
                 fontWeight: 600,
               }}
             >
               {deltaDisplay}
             </span>
           )}
-          <span style={{ fontSize: '1rem', fontWeight: 700, color }}>
+          <span style={{ fontSize: '15px', fontWeight: 700, color }}>
             {Math.round(percent)}%
           </span>
           {avgScore !== undefined && maxScore !== undefined && maxScore > 0 && (
             <span
               style={{
-                fontSize: '0.8rem',
+                fontSize: '12px',
                 fontWeight: 500,
-                color: 'rgba(255,255,255,0.55)',
-                fontFamily: 'Kanit, sans-serif',
+                color: 'var(--de-ink-500)',
+                fontFamily: 'var(--de-font-sans)',
               }}
             >
               ({avgScore.toFixed(1)} / {maxScore})
@@ -113,9 +117,9 @@ export default function LiveIndicator({
       <div
         style={{
           width: '100%',
-          height: '12px',
-          background: 'rgba(255,255,255,0.1)',
-          borderRadius: '6px',
+          height: '8px',
+          background: 'color-mix(in oklab, var(--de-ink-300) 25%, transparent)',
+          borderRadius: 'var(--de-radius-pill)',
           overflow: 'hidden',
         }}
       >
@@ -123,10 +127,8 @@ export default function LiveIndicator({
           style={{
             width: `${displayWidth}%`,
             height: '100%',
-            background: `linear-gradient(90deg, ${color}99, ${color})`,
-            borderRadius: '6px',
-            boxShadow: `0 0 8px ${color}80`,
-            transition: 'none',
+            background: `linear-gradient(90deg, color-mix(in oklab, ${color} 60%, transparent), ${color})`,
+            borderRadius: 'inherit',
           }}
         />
       </div>

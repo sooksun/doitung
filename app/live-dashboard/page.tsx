@@ -1,18 +1,18 @@
 // app/live-dashboard/page.tsx
-// Live Real-Time Display Dashboard
-// สำหรับฉายบนจอโปรเจคเตอร์/TV ขณะครูกำลังประเมินพร้อมกัน
+// Live Real-Time Display Dashboard — DE Design v2 (PRD §3.1, prototype: de-soar/project/Live Dashboard.html)
 
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import LiveSpiderChart from './components/LiveSpiderChart';
-import LiveIndicator from './components/LiveIndicator';
 import AnimatedNumber from './components/AnimatedNumber';
 import ScopeSelector from './components/ScopeSelector';
+import './dashboard.css';
 
-const POLL_INTERVAL = 5000; // 5 seconds
+const POLL_INTERVAL = 5000;
+type SectionKey = 'Q-Leadership' | 'Q-PLC' | 'Q-Learning' | 'Q-Students';
 
 interface LiveData {
   lastUpdated: string;
@@ -49,45 +49,55 @@ interface Network { id: number; name: string; }
 interface AcademicYear { id: number; year: string; }
 interface Term { id: number; termNumber: number; academicYearId: number; }
 
+const SECTION_TABS: Array<{ key: SectionKey; short: string; full: string }> = [
+  { key: 'Q-Leadership', short: 'Leadership', full: 'Q-Leadership · ผู้บริหาร' },
+  { key: 'Q-PLC',        short: 'PLC',        full: 'Q-PLC · ชุมชนแห่งการเรียนรู้' },
+  { key: 'Q-Learning',   short: 'Learning',   full: 'Q-Learning · การจัดการเรียนรู้' },
+  { key: 'Q-Students',   short: 'Students',   full: 'Q-Students · ด้านนักเรียน' },
+];
+
+// percent on 1–5 scale → ((v - 1) / 4) * 100
+function score5ToPct(v: number): number {
+  if (!isFinite(v) || v <= 1) return 0;
+  return Math.max(0, Math.min(100, ((v - 1) / 4) * 100));
+}
+
 export default function LiveDashboardPage() {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
 
-  // Filter state
   const [scope, setScope] = useState<'school' | 'network' | 'district'>('district');
   const [schoolId, setSchoolId] = useState<number | undefined>();
   const [networkId, setNetworkId] = useState<number | undefined>();
   const [academicYearId, setAcademicYearId] = useState<number | undefined>();
   const [termId, setTermId] = useState<number | undefined>();
 
-  // Reference data
   const [schools, setSchools] = useState<School[]>([]);
   const [networks, setNetworks] = useState<Network[]>([]);
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [terms, setTerms] = useState<Term[]>([]);
 
-  // Live data
   const [liveData, setLiveData] = useState<LiveData | null>(null);
-  const [prevDimScores, setPrevDimScores] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [paused, setPaused] = useState(false);
   const [secondsAgo, setSecondsAgo] = useState(0);
-  const [activeIndicatorTab, setActiveIndicatorTab] = useState<'Q-Leadership' | 'Q-PLC' | 'Q-Learning' | 'Q-Students'>('Q-Leadership');
+  const [activeTab, setActiveTab] = useState<SectionKey>('Q-Leadership');
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const lastFetchTime = useRef<number>(Date.now());
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Auth check
+  // Auth
   useEffect(() => {
-    const storedToken = localStorage.getItem('token');
-    if (!storedToken) {
+    const t = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!t) {
       router.push('/login');
       return;
     }
-    setToken(storedToken);
+    setToken(t);
   }, [router]);
 
-  // Load reference data once
+  // Reference data
   useEffect(() => {
     if (!token) return;
     const headers = { Authorization: `Bearer ${token}` };
@@ -96,11 +106,11 @@ export default function LiveDashboardPage() {
       fetch('/api/networks', { headers }).then((r) => r.json()),
       fetch('/api/academic-years', { headers }).then((r) => r.json()),
       fetch('/api/terms', { headers }).then((r) => r.json()),
-    ]).then(([schoolsRes, networksRes, yearsRes, termsRes]) => {
-      if (schoolsRes.success) setSchools(schoolsRes.data?.schools || schoolsRes.data || []);
-      if (networksRes.success) setNetworks(networksRes.data?.networks || networksRes.data || []);
-      if (yearsRes.success) setAcademicYears(yearsRes.data?.academicYears || yearsRes.data || []);
-      if (termsRes.success) setTerms(termsRes.data?.terms || termsRes.data || []);
+    ]).then(([s, n, y, te]) => {
+      if (s.success) setSchools(s.data?.schools || s.data || []);
+      if (n.success) setNetworks(n.data?.networks || n.data || []);
+      if (y.success) setAcademicYears(y.data?.academicYears || y.data || []);
+      if (te.success) setTerms(te.data?.terms || te.data || []);
     }).catch(() => {});
   }, [token]);
 
@@ -125,41 +135,30 @@ export default function LiveDashboardPage() {
 
       const json = await res.json();
       if (json.success) {
-        setLiveData((prev) => {
-          // Save previous dimension scores for delta calculation
-          if (prev) {
-            const prevScores: Record<string, number> = {};
-            prev.dimensionScores.forEach((d) => { prevScores[d.dimension] = d.percent; });
-            setPrevDimScores(prevScores);
-          }
-          return json.data;
-        });
+        setLiveData(json.data);
         lastFetchTime.current = Date.now();
         setSecondsAgo(0);
       }
     } catch {
-      // silently fail — keep showing last data
+      /* keep last data */
     } finally {
       setLoading(false);
     }
   }, [scope, schoolId, networkId, academicYearId, termId, router]);
 
-  // Set up polling
+  // Polling
   useEffect(() => {
     if (!token) return;
-
     fetchLiveData(token);
-
     if (!paused) {
       intervalRef.current = setInterval(() => fetchLiveData(token), POLL_INTERVAL);
     }
-
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [token, paused, fetchLiveData]);
 
-  // "Seconds ago" ticker
+  // "seconds ago" ticker
   useEffect(() => {
     timerRef.current = setInterval(() => {
       setSecondsAgo(Math.floor((Date.now() - lastFetchTime.current) / 1000));
@@ -169,446 +168,384 @@ export default function LiveDashboardPage() {
     };
   }, []);
 
-  // Fullscreen
+  // Fullscreen sync
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen();
+      document.documentElement.requestFullscreen?.();
     } else {
-      document.exitFullscreen();
+      document.exitFullscreen?.();
     }
   };
 
-  const nowStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  // Per-section indicator counts + filtered list
+  const indicatorsBySection = useMemo(() => {
+    const map: Record<SectionKey, LiveData['indicatorHealth']> = {
+      'Q-Leadership': [],
+      'Q-PLC': [],
+      'Q-Learning': [],
+      'Q-Students': [],
+    };
+    (liveData?.indicatorHealth ?? []).forEach((ind) => {
+      if (ind.sectionKey in map) {
+        map[ind.sectionKey as SectionKey].push(ind);
+      }
+    });
+    return map;
+  }, [liveData]);
+
+  const activeIndicators = indicatorsBySection[activeTab];
+  const activeMeta = SECTION_TABS.find((t) => t.key === activeTab);
+
+  // Dimension card data (target + current both as % on 1–5)
+  const dimensionCards = useMemo(() => {
+    const dims = liveData?.dimensionScores ?? [];
+    const spider = liveData?.spiderData ?? [];
+    return dims.map((d) => {
+      const sp = spider.find((s) => s.dimension === d.dimension);
+      const target = sp?.target ?? 0;
+      const current = sp?.current ?? d.avgScore ?? 0;
+      const targetPct = score5ToPct(target);
+      const currentPct = d.percent;
+      const gap = Math.max(0, target - current);
+      const indCount = indicatorsBySection[d.dimension as SectionKey]?.length ?? 0;
+      return {
+        key: d.dimension,
+        labelTh: d.labelTh,
+        target,
+        current,
+        targetPct,
+        currentPct,
+        gap,
+        status: d.status,
+        indCount,
+      };
+    });
+  }, [liveData, indicatorsBySection]);
+
+  // Aggregate target / current / gap from spider
+  const overall = useMemo(() => {
+    const spider = liveData?.spiderData ?? [];
+    if (spider.length === 0) return { target: 0, current: 0, gap: 0 };
+    const target = spider.reduce((s, d) => s + d.target, 0) / spider.length;
+    const current = spider.reduce((s, d) => s + d.current, 0) / spider.length;
+    return {
+      target: Math.round(target * 100) / 100,
+      current: Math.round(current * 100) / 100,
+      gap: Math.max(0, Math.round((target - current) * 100) / 100),
+    };
+  }, [liveData]);
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%)',
-        color: '#e2e8f0',
-        fontFamily: 'Kanit, sans-serif',
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
-      {/* ===== HEADER ===== */}
-      <div
-        style={{
-          background: 'rgba(0,0,0,0.4)',
-          borderBottom: '1px solid rgba(255,255,255,0.08)',
-          padding: '0.75rem 1.5rem',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.6rem',
-        }}
-      >
-        {/* Top bar */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <Link
-              href="/dashboard"
-              style={{
-                color: 'rgba(255,255,255,0.5)',
-                textDecoration: 'none',
-                fontSize: '0.85rem',
-              }}
-            >
-              ← Dashboard
-            </Link>
-            <div>
-              <div style={{ fontSize: '1.3rem', fontWeight: 700, lineHeight: 1.2 }}>
-                {liveData?.scopeLabel || 'กำลังโหลด...'}
-              </div>
-              <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>
-                Educational Assessment — Live Display
-              </div>
-            </div>
+    <div className="ld-shell" data-de-theme="dark" data-paused={paused ? 'true' : 'false'}>
+      {/* ===== TOPBAR ===== */}
+      <header className="ld-topbar">
+        <Link href="/" className="ld-brand" aria-label="DE — Development Evaluation">
+          <div className="ld-brand-mark" aria-hidden="true">DE</div>
+          <div className="ld-brand-text">
+            <span className="ld-brand-name">Development Evaluation</span>
+            <span className="ld-brand-sub">Q-Model 47 ตัวชี้วัด · 4 มิติ</span>
           </div>
+        </Link>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            {/* LIVE indicator */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <span
-                style={{
-                  width: '10px',
-                  height: '10px',
-                  borderRadius: '50%',
-                  background: paused ? '#fbbf24' : '#f87171',
-                  display: 'inline-block',
-                  boxShadow: paused ? 'none' : '0 0 8px #f87171',
-                  animation: paused ? 'none' : 'pulse 1.5s infinite',
-                }}
-              />
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: paused ? '#fbbf24' : '#f87171' }}>
-                {paused ? 'PAUSED' : 'LIVE'}
-              </span>
-            </div>
-
-            <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.4)' }}>
-              อัปเดต {secondsAgo}s ที่แล้ว
-            </span>
-
-            <button
-              onClick={() => setPaused((p) => !p)}
-              style={{
-                padding: '0.3rem 0.7rem',
-                background: 'rgba(255,255,255,0.1)',
-                border: '1px solid rgba(255,255,255,0.15)',
-                borderRadius: '0.35rem',
-                color: '#e2e8f0',
-                cursor: 'pointer',
-                fontSize: '0.8rem',
-              }}
-            >
-              {paused ? '▶ Resume' : '⏸ Pause'}
-            </button>
-            <button
-              onClick={toggleFullscreen}
-              style={{
-                padding: '0.3rem 0.7rem',
-                background: 'rgba(255,255,255,0.1)',
-                border: '1px solid rgba(255,255,255,0.15)',
-                borderRadius: '0.35rem',
-                color: '#e2e8f0',
-                cursor: 'pointer',
-                fontSize: '0.8rem',
-              }}
-            >
-              ⛶ Fullscreen
-            </button>
-          </div>
+        <div className="ld-status-cluster">
+          <span className="ld-live-pill">
+            <span className="ld-dot" aria-hidden="true" />
+            <span>Live · ปรับทุก 5 วินาที</span>
+          </span>
+          <span className="ld-paused-banner">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <rect x="6" y="5" width="4" height="14" rx="1" />
+              <rect x="14" y="5" width="4" height="14" rx="1" />
+            </svg>
+            Paused
+          </span>
         </div>
 
-        {/* Filter bar */}
-        <ScopeSelector
-          scope={scope}
-          schoolId={schoolId}
-          networkId={networkId}
-          academicYearId={academicYearId}
-          termId={termId}
-          schools={schools}
-          networks={networks}
-          academicYears={academicYears}
-          terms={terms}
-          onScopeChange={(s) => { setScope(s); setSchoolId(undefined); setNetworkId(undefined); }}
-          onSchoolChange={setSchoolId}
-          onNetworkChange={setNetworkId}
-          onYearChange={setAcademicYearId}
-          onTermChange={setTermId}
-        />
-      </div>
-
-      {loading ? (
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.5)' }}>
-            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>⏳</div>
-            <div>กำลังโหลดข้อมูล...</div>
-          </div>
-        </div>
-      ) : (
-        <>
-          {/* ===== MAIN 3-COLUMN AREA ===== */}
-          <div
-            style={{
-              flex: 1,
-              display: 'grid',
-              gridTemplateColumns: '220px 1fr 240px',
-              gap: '1rem',
-              padding: '1rem 1.5rem 0.5rem',
-            }}
+        <div className="ld-topbar-actions">
+          <button
+            className="ld-icon-btn"
+            onClick={() => setPaused((p) => !p)}
+            aria-label={paused ? 'เล่น polling' : 'หยุด polling'}
+            title={paused ? 'Resume' : 'Pause'}
           >
-            {/* LEFT PANEL — KPI stats */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <KpiCard
-                label="อัตราความสำเร็จ"
-                icon="✅"
-                color="#34d399"
-              >
-                <AnimatedNumber
-                  value={liveData?.completionRate ?? 0}
-                  suffix="%"
-                  style={{ fontSize: '2.5rem', fontWeight: 700, color: '#34d399', lineHeight: 1 }}
-                />
-              </KpiCard>
+            {paused ? (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <polygon points="6,4 20,12 6,20" />
+              </svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <rect x="6" y="5" width="4" height="14" rx="1" />
+                <rect x="14" y="5" width="4" height="14" rx="1" />
+              </svg>
+            )}
+          </button>
+          <button
+            className="ld-icon-btn"
+            onClick={toggleFullscreen}
+            aria-label={isFullscreen ? 'ออก Fullscreen' : 'Fullscreen'}
+            title="Fullscreen"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M4 9V4h5" />
+              <path d="M20 9V4h-5" />
+              <path d="M4 15v5h5" />
+              <path d="M20 15v5h-5" />
+            </svg>
+          </button>
+          <Link href="/" className="ld-icon-btn" aria-label="กลับหน้าหลัก" title="หน้าหลัก">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M3 12l9-9 9 9" />
+              <path d="M5 10v10h14V10" />
+            </svg>
+          </Link>
+        </div>
+      </header>
 
-              <KpiCard label="ดัชนีคุณภาพโดยรวม" icon="🏆" color="#818cf8">
-                <AnimatedNumber
-                  value={liveData?.overallQualityIndex ?? 0}
-                  suffix="%"
-                  style={{ fontSize: '2.5rem', fontWeight: 700, color: '#818cf8', lineHeight: 1 }}
-                />
-              </KpiCard>
+      <main className="ld-container">
+        {/* ===== PAGE HEAD ===== */}
+        <div className="ld-page-head">
+          <span className="ld-page-eyebrow">Live Dashboard</span>
+          <h1 className="ld-page-title">ภาพรวมคุณภาพโรงเรียน</h1>
+          <p className="ld-page-sub">
+            อัปเดต {paused ? '(หยุดชั่วคราว)' : `${secondsAgo}s ที่แล้ว`} · ขอบเขต{' '}
+            <strong>{liveData?.scopeLabel || '—'}</strong>
+          </p>
+        </div>
 
-              <KpiCard label="ครูที่กำลังประเมิน (ชั่วโมงนี้)" icon="👩‍🏫" color="#fbbf24">
-                <AnimatedNumber
-                  value={liveData?.activeEvaluators ?? 0}
-                  suffix=" คน"
-                  style={{ fontSize: '2rem', fontWeight: 700, color: '#fbbf24', lineHeight: 1 }}
-                />
-              </KpiCard>
+        {/* ===== FILTER BAR ===== */}
+        <div className="ld-filterbar" role="toolbar" aria-label="ตัวกรอง">
+          <ScopeSelector
+            scope={scope}
+            schoolId={schoolId}
+            networkId={networkId}
+            academicYearId={academicYearId}
+            termId={termId}
+            schools={schools}
+            networks={networks}
+            academicYears={academicYears}
+            terms={terms}
+            onScopeChange={(s) => {
+              setScope(s);
+              setSchoolId(undefined);
+              setNetworkId(undefined);
+            }}
+            onSchoolChange={setSchoolId}
+            onNetworkChange={setNetworkId}
+            onYearChange={setAcademicYearId}
+            onTermChange={setTermId}
+          />
+        </div>
 
-              <KpiCard label="ครูที่ประเมินทั้งหมด" icon="👨‍🏫" color="#f472b6">
-                <AnimatedNumber
-                  value={liveData?.totalEvaluators ?? 0}
-                  suffix=" คน"
-                  style={{ fontSize: '2rem', fontWeight: 700, color: '#f472b6', lineHeight: 1 }}
-                />
-              </KpiCard>
-
-              <KpiCard label="โรงเรียนที่เข้าร่วม" icon="🏫" color="#38bdf8">
-                <AnimatedNumber
-                  value={liveData?.participatingSchools ?? 0}
-                  suffix=" แห่ง"
-                  style={{ fontSize: '2rem', fontWeight: 700, color: '#38bdf8', lineHeight: 1 }}
-                />
-              </KpiCard>
-
-              <KpiCard label="รายการประเมินทั้งหมด" icon="📋" color="#a78bfa">
-                <AnimatedNumber
-                  value={liveData?.totalResponses ?? 0}
-                  style={{ fontSize: '1.8rem', fontWeight: 700, color: '#a78bfa', lineHeight: 1 }}
-                />
-              </KpiCard>
+        {loading ? (
+          <div className="ld-loading">
+            <div className="ld-loading-inner">
+              <div className="ld-spinner" aria-hidden="true" />
+              <div>กำลังโหลดข้อมูล…</div>
             </div>
+          </div>
+        ) : (
+          <div className="ld-main">
+            {/* ===== LEFT — KPI stack ===== */}
+            <aside className="ld-kpi-stack" aria-label="สรุปตัวเลขสำคัญ">
+              <KpiCard label="อัตราความสำเร็จ">
+                <div className="ld-kpi-value" style={{ color: 'var(--de-success-500)' }}>
+                  <AnimatedNumber value={liveData?.completionRate ?? 0} suffix="%" style={{ display: 'inline' }} />
+                </div>
+                <div className="ld-kpi-meta">
+                  <span>ส่งครบ {liveData?.totalSessions ?? 0} รอบ</span>
+                </div>
+              </KpiCard>
 
-            {/* CENTER — Dimension progress bars + Spider Chart */}
-            <div
-              style={{
-                background: 'rgba(255,255,255,0.04)',
-                borderRadius: '1rem',
-                border: '1px solid rgba(255,255,255,0.08)',
-                padding: '1rem',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'stretch',
-              }}
-            >
-              {/* Per-dimension progress bars (moved from the bottom of the page) */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(4, 1fr)',
-                  gap: '0.5rem 1.25rem',
-                  marginBottom: '0.85rem',
-                  paddingBottom: '0.85rem',
-                  borderBottom: '1px solid rgba(255,255,255,0.06)',
-                }}
-              >
-                {(liveData?.dimensionScores ?? []).map((dim) => (
-                  <LiveIndicator
-                    key={dim.dimension}
-                    nameTh={dim.labelTh}
-                    percent={dim.percent}
-                    status={dim.status}
-                    prevPercent={prevDimScores[dim.dimension]}
-                    avgScore={dim.avgScore}
-                    maxScore={dim.maxScore}
-                  />
+              <KpiCard label="ดัชนีคุณภาพโดยรวม">
+                <div className="ld-kpi-value" style={{ color: 'var(--de-brand-400)' }}>
+                  <AnimatedNumber value={liveData?.overallQualityIndex ?? 0} suffix="%" style={{ display: 'inline' }} />
+                </div>
+                <div className="ld-kpi-meta">
+                  <span>เป้าหมาย {overall.target.toFixed(2)} · เป็นอยู่ {overall.current.toFixed(2)}</span>
+                </div>
+              </KpiCard>
+
+              <KpiCard label="ครูที่กำลังประเมิน">
+                <div className="ld-kpi-value ld-kpi-value-sm" style={{ color: 'var(--de-warning-500)' }}>
+                  <AnimatedNumber value={liveData?.activeEvaluators ?? 0} style={{ display: 'inline' }} />
+                  <span className="ld-kpi-suffix">คน</span>
+                </div>
+                <div className="ld-kpi-meta">
+                  <span>ใน 1 ชั่วโมงนี้</span>
+                </div>
+              </KpiCard>
+
+              <KpiCard label="ครูที่ประเมินทั้งหมด">
+                <div className="ld-kpi-value ld-kpi-value-sm" style={{ color: 'var(--de-accent-500)' }}>
+                  <AnimatedNumber value={liveData?.totalEvaluators ?? 0} style={{ display: 'inline' }} />
+                  <span className="ld-kpi-suffix">คน</span>
+                </div>
+                <div className="ld-kpi-meta">
+                  <span>โรงเรียน {liveData?.participatingSchools ?? 0} แห่ง</span>
+                </div>
+              </KpiCard>
+
+              <KpiCard label="รายการประเมินทั้งหมด">
+                <div className="ld-kpi-value ld-kpi-value-sm" style={{ color: 'var(--de-info-500)' }}>
+                  <AnimatedNumber value={liveData?.totalResponses ?? 0} style={{ display: 'inline' }} />
+                </div>
+                <div className="ld-kpi-meta">
+                  <span>ข้อความที่บันทึก</span>
+                </div>
+              </KpiCard>
+            </aside>
+
+            {/* ===== CENTER ===== */}
+            <section className="ld-col-center">
+              {/* Dimension grid */}
+              <div className="ld-dim-grid">
+                {dimensionCards.map((d) => (
+                  <div key={d.key} className="ld-dim-card">
+                    <span className="ld-dim-name">
+                      <strong>{d.labelTh}</strong> · {d.indCount} ตัวชี้วัด
+                    </span>
+                    <div className="ld-dim-scores">
+                      <div className="ld-dim-score">
+                        <span className="ld-dim-score-num blue">{d.target.toFixed(2)}</span>
+                        <span className="ld-dim-score-cap">พึงประสงค์</span>
+                      </div>
+                      <div className="ld-dim-score">
+                        <span className="ld-dim-score-num violet">{d.current.toFixed(2)}</span>
+                        <span className="ld-dim-score-cap">เป็นอยู่</span>
+                      </div>
+                    </div>
+                    <div className="ld-dim-bars">
+                      <div className="ld-dim-bar">
+                        <div className="ld-dim-bar-fill blue" style={{ width: `${d.targetPct}%` }} />
+                      </div>
+                      <div className="ld-dim-bar">
+                        <div className="ld-dim-bar-fill violet" style={{ width: `${d.currentPct}%` }} />
+                      </div>
+                    </div>
+                    <span className={`ld-dim-meta${d.gap >= 0.6 ? ' warn' : ''}`}>
+                      Gap {d.gap.toFixed(2)} ·{' '}
+                      {d.status === 'green' ? 'พัฒนาเชิงบวก' : d.status === 'yellow' ? 'เฝ้าระวัง' : 'ต้องเร่งพัฒนา'}
+                    </span>
+                  </div>
                 ))}
               </div>
 
-              <div style={{ fontSize: '1rem', fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: '0.5rem', textAlign: 'center' }}>
-                Assessment Pillars Comparison — 4 Main Dimensions
+              {/* Spider chart */}
+              <div className="ld-card">
+                <h2 className="ld-card-title">
+                  <span>มิติคุณภาพ — Q-Model</span>
+                  <span className="ld-card-subtle">เปรียบเทียบ พึงประสงค์ vs เป็นอยู่</span>
+                </h2>
+                <div className="ld-spider-card">
+                  <div className="ld-spider-host">
+                    <LiveSpiderChart data={liveData?.spiderData ?? []} height={420} />
+                  </div>
+                  <div className="ld-legend" aria-label="คำอธิบายสี">
+                    <div className="ld-legend-item">
+                      <span className="ld-legend-swatch blue" aria-hidden="true" />
+                      <span className="ld-legend-name">
+                        คะแนนพึงประสงค์
+                        <small>เป้าหมายตามมาตรฐาน</small>
+                      </span>
+                      <span className="ld-legend-val">{overall.target.toFixed(2)}</span>
+                    </div>
+                    <div className="ld-legend-item">
+                      <span className="ld-legend-swatch violet" aria-hidden="true" />
+                      <span className="ld-legend-name">
+                        คะแนนเป็นอยู่
+                        <small>สภาพที่ประเมินจริง</small>
+                      </span>
+                      <span className="ld-legend-val">{overall.current.toFixed(2)}</span>
+                    </div>
+                    <div className="ld-legend-item warn">
+                      <span className="ld-legend-swatch warn" aria-hidden="true" />
+                      <span className="ld-legend-name">
+                        ช่องว่างเฉลี่ย
+                        <small>พึงประสงค์ − เป็นอยู่</small>
+                      </span>
+                      <span className="ld-legend-val warn">{overall.gap.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <LiveSpiderChart data={liveData?.spiderData ?? []} height={420} />
-            </div>
+            </section>
 
-            {/* RIGHT PANEL — Indicator Health (4 tabs, scrollable list per tab) */}
-            <div
-              style={{
-                background: 'rgba(255,255,255,0.04)',
-                borderRadius: '1rem',
-                border: '1px solid rgba(255,255,255,0.08)',
-                padding: '1rem 0.75rem 1rem 1rem',
-                overflow: 'hidden',
-                display: 'flex',
-                flexDirection: 'column',
-                minHeight: 0,
-              }}
-            >
-              {(() => {
-                const TABS: Array<{ key: 'Q-Leadership' | 'Q-PLC' | 'Q-Learning' | 'Q-Students'; label: string; tooltip: string }> = [
-                  { key: 'Q-Leadership', label: 'LH',  tooltip: 'Q-Leadership ผู้บริหาร' },
-                  { key: 'Q-PLC',        label: 'PLC', tooltip: 'Q-PLC ชุมชนแห่งการเรียนรู้' },
-                  { key: 'Q-Learning',   label: 'LN',  tooltip: 'Q-Learning การจัดการเรียนรู้' },
-                  { key: 'Q-Students',   label: 'STD', tooltip: 'Q-Students ด้านนักเรียน' },
-                ];
-                const all = liveData?.indicatorHealth ?? [];
-                const counts = TABS.reduce((acc, t) => {
-                  acc[t.key] = all.filter((i) => i.sectionKey === t.key).length;
-                  return acc;
-                }, {} as Record<string, number>);
-                const filtered = all.filter((i) => i.sectionKey === activeIndicatorTab);
-                const activeMeta = TABS.find((t) => t.key === activeIndicatorTab);
+            {/* ===== RIGHT — indicator section tabs ===== */}
+            <aside className="ld-col-right" aria-label="ตัวชี้วัดรายข้อ">
+              <div className="ld-card ld-card-glass">
+                <h2 className="ld-card-title">
+                  <span>ตัวชี้วัดรายข้อ</span>
+                  <span className="ld-card-subtle">{activeMeta?.full}</span>
+                </h2>
 
-                return (
-                  <>
-                    <div style={{ display: 'flex', gap: '0.3rem', marginBottom: '0.6rem', flexShrink: 0 }}>
-                      {TABS.map((t) => {
-                        const isActive = t.key === activeIndicatorTab;
-                        return (
-                          <button
-                            key={t.key}
-                            onClick={() => setActiveIndicatorTab(t.key)}
-                            title={t.tooltip}
-                            style={{
-                              flex: 1,
-                              padding: '0.4rem 0.25rem',
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
-                              border: '1px solid',
-                              borderColor: isActive ? '#818cf8' : 'rgba(255,255,255,0.1)',
-                              background: isActive ? 'rgba(129,140,248,0.18)' : 'transparent',
-                              color: isActive ? '#c7d2fe' : 'rgba(255,255,255,0.55)',
-                              borderRadius: '0.4rem',
-                              cursor: 'pointer',
-                              transition: 'all 0.15s',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              gap: '0.05rem',
-                              lineHeight: 1.1,
-                            }}
-                          >
-                            <span>{t.label}</span>
-                            <span style={{ fontSize: '0.6rem', fontWeight: 500, opacity: 0.7 }}>
-                              {counts[t.key] || 0}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <div
-                      style={{
-                        fontSize: '0.65rem',
-                        fontWeight: 600,
-                        color: 'rgba(165,180,252,0.7)',
-                        textAlign: 'center',
-                        marginBottom: '0.5rem',
-                        flexShrink: 0,
-                      }}
+                <div className="ld-ind-tabs" role="tablist">
+                  {SECTION_TABS.map((t) => (
+                    <button
+                      key={t.key}
+                      role="tab"
+                      aria-selected={t.key === activeTab}
+                      onClick={() => setActiveTab(t.key)}
+                      className="ld-ind-tab"
+                      title={t.full}
                     >
-                      {activeMeta?.tooltip}
-                    </div>
+                      <span>{t.short}</span>
+                      <span className="ld-count">{indicatorsBySection[t.key]?.length ?? 0}</span>
+                    </button>
+                  ))}
+                </div>
 
-                    <div
-                      key={activeIndicatorTab}
-                      className="indicator-scroll"
-                      style={{
-                        overflowY: 'auto',
-                        paddingRight: '0.35rem',
-                        flex: 1,
-                        minHeight: 0,
-                      }}
-                    >
-                      {filtered.length === 0 ? (
-                        <div style={{ padding: '1.5rem 0.5rem', textAlign: 'center', color: 'rgba(255,255,255,0.35)', fontSize: '0.8rem' }}>
-                          ไม่มีตัวชี้วัดในมิตินี้
-                        </div>
-                      ) : (
-                        filtered.map((ind, idx) => {
-                          const hasData = ind.score !== null && ind.progress !== null;
-                          return (
-                            <div key={`${ind.sectionKey}-${ind.code ?? idx}`} style={{ marginBottom: '0.65rem' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                                <span style={{ fontSize: '0.78rem', color: '#cbd5e1', lineHeight: 1.35, flex: 1 }}>
-                                  {ind.code && (
-                                    <span style={{ fontWeight: 700, color: '#818cf8', marginRight: '0.35rem' }}>
-                                      {ind.code}
-                                    </span>
-                                  )}
-                                  {ind.nameTh}
-                                </span>
-                                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: hasData ? '#818cf8' : 'rgba(255,255,255,0.3)', whiteSpace: 'nowrap' }}>
-                                  {hasData ? `${ind.score}/${ind.max}` : '—'}
-                                </span>
-                              </div>
+                <div className="ld-ind-list">
+                  {activeIndicators.length === 0 ? (
+                    <div className="ld-ind-empty">ไม่มีตัวชี้วัดในมิตินี้</div>
+                  ) : (
+                    activeIndicators.map((ind, idx) => {
+                      const hasData = ind.score !== null && ind.progress !== null;
+                      return (
+                        <div
+                          key={`${ind.sectionKey}-${ind.code ?? idx}`}
+                          className={`ld-ind-row${hasData ? '' : ' empty'}`}
+                        >
+                          <span className="ld-ind-code">{ind.code ?? '—'}</span>
+                          <span className="ld-ind-text">{ind.nameTh}</span>
+                          <span className={`ld-ind-score${hasData ? '' : ' empty'}`}>
+                            {hasData ? `${ind.score?.toFixed(2)}/${ind.max}` : '—'}
+                          </span>
+                          <div className="ld-ind-bar">
+                            {hasData && (
                               <div
-                                style={{
-                                  width: '100%',
-                                  height: '6px',
-                                  background: 'rgba(255,255,255,0.08)',
-                                  borderRadius: '3px',
-                                  overflow: 'hidden',
-                                }}
-                              >
-                                {hasData && (
-                                  <div
-                                    style={{
-                                      width: `${ind.progress}%`,
-                                      height: '100%',
-                                      background: 'linear-gradient(90deg, #818cf899, #818cf8)',
-                                      borderRadius: '3px',
-                                      transition: 'width 0.7s ease-out',
-                                    }}
-                                  />
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
+                                className="ld-ind-bar-fill"
+                                style={{ width: `${Math.max(0, Math.min(100, ind.progress ?? 0))}%` }}
+                              />
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </aside>
           </div>
+        )}
 
-        </>
-      )}
-
-      {/* Pulse animation keyframes */}
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.5; transform: scale(1.2); }
-        }
-        .indicator-scroll::-webkit-scrollbar {
-          width: 6px;
-        }
-        .indicator-scroll::-webkit-scrollbar-track {
-          background: rgba(255,255,255,0.03);
-          border-radius: 3px;
-        }
-        .indicator-scroll::-webkit-scrollbar-thumb {
-          background: rgba(129,140,248,0.4);
-          border-radius: 3px;
-        }
-        .indicator-scroll::-webkit-scrollbar-thumb:hover {
-          background: rgba(129,140,248,0.6);
-        }
-      `}</style>
+        <footer className="ld-footer">
+          DE Live Dashboard · Q-Model 4 มิติ · ปรับข้อมูลทุก {POLL_INTERVAL / 1000} วินาที
+        </footer>
+      </main>
     </div>
   );
 }
 
-// Small KPI card helper
-function KpiCard({
-  label,
-  icon,
-  color,
-  children,
-}: {
-  label: string;
-  icon: string;
-  color: string;
-  children: React.ReactNode;
-}) {
+function KpiCard({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div
-      style={{
-        background: 'rgba(255,255,255,0.04)',
-        border: `1px solid ${color}30`,
-        borderLeft: `3px solid ${color}`,
-        borderRadius: '0.6rem',
-        padding: '0.75rem',
-      }}
-    >
-      <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', marginBottom: '0.25rem' }}>
-        {icon} {label}
-      </div>
+    <div className="ld-kpi" aria-live="polite">
+      <span className="ld-kpi-label">{label}</span>
       {children}
     </div>
   );

@@ -54,3 +54,129 @@ a {
   font-family: 'Kanit', sans-serif;
 }
 
+/* =====================================================================
+   DE Design Tokens v2 — used by /live-dashboard and future v2 pages
+   PRD §3.1 — all DE v2 styles must reference these via var(--de-*)
+   ===================================================================== */
+:root {
+  /* Brand — indigo */
+  --de-brand-50:  #eef2ff;
+  --de-brand-100: #e0e7ff;
+  --de-brand-200: #c7d2fe;
+  --de-brand-300: #a5b4fc;
+  --de-brand-400: #818cf8;
+  --de-brand-500: #6366f1;
+  --de-brand-600: #4f46e5;
+  --de-brand-700: #4338ca;
+  --de-brand-800: #3730a3;
+  --de-brand-900: #312e81;
+
+  /* Accent — violet */
+  --de-accent-500: #8b5cf6;
+  --de-accent-600: #7c3aed;
+  --de-accent-700: #6d28d9;
+
+  /* Gradients */
+  --de-gradient-brand: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%);
+  --de-gradient-brand-soft: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 50%, #fdf4ff 100%);
+
+  /* Ink — slate */
+  --de-ink-50:  #f8fafc;
+  --de-ink-100: #f1f5f9;
+  --de-ink-200: #e2e8f0;
+  --de-ink-300: #cbd5e1;
+  --de-ink-400: #94a3b8;
+  --de-ink-500: #64748b;
+  --de-ink-600: #475569;
+  --de-ink-700: #334155;
+  --de-ink-800: #1e293b;
+  --de-ink-900: #0f172a;
+  --de-ink-950: #020617;
+
+  /* Semantic */
+  --de-success-500: #10b981;
+  --de-success-600: #059669;
+  --de-warning-500: #f59e0b;
+  --de-warning-600: #d97706;
+  --de-danger-500:  #ef4444;
+  --de-danger-600:  #dc2626;
+  --de-info-500:    #06b6d4;
+
+  /* Score colors — score (พึงประสงค์/target = blue) vs score2 (เป็นอยู่/current = violet) */
+  --de-score-blue: #3b82f6;
+  --de-score-blue-soft: rgba(59, 130, 246, 0.18);
+  --de-score-violet: #a855f7;
+  --de-score-violet-soft: rgba(168, 85, 247, 0.18);
+
+  /* Surface — light defaults */
+  --de-surface: #ffffff;
+  --de-surface-muted: #f8fafc;
+  --de-surface-sunken: #f1f5f9;
+  --de-surface-glass: rgba(255, 255, 255, 0.72);
+
+  /* Spacing */
+  --de-space-1: 4px;
+  --de-space-2: 8px;
+  --de-space-3: 12px;
+  --de-space-4: 16px;
+  --de-space-5: 20px;
+  --de-space-6: 24px;
+  --de-space-8: 32px;
+  --de-space-10: 40px;
+  --de-space-12: 48px;
+  --de-space-16: 64px;
+
+  /* Radius */
+  --de-radius-sm: 6px;
+  --de-radius-md: 10px;
+  --de-radius-lg: 14px;
+  --de-radius-xl: 20px;
+  --de-radius-2xl: 28px;
+  --de-radius-pill: 9999px;
+
+  /* Shadow */
+  --de-shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --de-shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.08);
+  --de-shadow-md: 0 8px 24px rgba(15, 23, 42, 0.10);
+  --de-shadow-lg: 0 20px 48px rgba(15, 23, 42, 0.18);
+  --de-shadow-xl: 0 32px 72px rgba(15, 23, 42, 0.24);
+  --de-shadow-glow: 0 0 0 4px rgba(99, 102, 241, 0.18);
+
+  /* Motion */
+  --de-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --de-duration-fast: 140ms;
+  --de-duration-base: 240ms;
+  --de-duration-slow: 420ms;
+
+  /* Font */
+  --de-font-sans: "Kanit", "Noto Sans Thai", system-ui, -apple-system, sans-serif;
+}
+
+/* Dark surface — used by /live-dashboard (projector view) */
+[data-de-theme="dark"] {
+  --de-surface: #0f172a;
+  --de-surface-muted: #111a30;
+  --de-surface-sunken: #0a1126;
+  --de-surface-glass: rgba(15, 23, 42, 0.62);
+  --de-ink-900: #f8fafc;
+  --de-ink-800: #e2e8f0;
+  --de-ink-700: #cbd5e1;
+  --de-ink-600: #94a3b8;
+  --de-ink-500: #64748b;
+  --de-ink-400: #475569;
+  --de-ink-300: #334155;
+  --de-ink-200: #1e293b;
+  --de-ink-100: #111a30;
+  --de-ink-50:  #0a1126;
+  --de-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --de-shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.6);
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  [data-de-theme] * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
