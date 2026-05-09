@@ -67,14 +67,20 @@ function joinNotes(contents: string[]): string {
     .join(', ');
 }
 
-// Tracks board ids that have already been seeded in this browser session, so
-// React StrictMode's intentional double-mount in dev (and any future remount
-// caused by the parent re-rendering the modal subtree) cannot trigger a second
-// seed batch on the same board. The set is small (one UUID per board the user
-// has opened) and lives for the lifetime of the page — reloading the page is
-// the only thing that resets it, which is appropriate: a fresh page load that
-// finds an empty board and is given seed text *should* try seeding once.
-const seededBoardIds = new Set<string>();
+// Tracks board ids that have already had their sticky notes reconciled with
+// the caller's textarea content in this browser session. Prevents:
+//   • React StrictMode's intentional double-mount in dev from running the
+//     reconcile pass twice
+//   • The reconcile effect from re-running every time `notes` state changes
+//     (which happens after each addNote/deleteNote inside the pass)
+//   • Re-reconciling the same board if the modal closes and reopens within
+//     one page load — once we've reconciled once, the user's manual edits
+//     after that should be respected, not overwritten on the next open
+// Refreshing the page resets the set, so a stale dataset that shows up on a
+// fresh load *is* re-reconciled. That's deliberate — it's how 12 duplicate
+// stickers from a previous buggy session get auto-cleaned next time the user
+// opens the cell with the canonical comma-separated text in the textarea.
+const reconciledBoardIds = new Set<string>();
 
 function defaultShareUrl(boardKey: string): string {
   if (typeof window === 'undefined') return '';
@@ -103,64 +109,99 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
     pollIntervalMs,
   });
 
-  // ── One-shot seeding from caller-supplied comma-separated text ───────────
-  // Critical gate: `wasJustCreated` must be true. The server returns it only
-  // for the request that actually INSERTED the board row, so:
-  //   • Page reload / re-open of an existing board → wasJustCreated=false →
-  //     never re-seed.
-  //   • Two tabs racing on a fresh contextId → exactly one wins the INSERT
-  //     and gets wasJustCreated=true; the loser hits P2002, re-fetches, and
-  //     gets wasJustCreated=false → only one seed batch fires.
-  //   • Owner clears the board (notes archived) and re-opens → row still
-  //     exists → wasJustCreated=false → never re-seed.
+  // ── Reconcile board contents with caller-supplied textarea text ──────────
+  // Goal: after this pass, every comma-separated piece in `seedFromText`
+  // appears as exactly ONE sticky note on the board. Both directions are
+  // handled:
+  //   • Pieces missing from the board → create one note per missing piece.
+  //   • Pieces with multiple matching notes (duplicates from past buggy seed
+  //     runs or accidental clicks) → keep the OLDEST note, archive the rest.
+  // Notes whose content is *not* among the textarea pieces are LEFT ALONE —
+  // they represent ideas the user added beyond what's in the textarea, and
+  // wiping them would destroy real brainstorming work.
   //
-  // The module-level `seededBoardIds` guard remains as belt-and-suspenders
-  // against React StrictMode's intentional double-mount in dev.
+  // Owner-only: deleting other authors' notes requires board ownership. For
+  // shared/guest viewers this effect is a no-op. The module-level
+  // `reconciledBoardIds` set ensures the pass runs at most once per
+  // (boardId, page-load) — re-renders triggered by the addNote/deleteNote
+  // updates inside the loop won't re-fire it.
   useEffect(() => {
-    if (seededBoardIds.has(boardId)) return;
-    if (loading) return;          // initial fetch in progress
-    if (closed) return;           // archived board → no inserts
-    if (error) return;            // surface the error first
-
-    if (!wasJustCreated) {
-      // Existing board — claim the slot so any later re-render with text
-      // still won't try to seed (defense in depth).
-      seededBoardIds.add(boardId);
-      return;
-    }
+    if (reconciledBoardIds.has(boardId)) return;
+    if (loading) return;          // wait for the initial /api/sticky-notes fetch
+    if (closed) return;           // archived board → no inserts/deletes
+    if (error) return;            // load failed → leave it alone, retry next mount
+    if (!isOwner) return;         // only owner can delete others' notes
 
     const text = (seedFromText || '').trim();
     if (!text) {
-      seededBoardIds.add(boardId);
-      return;
-    }
-    if (notes.length > 0) {
-      // Should not happen on a wasJustCreated board, but a safety belt for
-      // the truly unlucky case where notes were inserted between create and
-      // the first GET (e.g. another collaborator was already typing).
-      seededBoardIds.add(boardId);
+      // Nothing to reconcile against. Mark anyway so a later re-render
+      // passing different text doesn't trigger a stale pass.
+      reconciledBoardIds.add(boardId);
       return;
     }
 
-    const pieces = text
+    const piecesRaw = text
       .split(',')
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
+
+    // Dedupe pieces themselves — "a, a, b" should yield one "a" + one "b".
+    // Preserves first-occurrence order so the resulting board reads top-to-
+    // bottom in the same order as the textarea.
+    const seen = new Set<string>();
+    const pieces: string[] = [];
+    for (const p of piecesRaw) {
+      if (!seen.has(p)) {
+        seen.add(p);
+        pieces.push(p);
+      }
+    }
     if (pieces.length === 0) {
-      seededBoardIds.add(boardId);
+      reconciledBoardIds.add(boardId);
       return;
     }
 
-    // Claim BEFORE awaiting any addNote to defeat StrictMode double-fire.
-    seededBoardIds.add(boardId);
+    // Claim BEFORE awaiting any mutation — this is what defeats both the
+    // StrictMode double-mount in dev and any accidental re-render-driven
+    // re-entry (e.g. notes state changing as we delete/create).
+    reconciledBoardIds.add(boardId);
 
     void (async () => {
-      for (const content of pieces) {
-        // eslint-disable-next-line no-await-in-loop
-        await addNote({ content });
+      // Snapshot the notes we observed at reconcile-start. Using notesRef
+      // would let polling / mid-loop addNote responses race with our
+      // bookkeeping; this snapshot lets us reason about a stable starting
+      // state.
+      const startSnapshot = notesRef.current.slice();
+      const piecesSet = new Set(pieces);
+
+      for (const piece of pieces) {
+        const matches = startSnapshot
+          .filter((n) => (n.content || '').trim() === piece)
+          .sort((a, b) => {
+            const aT = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const bT = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            return aT - bT;
+          });
+
+        if (matches.length === 0) {
+          // Missing piece → create exactly one note for it.
+          // eslint-disable-next-line no-await-in-loop
+          await addNote({ content: piece });
+        } else if (matches.length > 1) {
+          // Duplicates → keep the oldest, archive the rest.
+          for (let i = 1; i < matches.length; i++) {
+            // eslint-disable-next-line no-await-in-loop
+            await deleteNote(matches[i].id);
+          }
+        }
+        // matches.length === 1 → already canonical, no-op
       }
+
+      // Pieces-not-on-board notes (added by user beyond textarea) are left
+      // alone on purpose — see comment block above.
+      void piecesSet; // documents intent for the unused-set name
     })();
-  }, [boardId, loading, closed, error, seedFromText, notes.length, addNote, wasJustCreated]);
+  }, [boardId, loading, closed, error, seedFromText, notes.length, isOwner, notesRef, addNote, deleteNote]);
 
   const cardHandles = useRef<Map<string, StickyNoteCardHandle | null>>(new Map());
 

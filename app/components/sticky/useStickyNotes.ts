@@ -77,7 +77,13 @@ async function apiFetch(input: string, init: RequestInit = {}): Promise<any> {
 export function useStickyNotes(opts: UseStickyNotesOptions) {
   const { enabled, boardKey, pollIntervalMs = 5000 } = opts;
   const [notes, setNotes] = useState<StickyNote[]>([]);
-  const [loading, setLoading] = useState(false);
+  // Initial value MUST be true so consumers can use `loading` as a "wait for
+  // the first fetch to complete" signal. With false, an effect that gates on
+  // `!loading` would fire on the very first render — before /api/sticky-notes
+  // has even been called — and see an empty notes array even when the board
+  // actually has 12 stickers waiting to load. The reconcile pass in
+  // StickyBoardSurface depends on this being correct.
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [closed, setClosed] = useState(false);
 
