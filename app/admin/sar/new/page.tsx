@@ -273,6 +273,11 @@ export default function NewSarPage() {
                       title={`${layerCfg.label} / ${sideLabel}`}
                       disabled={!ready}
                       disabledReason="กรุณาเลือกโรงเรียนและปีการศึกษาก่อน"
+                      // Pre-seed: if the user typed comma-separated ideas
+                      // into this cell's textarea before clicking, each
+                      // piece becomes a sticky note when the empty board
+                      // first opens.
+                      seedFromText={iceberg[layerCfg.key][side]}
                       onApplyText={(text) =>
                         setIceberg((prev) => ({
                           ...prev,

@@ -18,6 +18,13 @@ export interface StickyNoteButtonProps {
   disabled?: boolean;
   disabledReason?: string;
   onApplyText: (text: string) => void;
+  /** If supplied AND the resolved board has zero active notes when the modal
+   *  first loads, the text is split by "," (whitespace trimmed, empty pieces
+   *  dropped) and each chunk becomes a new sticky note. This lets a user with
+   *  existing comma-separated text in the Iceberg cell click "ระดมสมอง" once
+   *  and have the brainstorming board pre-populated with those ideas as
+   *  individual notes. Captured at click time, not re-read while modal open. */
+  seedFromText?: string | null;
 }
 
 export function StickyNoteButton({
@@ -28,11 +35,18 @@ export function StickyNoteButton({
   disabled = false,
   disabledReason,
   onApplyText,
+  seedFromText,
 }: StickyNoteButtonProps) {
   const [open, setOpen] = useState(false);
+  // Snapshot the seed text at the moment the user clicks. The modal only
+  // looks at this prop on its first board load — capturing here ensures we
+  // seed from what the user *saw in the textarea when they clicked*, not
+  // from a later re-render of the parent.
+  const [seedSnapshot, setSeedSnapshot] = useState<string | null>(null);
 
   const handleOpen = () => {
     if (disabled) return;
+    setSeedSnapshot(seedFromText ?? null);
     setOpen(true);
   };
 
@@ -71,6 +85,7 @@ export function StickyNoteButton({
           contextId={contextId}
           schoolId={schoolId}
           onApplyText={onApplyText}
+          seedFromText={seedSnapshot}
         />
       )}
     </>

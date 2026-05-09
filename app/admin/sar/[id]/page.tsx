@@ -309,6 +309,12 @@ export default function SarDetailPage() {
                           contextId={contextId}
                           schoolId={doc.schoolId}
                           title={`${layerCfg.label} / ${sideLabel}`}
+                          // Pre-seed: comma-separated text already in the
+                          // cell becomes one sticky note per chunk on the
+                          // first open of an empty board (e.g. when the
+                          // saved iceberg has "test31, test32, test33"
+                          // and the admin clicks "ระดมสมอง").
+                          seedFromText={icebergDraft[layerCfg.key][side]}
                           onApplyText={(text) =>
                             setIcebergDraft((prev) => ({
                               ...prev,

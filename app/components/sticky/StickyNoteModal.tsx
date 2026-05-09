@@ -32,6 +32,10 @@ export interface StickyNoteModalProps {
   contextId: string;
   schoolId: number | null;
   onApplyText: (joined: string) => void;
+  /** Forwarded to StickyBoardSurface. Pre-populates an empty board with one
+   *  sticky note per comma-separated piece on first load. See StickyNoteButton
+   *  for the user-facing description. */
+  seedFromText?: string | null;
 }
 
 function getBearer(): string | null {
@@ -47,6 +51,7 @@ export function StickyNoteModal({
   contextId,
   schoolId,
   onApplyText,
+  seedFromText,
 }: StickyNoteModalProps) {
   const [board, setBoard] = useState<BoardInfo | null>(null);
   const [boardError, setBoardError] = useState<string | null>(null);
@@ -181,6 +186,7 @@ export function StickyNoteModal({
             closeLabel="บันทึกและปิด"
             onClose={handleSurfaceClose}
             pollIntervalMs={5000}
+            seedFromText={seedFromText}
           />
         )}
       </div>
