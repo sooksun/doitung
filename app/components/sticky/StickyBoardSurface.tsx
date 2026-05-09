@@ -227,6 +227,52 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
     }
   };
 
+  // Comma-separated pieces from the seed text, computed for both the visibility
+  // gate of the resync button and the actual import action below.
+  const seedPieces = (seedFromText || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+
+  // "นำเข้าจากช่อง" — owner-only repair tool. Archives every active note on
+  // this board, then re-creates one note per comma-separated piece in the
+  // current Iceberg cell text. Solves two real cases:
+  //   1. Boards left with duplicate stickers from previous buggy seed runs
+  //      (the row exists, so wasJustCreated never fires re-seeding).
+  //   2. User edited the cell textarea directly and wants to re-sync.
+  const handleResync = async () => {
+    if (!isOwner) {
+      toastError('เฉพาะเจ้าของบอร์ดเท่านั้นที่นำเข้าจากช่องได้');
+      return;
+    }
+    if (seedPieces.length === 0) {
+      toastError('ช่องนี้ไม่มีข้อความให้แยก');
+      return;
+    }
+    const ok = await toastConfirm(
+      `จะลบโน้ตทั้งหมด ${notes.length} ใบบนบอร์ด แล้วสร้างโน้ตใหม่ ${seedPieces.length} ใบ จากข้อความในช่อง Iceberg`,
+      { title: 'นำเข้าจากช่อง?', confirmLabel: 'นำเข้า', danger: true },
+    );
+    if (!ok) return;
+
+    // Step 1 — clear (idempotent if board already empty, server returns 0).
+    if (notes.length > 0) {
+      const cleared = await clearBoardOwner(boardId);
+      if (!cleared) {
+        toastError('ล้างไม่สำเร็จ');
+        return;
+      }
+    }
+    cardHandles.current.clear();
+
+    // Step 2 — sequentially create one sticky per piece.
+    for (const content of seedPieces) {
+      // eslint-disable-next-line no-await-in-loop
+      await addNote({ content });
+    }
+    toastSuccess(`นำเข้าโน้ต ${seedPieces.length} ใบสำเร็จ`);
+  };
+
   const handleCopyLink = async () => {
     const url = shareUrl || defaultShareUrl(boardKey);
     if (!url) return;
@@ -304,6 +350,10 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
   }
 
   const showClear = (showClearButton ?? isOwner) && isOwner;
+  // Show the resync button only inside contexts that supplied seed text and
+  // only to owners — the standalone /sticky page passes no seedFromText so
+  // the button stays hidden there.
+  const showResync = isOwner && seedPieces.length > 0;
 
   return (
     <div
@@ -352,6 +402,16 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
         >
           {isFullscreen ? '🗗 ย่อหน้าจอ' : '⛶ เต็มจอ'}
         </button>
+        {showResync && (
+          <button
+            type="button"
+            onClick={handleResync}
+            style={ghostBtn}
+            title={`ล้างโน้ตทั้งหมด แล้วสร้างใหม่จากข้อความในช่อง (${seedPieces.length} ใบ)`}
+          >
+            🔄 นำเข้าจากช่อง
+          </button>
+        )}
         {showClear && (
           <button type="button" onClick={handleClear} style={ghostBtn} disabled={notes.length === 0}>ล้างบอร์ด</button>
         )}
