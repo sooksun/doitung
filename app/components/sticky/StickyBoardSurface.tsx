@@ -47,13 +47,17 @@ export interface StickyBoardSurfaceProps {
 
   pollIntervalMs?: number;
 
-  /** When supplied AND the surface mounts on a board with zero active notes,
-   *  the text is split by "," (whitespace trimmed, empty pieces dropped) and
-   *  each chunk becomes a new sticky note. Used to import comma-separated
-   *  Iceberg cell text into individual brainstorm notes on first open. The
-   *  seeding runs at most once per surface mount (subsequent reloads / poll
-   *  ticks do NOT re-seed even if the board is later cleared). */
+  /** When supplied AND the surface mounts on a board that this request just
+   *  created on the server, the text is split by "," (whitespace trimmed,
+   *  empty pieces dropped) and each chunk becomes a new sticky note. Used to
+   *  import comma-separated Iceberg cell text into individual brainstorm
+   *  notes on first open. */
   seedFromText?: string | null;
+  /** Server signal that THIS client request actually inserted the board row.
+   *  Required for seedFromText to fire — protects against re-seeding after
+   *  page reloads, board clears, and concurrent tabs (each of which would
+   *  otherwise see notes.length === 0 momentarily and double-seed). */
+  wasJustCreated?: boolean;
 }
 
 function joinNotes(contents: string[]): string {
@@ -90,6 +94,7 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
     showClearButton,
     pollIntervalMs = 5000,
     seedFromText,
+    wasJustCreated = false,
   } = props;
 
   const { notes, notesRef, loading, error, closed, addNote, patchNote, deleteNote } = useStickyNotes({
@@ -99,25 +104,40 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
   });
 
   // ── One-shot seeding from caller-supplied comma-separated text ───────────
-  // Runs exactly once per (browser-session, boardId) when the very first
-  // /api/sticky-notes fetch resolves to an empty list. The module-level
-  // `seededBoardIds` guard makes this idempotent across React StrictMode's
-  // double-mount in dev and across any later remount of the same board (e.g.
-  // user closes the modal and reopens the same cell — we don't re-seed).
+  // Critical gate: `wasJustCreated` must be true. The server returns it only
+  // for the request that actually INSERTED the board row, so:
+  //   • Page reload / re-open of an existing board → wasJustCreated=false →
+  //     never re-seed.
+  //   • Two tabs racing on a fresh contextId → exactly one wins the INSERT
+  //     and gets wasJustCreated=true; the loser hits P2002, re-fetches, and
+  //     gets wasJustCreated=false → only one seed batch fires.
+  //   • Owner clears the board (notes archived) and re-opens → row still
+  //     exists → wasJustCreated=false → never re-seed.
+  //
+  // The module-level `seededBoardIds` guard remains as belt-and-suspenders
+  // against React StrictMode's intentional double-mount in dev.
   useEffect(() => {
     if (seededBoardIds.has(boardId)) return;
     if (loading) return;          // initial fetch in progress
     if (closed) return;           // archived board → no inserts
     if (error) return;            // surface the error first
 
-    const text = (seedFromText || '').trim();
-    if (!text) {
-      // Mark anyway — a board opened with no seed text shouldn't get seeded
-      // later just because a re-render passes new text.
+    if (!wasJustCreated) {
+      // Existing board — claim the slot so any later re-render with text
+      // still won't try to seed (defense in depth).
       seededBoardIds.add(boardId);
       return;
     }
-    if (notes.length > 0) {       // board already has content → don't duplicate
+
+    const text = (seedFromText || '').trim();
+    if (!text) {
+      seededBoardIds.add(boardId);
+      return;
+    }
+    if (notes.length > 0) {
+      // Should not happen on a wasJustCreated board, but a safety belt for
+      // the truly unlucky case where notes were inserted between create and
+      // the first GET (e.g. another collaborator was already typing).
       seededBoardIds.add(boardId);
       return;
     }
@@ -131,21 +151,16 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
       return;
     }
 
-    // Claim the boardId synchronously BEFORE awaiting any addNote — this is
-    // the line that defeats the StrictMode double-fire (the second effect
-    // sees the set entry and bails immediately).
+    // Claim BEFORE awaiting any addNote to defeat StrictMode double-fire.
     seededBoardIds.add(boardId);
 
-    // Sequentially create each note so server ordering matches list ordering
-    // (and addNote can compute zIndex from the latest notes ref). Errors on
-    // individual creates are swallowed by addNote and surfaced via `error`.
     void (async () => {
       for (const content of pieces) {
         // eslint-disable-next-line no-await-in-loop
         await addNote({ content });
       }
     })();
-  }, [boardId, loading, closed, error, seedFromText, notes.length, addNote]);
+  }, [boardId, loading, closed, error, seedFromText, notes.length, addNote, wasJustCreated]);
 
   const cardHandles = useRef<Map<string, StickyNoteCardHandle | null>>(new Map());
 

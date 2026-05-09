@@ -22,6 +22,10 @@ interface BoardInfo {
   schoolId: number;
   status: 'ACTIVE' | 'ARCHIVED';
   isOwner: boolean;
+  /** True iff this request actually inserted the board row (not reactivated
+   *  an existing one). Forwarded to StickyBoardSurface so seedFromText only
+   *  fires on the genuine first open. */
+  wasJustCreated: boolean;
 }
 
 export interface StickyNoteModalProps {
@@ -187,6 +191,7 @@ export function StickyNoteModal({
             onClose={handleSurfaceClose}
             pollIntervalMs={5000}
             seedFromText={seedFromText}
+            wasJustCreated={board.wasJustCreated}
           />
         )}
       </div>
