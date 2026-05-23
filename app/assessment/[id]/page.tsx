@@ -49,7 +49,7 @@ interface Session {
   evaluator: { id: number; name: string };
   academicYear: { year: string };
   term: { name: string } | null;
-  instrument: { id: number; nameTh: string };
+  instrument: { id: number; nameTh: string; type: string };
 }
 
 interface SchoolAggregate {
@@ -64,7 +64,9 @@ interface SchoolAggregate {
   }>;
 }
 
-const SCALE_LABELS: Record<number, string> = { 5: 'ดีมาก', 4: 'ดี', 3: 'ปานกลาง', 2: 'พอใช้', 1: 'ปรับปรุง' };
+// Likert labels per scale max. Q-Model is 1–5; Thai P.1–3 is 1–4.
+const SCALE_LABELS_5: Record<number, string> = { 5: 'ดีมาก', 4: 'ดี', 3: 'ปานกลาง', 2: 'พอใช้', 1: 'ปรับปรุง' };
+const SCALE_LABELS_4: Record<number, string> = { 4: 'ดีเยี่ยม', 3: 'ดี', 2: 'พอใช้', 1: 'ต้องปรับปรุง' };
 const AGG_POLL_INTERVAL = 5000;
 
 export default function AssessmentPage() {
@@ -76,7 +78,15 @@ export default function AssessmentPage() {
   const [session, setSession] = useState<Session | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
   const [indicators, setIndicators] = useState<Indicator[]>([]);
-  const [responses, setResponses] = useState<ResponseMap>({});
+  // Responses keyed by session id. Single-evaluator instruments have one entry;
+  // a Thai ป.1–3 teacher-pair has two (SELF + DIRECTOR), each editable by its owner.
+  const [responsesBySession, setResponsesBySession] = useState<Record<number, ResponseMap>>({});
+  const [pair, setPair] = useState<{
+    selfSessionId: number | null;
+    directorSessionId: number | null;
+    editable: 'SELF' | 'DIRECTOR' | 'BOTH' | 'NONE';
+    teacherName: string | null;
+  } | null>(null);
   // Indicator IDs whose rubric panel is currently expanded.
   const [openRubricIds, setOpenRubricIds] = useState<Set<number>>(new Set());
   const [activeTab, setActiveTab] = useState<number | 'all'>('all');
@@ -97,9 +107,8 @@ export default function AssessmentPage() {
 
   const loadAll = async (authToken: string) => {
     try {
-      const [sessionRes, responsesRes, meRes] = await Promise.all([
+      const [sessionRes, meRes] = await Promise.all([
         fetch(`/api/evaluations/${sessionId}`, { headers: { Authorization: `Bearer ${authToken}` } }),
-        fetch(`/api/evaluations/${sessionId}/responses`, { headers: { Authorization: `Bearer ${authToken}` } }),
         fetch(`/api/auth/me`, { headers: { Authorization: `Bearer ${authToken}` } }),
       ]);
 
@@ -107,29 +116,16 @@ export default function AssessmentPage() {
       const sessionData = await sessionRes.json();
       const sess: Session = sessionData.data || sessionData;
       setSession(sess);
-      if (sess.status === 'SUBMITTED') setSubmitted(true);
 
-      // Ownership gate: this page edits responses, so block non-owners (admins still allowed).
-      // Bounce them to the read-only detail page so they can still view the evaluation.
-      if (meRes.ok) {
-        const meJson = await meRes.json();
-        const me = meJson?.data;
-        if (me) {
-          const isOwner = me.id === sess.evaluatorId;
-          const isAdmin = Array.isArray(me.roles) && me.roles.includes('ADMIN');
-          if (!isOwner && !isAdmin) {
-            router.replace(`/evaluations/${sessionId}`);
-            return;
-          }
-        }
-      }
+      const meJson = meRes.ok ? await meRes.json() : null;
+      const me = meJson?.data;
+      const isAdmin = !!me && Array.isArray(me.roles) && me.roles.includes('ADMIN');
 
-      // Load sections and indicators
+      // Sections + indicators (same for both single and pair modes)
       const [sectionsRes, indicatorsRes] = await Promise.all([
         fetch(`/api/instruments/${sess.instrumentId}/sections`, { headers: { Authorization: `Bearer ${authToken}` } }),
         fetch(`/api/instruments/${sess.instrumentId}/indicators`, { headers: { Authorization: `Bearer ${authToken}` } }),
       ]);
-
       if (sectionsRes.ok) {
         const sd = await sectionsRes.json();
         setSections((sd.data || sd).sort((a: Section, b: Section) => a.order - b.order));
@@ -139,14 +135,58 @@ export default function AssessmentPage() {
         setIndicators(id.data || id);
       }
 
-      // Map existing responses
+      const toMap = (rows: any[]): ResponseMap => {
+        const m: ResponseMap = {};
+        for (const r of rows || []) m[r.indicatorId] = { score: r.score ?? null, score2: r.score2 ?? null };
+        return m;
+      };
+
+      // Teacher-pair mode (Thai ป.1–3): load BOTH the SELF + DIRECTOR sides.
+      if (sess.instrument?.type === 'THAI_P1_3') {
+        const pairRes = await fetch(`/api/evaluations/${sessionId}/teacher-pair`, {
+          headers: { Authorization: `Bearer ${authToken}` },
+        });
+        if (pairRes.ok) {
+          const pj = await pairRes.json();
+          if (pj.success && pj.data) {
+            const { self, director, editable, targetTeacher } = pj.data;
+            if (editable === 'NONE' && !isAdmin) {
+              router.replace(`/evaluations/${sessionId}`);
+              return;
+            }
+            const byId: Record<number, ResponseMap> = {};
+            if (self) byId[self.sessionId] = toMap(self.responses);
+            if (director) byId[director.sessionId] = toMap(director.responses);
+            setResponsesBySession(byId);
+            setPair({
+              selfSessionId: self?.sessionId ?? null,
+              directorSessionId: director?.sessionId ?? null,
+              editable,
+              teacherName: targetTeacher?.name ?? null,
+            });
+            const activeStatus = editable === 'DIRECTOR' ? director?.status : self?.status;
+            if (activeStatus === 'SUBMITTED') setSubmitted(true);
+            return;
+          }
+        }
+        // not a migrated/paired session — fall through to single mode
+      }
+
+      // Single-evaluator mode — ownership gate, then load this session's responses.
+      if (me) {
+        const isOwner = me.id === sess.evaluatorId;
+        if (!isOwner && !isAdmin) {
+          router.replace(`/evaluations/${sessionId}`);
+          return;
+        }
+      }
+      if (sess.status === 'SUBMITTED') setSubmitted(true);
+      const responsesRes = await fetch(`/api/evaluations/${sessionId}/responses`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
       if (responsesRes.ok) {
         const rd = await responsesRes.json();
-        const map: ResponseMap = {};
-        for (const r of rd.data || rd) {
-          map[r.indicatorId] = { score: r.score ?? null, score2: r.score2 ?? null };
-        }
-        setResponses(map);
+        setResponsesBySession({ [Number(sessionId)]: toMap(rd.data || rd) });
       }
     } catch {
       setError('เกิดข้อผิดพลาดในการโหลดข้อมูล');
@@ -182,25 +222,65 @@ export default function AssessmentPage() {
     return () => clearInterval(id);
   }, [token, session]);
 
-  const saveResponse = useCallback(async (indicatorId: number, field: 'score' | 'score2', value: number) => {
-    if (!token || submitted) return;
-    setSaving(indicatorId);
+  // --- Instrument-shape adaptors ---
+  // Q-Model is dual-state (สภาพที่เป็นอยู่ = score2 + สภาพที่พึงประสงค์ = score) on a 1–5
+  // Likert. Thai ป.1–3 is also dual: ระดับการประเมิน = score (existing data) + ค่าเป้าหมาย
+  // = score2 (newly captured), on a 1–4 scale. DERS / others stay single-rating (score only).
+  // The form's columns, completion logic, and legend key off these.
+  const instrumentType = session?.instrument?.type ?? 'Q_MODEL';
+  const isDualState = instrumentType === 'Q_MODEL';
+  const isThaiTarget = instrumentType === 'THAI_P1_3';
+  const requiresBoth = isDualState || isThaiTarget;
+  const scaleMin = indicators[0]?.minScore ?? 1;
+  const scaleMax = indicators[0]?.maxScore ?? 5;
+  const scaleValues = Array.from({ length: Math.max(0, scaleMax - scaleMin + 1) }, (_, i) => scaleMin + i);
+  const scaleValuesDesc = [...scaleValues].reverse();
+  const scaleLabels = scaleMax <= 4 ? SCALE_LABELS_4 : SCALE_LABELS_5;
+  const isAnswered = (r?: { score: number | null; score2: number | null }) =>
+    !!r && r.score !== null && (!requiresBoth || r.score2 !== null);
 
-    const current = responses[indicatorId] || { score: null, score2: null };
+  // Teacher-pair (Thai ป.1–3 with SELF + DIRECTOR). activeSessionId = the session the current
+  // user submits/clears/counts against (their editable side; falls back to the URL session).
+  const isPair = !!(pair && pair.selfSessionId != null && pair.directorSessionId != null);
+  const activeSessionId: number = (() => {
+    if (pair) {
+      if (pair.editable === 'DIRECTOR' && pair.directorSessionId != null) return pair.directorSessionId;
+      if (pair.selfSessionId != null) return pair.selfSessionId;
+      if (pair.directorSessionId != null) return pair.directorSessionId;
+    }
+    return Number(sessionId);
+  })();
+  const activeResponses: ResponseMap = responsesBySession[activeSessionId] || {};
+
+  const saveResponse = useCallback(async (targetSessionId: number, indicatorId: number, field: 'score' | 'score2', value: number) => {
+    if (!token) return;
+
+    const current = (responsesBySession[targetSessionId] || {})[indicatorId] || { score: null, score2: null };
     const updated = { ...current, [field]: value };
 
-    setResponses((prev) => ({ ...prev, [indicatorId]: updated }));
+    // Optimistic local update first so the radio reflects the choice immediately.
+    setResponsesBySession((prev) => ({
+      ...prev,
+      [targetSessionId]: { ...(prev[targetSessionId] || {}), [indicatorId]: updated },
+    }));
 
-    // Only POST when at least one field has value
+    // The API requires a numeric `score`. Q-Model keeps its original fallback so a
+    // "สภาพที่เป็นอยู่"(score2)-first click still persists. For single-rating tools that
+    // now expose a target (Thai ป.1–3: ค่าเป้าหมาย = score2) we must NOT copy the target
+    // into `score` (= ระดับการประเมิน) — defer the POST until ระดับการประเมิน itself is set.
+    const scoreToSend = isDualState ? (updated.score ?? value) : updated.score;
+    if (scoreToSend == null) return;
+
+    setSaving(indicatorId);
     try {
-      await fetch(`/api/evaluations/${sessionId}/responses`, {
+      await fetch(`/api/evaluations/${targetSessionId}/responses`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           responses: [{
             indicatorId,
-            score: updated.score ?? value,
-            score2: field === 'score2' ? value : (updated.score2 ?? null),
+            score: scoreToSend,
+            score2: updated.score2 ?? null,
           }],
         }),
       });
@@ -209,7 +289,7 @@ export default function AssessmentPage() {
     } finally {
       setSaving(null);
     }
-  }, [token, sessionId, responses, submitted]);
+  }, [token, responsesBySession, isDualState]);
 
   const handleClearAll = async () => {
     if (!token || !sessionId) return;
@@ -219,12 +299,12 @@ export default function AssessmentPage() {
     );
     if (!ok) return;
     try {
-      const res = await fetch(`/api/evaluations/${sessionId}/responses`, {
+      const res = await fetch(`/api/evaluations/${activeSessionId}/responses`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
-        setResponses({});
+        setResponsesBySession((prev) => ({ ...prev, [activeSessionId]: {} }));
         setSubmitted(false);
         // Reload session to pick up the DRAFT status
         loadAll(token);
@@ -240,10 +320,7 @@ export default function AssessmentPage() {
   const handleSubmit = async () => {
     if (!token || submitting) return;
     const total = indicators.length;
-    const answered = indicators.filter((ind) => {
-      const r = responses[ind.id];
-      return r && r.score !== null && r.score2 !== null;
-    }).length;
+    const answered = indicators.filter((ind) => isAnswered(activeResponses[ind.id])).length;
     if (answered < total) {
       const ok = await toastConfirm(
         `ตอบแล้ว ${answered}/${total} ข้อ\n\nต้องการส่งแบบประเมินเลยหรือไม่?`,
@@ -253,7 +330,7 @@ export default function AssessmentPage() {
     }
     setSubmitting(true);
     try {
-      const res = await fetch(`/api/evaluations/${sessionId}`, {
+      const res = await fetch(`/api/evaluations/${activeSessionId}`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'SUBMITTED' }),
@@ -273,10 +350,7 @@ export default function AssessmentPage() {
 
   // Derived counts
   const totalIndicators = indicators.length;
-  const answeredBoth = indicators.filter((ind) => {
-    const r = responses[ind.id];
-    return r && r.score !== null && r.score2 !== null;
-  }).length;
+  const answeredBoth = indicators.filter((ind) => isAnswered(activeResponses[ind.id])).length;
   const progressPct = totalIndicators > 0 ? Math.round((answeredBoth / totalIndicators) * 100) : 0;
 
   const visibleSections = activeTab === 'all'
@@ -287,10 +361,7 @@ export default function AssessmentPage() {
     indicators.filter((ind) => ind.sectionId === sectionId);
 
   const answeredInSection = (sectionId: number) =>
-    indicatorsBySection(sectionId).filter((ind) => {
-      const r = responses[ind.id];
-      return r && r.score !== null && r.score2 !== null;
-    }).length;
+    indicatorsBySection(sectionId).filter((ind) => isAnswered(activeResponses[ind.id])).length;
 
   // Colors
   const bg = darkMode ? '#1a1a2e' : '#f3f4f6';
@@ -301,6 +372,72 @@ export default function AssessmentPage() {
   const headerBg = darkMode ? '#0f3460' : '#ffffff';
   const purpleLight = darkMode ? 'rgba(139,92,246,0.15)' : '#f5f3ff';
   const blueLight = darkMode ? 'rgba(59,130,246,0.15)' : '#eff6ff';
+  const amberLight = darkMode ? 'rgba(245,158,11,0.18)' : '#fffbeb';
+  const greenLight = darkMode ? 'rgba(16,185,129,0.18)' : '#ecfdf5';
+
+  // Rating columns in display order.
+  //  Q-Model:    เป็นอยู่ (score2, ม่วง) + พึงประสงค์ (score, น้ำเงิน)   — unchanged
+  //  Thai ป.1–3: ระดับการประเมิน (score, เหลือง) + ค่าเป้าหมาย (score2, เขียว)
+  //  others:     single ระดับการประเมิน (score, น้ำเงิน)
+  type RatingColumn = {
+    field: 'score' | 'score2';
+    header: string;
+    legendLabel: string;
+    ink: string;
+    tint: string;
+    accent: string;
+    mark: string;
+    markText: string;
+  };
+  const ratingColumns: RatingColumn[] = isDualState
+    ? [
+        { field: 'score2', header: 'ประเมินสภาพที่เป็นอยู่', legendLabel: 'สภาพที่เป็นอยู่', ink: '#7c3aed', tint: purpleLight, accent: '#7c3aed', mark: '#7c3aed', markText: '#ffffff' },
+        { field: 'score', header: 'ประเมินสภาพที่พึงประสงค์', legendLabel: 'สภาพที่พึงประสงค์', ink: '#2563eb', tint: blueLight, accent: '#2563eb', mark: '#2563eb', markText: '#ffffff' },
+      ]
+    : isThaiTarget
+    ? [
+        { field: 'score', header: 'ระดับการประเมิน', legendLabel: 'ระดับการประเมิน', ink: darkMode ? '#fbbf24' : '#b45309', tint: amberLight, accent: '#f59e0b', mark: '#f59e0b', markText: '#1f2937' },
+        { field: 'score2', header: 'ค่าเป้าหมาย', legendLabel: 'ค่าเป้าหมาย', ink: darkMode ? '#34d399' : '#047857', tint: greenLight, accent: '#10b981', mark: '#10b981', markText: '#ffffff' },
+      ]
+    : [
+        { field: 'score', header: 'ระดับการประเมิน', legendLabel: 'ระดับการประเมิน', ink: '#2563eb', tint: blueLight, accent: '#2563eb', mark: '#2563eb', markText: '#ffffff' },
+      ];
+
+  // Render columns carry which session they write to + whether the current user may edit them.
+  // Single mode → ratingColumns on the URL session. Teacher-pair → 4 columns across 2 groups.
+  type RenderColumn = RatingColumn & { sessionId: number; editable: boolean; groupLabel?: string };
+  const amberCol: RatingColumn = { field: 'score', header: 'ระดับการประเมิน', legendLabel: 'ระดับการประเมิน', ink: darkMode ? '#fbbf24' : '#b45309', tint: amberLight, accent: '#f59e0b', mark: '#f59e0b', markText: '#1f2937' };
+  const greenCol: RatingColumn = { field: 'score2', header: 'ค่าเป้าหมาย', legendLabel: 'ค่าเป้าหมาย', ink: darkMode ? '#34d399' : '#047857', tint: greenLight, accent: '#10b981', mark: '#10b981', markText: '#ffffff' };
+
+  let renderColumns: RenderColumn[];
+  if (isPair) {
+    const selfId = pair!.selfSessionId!;
+    const dirId = pair!.directorSessionId!;
+    const editSelf = pair!.editable === 'SELF' || pair!.editable === 'BOTH';
+    const editDir = pair!.editable === 'DIRECTOR' || pair!.editable === 'BOTH';
+    renderColumns = [
+      { ...amberCol, sessionId: selfId, editable: editSelf, groupLabel: 'ครูประเมินตนเอง' },
+      { ...greenCol, sessionId: selfId, editable: editSelf, groupLabel: 'ครูประเมินตนเอง' },
+      { ...amberCol, sessionId: dirId, editable: editDir, groupLabel: 'ผอ.ประเมิน' },
+      { ...greenCol, sessionId: dirId, editable: editDir, groupLabel: 'ผอ.ประเมิน' },
+    ];
+  } else {
+    renderColumns = ratingColumns.map((c) => ({ ...c, sessionId: Number(sessionId), editable: true }));
+  }
+  const ratingColCount = renderColumns.length * scaleValues.length;
+
+  // Evaluator group header row (only for teacher-pair — columns carry a groupLabel).
+  const hasGroups = renderColumns.some((c) => c.groupLabel);
+  const evaluatorGroups: { label: string; colSpan: number }[] = [];
+  if (hasGroups) {
+    for (const c of renderColumns) {
+      const last = evaluatorGroups[evaluatorGroups.length - 1];
+      if (last && last.label === c.groupLabel) last.colSpan += scaleValues.length;
+      else evaluatorGroups.push({ label: c.groupLabel || '', colSpan: scaleValues.length });
+    }
+  }
+  // Columns the current user is filling (their editable side) — drives the rubric highlight.
+  const activeColumns = renderColumns.filter((c) => c.sessionId === activeSessionId);
 
   if (loading) {
     return (
@@ -350,7 +487,16 @@ export default function AssessmentPage() {
                   {session?.term ? ` - ภาคเรียนที่ ${session.term.name}` : ''}
                 </p>
               </div>
-              {session?.evaluator?.name && (
+              {isPair && pair?.teacherName ? (
+                <span style={{
+                  display: 'flex', alignItems: 'center', gap: '0.35rem',
+                  background: '#fef3c7', color: '#b45309',
+                  padding: '0.25rem 0.75rem', borderRadius: '999px',
+                  fontSize: '0.8rem', whiteSpace: 'nowrap',
+                }}>
+                  👤 ครูที่ถูกประเมิน: {pair.teacherName}
+                </span>
+              ) : session?.evaluator?.name ? (
                 <span style={{
                   display: 'flex', alignItems: 'center', gap: '0.35rem',
                   background: '#ede9fe', color: '#7c3aed',
@@ -359,7 +505,7 @@ export default function AssessmentPage() {
                 }}>
                   👤 {session.evaluator.name}
                 </span>
-              )}
+              ) : null}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
               {/* Dark mode toggle */}
@@ -554,6 +700,21 @@ export default function AssessmentPage() {
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                   <thead>
+                    {hasGroups && (
+                      <tr style={{ background: darkMode ? 'rgba(0,0,0,0.25)' : '#f3f4f6' }}>
+                        <th style={{ borderBottom: `1px solid ${borderColor}` }} />
+                        {evaluatorGroups.map((g, gi) => (
+                          <th key={`grp-${gi}`} colSpan={g.colSpan} style={{
+                            textAlign: 'center', padding: '0.5rem',
+                            color: textColor, fontWeight: 700, fontSize: '0.95rem',
+                            borderBottom: `1px solid ${borderColor}`,
+                            borderLeft: gi > 0 ? `2px solid ${borderColor}` : undefined,
+                          }}>
+                            {g.label}
+                          </th>
+                        ))}
+                      </tr>
+                    )}
                     <tr style={{ background: darkMode ? 'rgba(0,0,0,0.2)' : '#f9fafb' }}>
                       <th style={{
                         textAlign: 'left', padding: '0.75rem 1rem',
@@ -562,47 +723,33 @@ export default function AssessmentPage() {
                       }}>
                         ตัวชี้วัด
                       </th>
-                      {/* สภาพที่เป็นอยู่ header */}
-                      <th colSpan={5} style={{
-                        textAlign: 'center', padding: '0.75rem 0.5rem',
-                        color: '#7c3aed', fontWeight: '600', borderBottom: `1px solid ${borderColor}`,
-                        background: purpleLight,
-                      }}>
-                        ประเมินสภาพที่เป็นอยู่
-                      </th>
-                      {/* สภาพที่พึงประสงค์ header */}
-                      <th colSpan={5} style={{
-                        textAlign: 'center', padding: '0.75rem 0.5rem',
-                        color: '#2563eb', fontWeight: '600', borderBottom: `1px solid ${borderColor}`,
-                        background: blueLight,
-                      }}>
-                        ประเมินสภาพที่พึงประสงค์
-                      </th>
+                      {renderColumns.map((col, ci) => (
+                        <th key={`hg-${col.sessionId}-${col.field}`} colSpan={scaleValues.length} style={{
+                          textAlign: 'center', padding: '0.75rem 0.5rem',
+                          color: col.ink, fontWeight: '600', borderBottom: `1px solid ${borderColor}`,
+                          background: col.tint,
+                          borderLeft: hasGroups && ci > 0 && renderColumns[ci - 1].groupLabel !== col.groupLabel ? `2px solid ${borderColor}` : undefined,
+                        }}>
+                          {col.header}
+                        </th>
+                      ))}
                     </tr>
                     <tr style={{ background: darkMode ? 'rgba(0,0,0,0.1)' : '#fafafa' }}>
                       <th style={{ borderBottom: `1px solid ${borderColor}` }} />
-                      {[1, 2, 3, 4, 5].map((v) => (
-                        <th key={v} style={{
+                      {renderColumns.map((col) => scaleValues.map((v) => (
+                        <th key={`sub-${col.sessionId}-${col.field}-${v}`} style={{
                           textAlign: 'center', padding: '0.4rem 0.5rem', width: '44px',
-                          color: '#7c3aed', fontWeight: '600', fontSize: '0.8rem',
+                          color: col.ink, fontWeight: '600', fontSize: '0.8rem',
                           borderBottom: `1px solid ${borderColor}`,
-                          background: purpleLight,
+                          background: col.tint,
                         }}>{v}</th>
-                      ))}
-                      {[1, 2, 3, 4, 5].map((v) => (
-                        <th key={v} style={{
-                          textAlign: 'center', padding: '0.4rem 0.5rem', width: '44px',
-                          color: '#2563eb', fontWeight: '600', fontSize: '0.8rem',
-                          borderBottom: `1px solid ${borderColor}`,
-                          background: blueLight,
-                        }}>{v}</th>
-                      ))}
+                      )))}
                     </tr>
                   </thead>
                   <tbody>
                     {secIndicators.map((ind, idx) => {
-                      const resp = responses[ind.id] || { score: null, score2: null };
-                      const bothAnswered = resp.score !== null && resp.score2 !== null;
+                      const resp = activeResponses[ind.id] || { score: null, score2: null };
+                      const answered = isAnswered(resp);
                       const rowBg = idx % 2 === 0
                         ? (darkMode ? 'transparent' : 'white')
                         : (darkMode ? 'rgba(255,255,255,0.02)' : '#fafafa');
@@ -620,7 +767,7 @@ export default function AssessmentPage() {
                               lineHeight: '1.5',
                             }}>
                               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-                                {bothAnswered
+                                {answered
                                   ? <span style={{ color: '#10b981', flexShrink: 0, marginTop: '1px' }}>✓</span>
                                   : <span style={{ color: borderColor, flexShrink: 0, marginTop: '1px' }}>○</span>
                                 }
@@ -635,7 +782,7 @@ export default function AssessmentPage() {
                                         else next.add(ind.id);
                                         return next;
                                       })}
-                                      title={isOpen ? 'ซ่อนเกณฑ์การให้คะแนน' : 'ดูเกณฑ์การให้คะแนน 5 ระดับ'}
+                                      title={isOpen ? 'ซ่อนเกณฑ์การให้คะแนน' : `ดูเกณฑ์การให้คะแนน ${scaleValues.length} ระดับ`}
                                       style={{
                                         marginLeft: '0.5rem',
                                         padding: '2px 8px',
@@ -661,55 +808,53 @@ export default function AssessmentPage() {
                               </div>
                             </td>
 
-                            {/* สภาพที่เป็นอยู่ — score2 — purple */}
-                            {[1, 2, 3, 4, 5].map((v) => (
-                              <td key={v} style={{
-                                textAlign: 'center', padding: '0.75rem 0',
-                                borderBottom: isOpen ? 'none' : `1px solid ${borderColor}`,
-                                background: resp.score2 === v ? purpleLight : undefined,
-                              }}>
-                                <input
-                                  type="radio"
-                                  name={`ind-${ind.id}-score2`}
-                                  value={v}
-                                  checked={resp.score2 === v}
-                                  disabled={submitted || saving === ind.id}
-                                  onChange={() => saveResponse(ind.id, 'score2', v)}
-                                  style={{
-                                    accentColor: '#7c3aed',
-                                    width: '18px', height: '18px', cursor: submitted ? 'not-allowed' : 'pointer',
-                                  }}
-                                />
-                              </td>
-                            ))}
-
-                            {/* สภาพที่พึงประสงค์ — score — blue */}
-                            {[1, 2, 3, 4, 5].map((v) => (
-                              <td key={v} style={{
-                                textAlign: 'center', padding: '0.75rem 0',
-                                borderBottom: isOpen ? 'none' : `1px solid ${borderColor}`,
-                                background: resp.score === v ? blueLight : undefined,
-                              }}>
-                                <input
-                                  type="radio"
-                                  name={`ind-${ind.id}-score`}
-                                  value={v}
-                                  checked={resp.score === v}
-                                  disabled={submitted || saving === ind.id}
-                                  onChange={() => saveResponse(ind.id, 'score', v)}
-                                  style={{
-                                    accentColor: '#2563eb',
-                                    width: '18px', height: '18px', cursor: submitted ? 'not-allowed' : 'pointer',
-                                  }}
-                                />
-                              </td>
-                            ))}
+                            {/* Rating cells — each column writes to its own session.
+                                Teacher-pair: ครูประเมินตนเอง + ผอ.ประเมิน (each ระดับ เหลือง + เป้าหมาย เขียว);
+                                Q-Model: score2 ม่วง + score น้ำเงิน; others: score น้ำเงิน. */}
+                            {renderColumns.map((col, ci) => {
+                              const cResp = (responsesBySession[col.sessionId] || {})[ind.id] || { score: null, score2: null };
+                              const cellDisabled = !col.editable || (col.sessionId === activeSessionId && submitted) || saving === ind.id;
+                              const groupStart = hasGroups && ci > 0 && renderColumns[ci - 1].groupLabel !== col.groupLabel;
+                              return scaleValues.map((v, vi) => (
+                                <td key={`cell-${col.sessionId}-${col.field}-${v}`} style={{
+                                  textAlign: 'center', padding: '0.75rem 0',
+                                  borderBottom: isOpen ? 'none' : `1px solid ${borderColor}`,
+                                  background: cResp[col.field] === v ? col.tint : undefined,
+                                  borderLeft: groupStart && vi === 0 ? `2px solid ${borderColor}` : undefined,
+                                }}>
+                                  <input
+                                    type="radio"
+                                    name={`ind-${ind.id}-${col.sessionId}-${col.field}`}
+                                    value={v}
+                                    checked={cResp[col.field] === v}
+                                    disabled={cellDisabled}
+                                    onChange={() => {
+                                      saveResponse(col.sessionId, ind.id, col.field, v);
+                                      // เลือกคะแนน → กางเกณฑ์ของข้อนั้นทันที (ทุกเครื่องมือที่มีเกณฑ์)
+                                      if (hasRubric) {
+                                        setOpenRubricIds((prev) => {
+                                          if (prev.has(ind.id)) return prev;
+                                          const next = new Set(prev);
+                                          next.add(ind.id);
+                                          return next;
+                                        });
+                                      }
+                                    }}
+                                    style={{
+                                      accentColor: col.accent,
+                                      width: '18px', height: '18px',
+                                      cursor: cellDisabled ? 'not-allowed' : 'pointer',
+                                    }}
+                                  />
+                                </td>
+                              ));
+                            })}
                           </tr>
 
                           {/* Foldable rubric panel — spans the whole row */}
                           {isOpen && hasRubric && (
                             <tr style={{ background: darkMode ? 'rgba(99,102,241,0.06)' : '#f5f3ff' }}>
-                              <td colSpan={11} style={{
+                              <td colSpan={ratingColCount + 1} style={{
                                 padding: '0.75rem 1.25rem 1rem',
                                 borderBottom: `1px solid ${borderColor}`,
                                 borderTop: `1px dashed ${darkMode ? '#4f46e5' : '#c7d2fe'}`,
@@ -725,23 +870,37 @@ export default function AssessmentPage() {
                                   textTransform: 'uppercase',
                                   letterSpacing: '0.04em',
                                 }}>
-                                  เกณฑ์การให้คะแนน · 5 ระดับ
+                                  เกณฑ์การให้คะแนน · {scaleValues.length} ระดับ
                                 </div>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.4rem 0.85rem' }}>
-                                  {[5, 4, 3, 2, 1].map((lvl) => {
+                                  {scaleValuesDesc.map((lvl) => {
                                     const text = rubric?.[String(lvl)];
                                     if (!text) return null;
-                                    const isSelectedCurrent = resp.score2 === lvl;
-                                    const isSelectedDesired = resp.score === lvl;
-                                    const highlight = isSelectedCurrent || isSelectedDesired;
+                                    const matches = activeColumns.filter((c) => resp[c.field] === lvl);
+                                    const highlight = matches.length > 0;
+                                    let markBg: string;
+                                    let markText: string;
+                                    if (!highlight) {
+                                      markBg = darkMode ? 'rgba(255,255,255,0.06)' : '#e5e7eb';
+                                      markText = darkMode ? '#e0e7ff' : '#1f2937';
+                                    } else if (isDualState) {
+                                      // preserve original Q-Model rendering: พึงประสงค์(น้ำเงิน) wins over เป็นอยู่(ม่วง)
+                                      markBg = resp.score === lvl ? '#2563eb' : '#7c3aed';
+                                      markText = '#ffffff';
+                                    } else if (matches.length === 1) {
+                                      markBg = matches[0].mark;
+                                      markText = matches[0].markText;
+                                    } else {
+                                      // ระดับการประเมิน และ ค่าเป้าหมาย ตรงระดับเดียวกัน → แบ่งครึ่งเหลือง/เขียว
+                                      markBg = `linear-gradient(135deg, ${matches[0].mark} 0 50%, ${matches[1].mark} 50% 100%)`;
+                                      markText = '#1f2937';
+                                    }
                                     return (
                                       <React.Fragment key={lvl}>
                                         <div style={{
                                           fontWeight: 700,
-                                          color: highlight ? '#ffffff' : (darkMode ? '#e0e7ff' : '#1f2937'),
-                                          background: highlight
-                                            ? (isSelectedDesired ? '#2563eb' : '#7c3aed')
-                                            : (darkMode ? 'rgba(255,255,255,0.06)' : '#e5e7eb'),
+                                          color: markText,
+                                          background: markBg,
                                           borderRadius: 4,
                                           padding: '2px 10px',
                                           fontSize: '0.78rem',
@@ -774,19 +933,28 @@ export default function AssessmentPage() {
           border: `1px solid ${borderColor}`, marginBottom: '5rem',
           display: 'flex', flexWrap: 'wrap', gap: '0.5rem 2rem', alignItems: 'center',
         }}>
-          {[1, 2, 3, 4, 5].map((v) => (
+          {scaleValues.map((v) => (
             <span key={v} style={{ color: textColor, fontSize: '0.875rem' }}>
-              <strong>{v}</strong> = {SCALE_LABELS[v]}
+              <strong>{v}</strong> = {scaleLabels[v]}
             </span>
           ))}
-          <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.875rem', color: '#7c3aed' }}>
-            <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#7c3aed', display: 'inline-block' }} />
-            สภาพที่เป็นอยู่
-          </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.875rem', color: '#2563eb' }}>
-            <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#2563eb', display: 'inline-block' }} />
-            สภาพที่พึงประสงค์
-          </span>
+          {(() => {
+            const seen = new Set<string>();
+            const uniq = renderColumns.filter((c) => (seen.has(c.field) ? false : (seen.add(c.field), true)));
+            return uniq.length > 1
+              ? uniq.map((col) => (
+                  <span key={`lg-${col.field}`} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.875rem', color: col.ink }}>
+                    <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: col.accent, display: 'inline-block' }} />
+                    {col.legendLabel}
+                  </span>
+                ))
+              : null;
+          })()}
+          {isPair && (
+            <span style={{ fontSize: '0.8rem', color: subText }}>
+              (ซ้าย = ครูประเมินตนเอง · ขวา = ผอ.ประเมิน)
+            </span>
+          )}
         </div>
       </div>
 

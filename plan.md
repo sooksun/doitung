@@ -387,3 +387,54 @@
 | Low  | guest token → httpOnly cookie (ปิด XSS) | optional |
 | Low  | LINE OA notification ตอน note ใหม่ | optional |
 
+---
+
+## Phase: Design System v2 + UI Reskin 🚧 กำลังดำเนินการ
+
+### ภาพรวม
+Reskin 21 หน้าให้ใช้ design system เดียว ตาม `PRD-redesign-handoff.md` (สรุปจาก `PRD-design-v2.md` + DE Design System Handoff). **Frontend-only — ห้ามแตะ behavior/API/schema/data.** ทำ **PR ละ 1 หน้า/กลุ่ม**, revert ได้ทุก PR.
+
+### เสร็จในรอบนี้ (PR #1: รากฐาน + /login)
+- [x] Design tokens `--de-*` ใน `app/globals.css` (light + dark) + utility + primitive classes + reduced-motion
+- [x] Primitives ใน `app/components/ui/`: `Button`, `Card`, `Input`, `Badge`, `Container` + icon set (แทน emoji) + barrel `index.ts`
+- [x] `ThemeProvider` + `ThemeToggle` (dark mode, persist `localStorage['de-theme']`) wire เข้า `app/layout.tsx` + JetBrains Mono + anti-FOUC script
+- [x] Reskin `/login` (2-column brand/form, show/hide password, theme toggle, responsive)
+- [x] `npm run build` ผ่าน (login 4.93 kB / 101 kB first load)
+
+### ลำดับ PR ถัดไป (ตาม `PRD-redesign-handoff.md`)
+| PR | ขอบเขต | สถานะ |
+|---|---|---|
+| #2 | App shell + `/` (ตัด dev clutter) | TODO |
+| #3 | `/dashboard` (+ ทางเลือกรวม `/live-dashboard`) | TODO |
+| #4 | กลุ่ม `/evaluations` (list / detail / insights / new) | TODO |
+| #5 | `/instruments` + `/reports` | TODO |
+| #6 | `/admin/*` (users / schools / SAR / feature-flags) | TODO |
+| #7 | `/sticky` | TODO |
+| #8 ⭐ | `/assessment/[id]` — **หวงห้าม**: feature flag `new_assessment_ui` + pilot 1 โรงเรียน + mysqldump ก่อน merge | TODO |
+
+### Open questions (รอผู้ใช้ตัดสิน — `PRD-redesign-handoff.md §10`)
+- รวม `/dashboard` กับ `/live-dashboard` ไหม / `/live-dashboard` คงโทนเข้ม projector?
+- `/admin/*` ใช้ shell แยกหรือเดียวกัน? · dark mode ทั้งระบบ? · มีไฟล์โลโก้จริงไหม? · app shell + nav รวม?
+
+---
+
+## Phase: แบบประเมิน ป.1–3 — Teacher-pair (ครูประเมินตนเอง + ผอ.ประเมิน) ✅ โค้ดเสร็จ
+
+### ภาพรวม
+ทำ ป.1–3 ให้ประเมินครูรายบุคคล โดยมี 2 ผู้ประเมิน (ครู + ผอ.) ในฟอร์มเดียว — ใช้
+**2 EvaluationSession ต่อครู** (SELF/DIRECTOR) share `targetTeacherId`, รักษาระบบสิทธิ์
+"เจ้าของ session แก้ได้". Additive schema (`EvaluatorKind` enum + `evaluatorKind?`),
+ทำ mysqldump ก่อน, migration ข้อมูลเดิมเป็นสคริปต์ one-off.
+
+### เสร็จ
+- [x] Schema additive + `db push` + regenerate client
+- [x] 3 endpoints (teacher-pair POST/GET, schools/[id]/teachers)
+- [x] `/evaluations/new` picker ครู+ผอ. · `/assessment/[id]` render 2 กลุ่ม (per-session edit)
+- [x] migration รันบน local (7 SELF + 2 DIRECTOR, ข้อมูลเดิมครบ) · `tsc` = 0
+- [x] backup: `backup/okrsdoitung_*.sql` (gitignored)
+
+### ค้าง / next
+- รีสตาร์ท dev server (โหลด Prisma client ใหม่) → ทดสอบ UI สด + `npm run build`
+- ก่อนขึ้น production: mysqldump prod → `prisma db push` (หรือ migration) → รัน
+  `scripts/migrate-thai-teacher-pairs.js` → ตรวจทุกโรงเรียนมี ผอ. (SCHOOL_LEADER) ผูกอยู่
+

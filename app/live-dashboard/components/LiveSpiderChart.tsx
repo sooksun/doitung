@@ -23,9 +23,10 @@ interface SpiderPoint {
 interface LiveSpiderChartProps {
   data: SpiderPoint[];
   height?: number;
+  maxScale?: number;
 }
 
-export default function LiveSpiderChart({ data, height = 500 }: LiveSpiderChartProps) {
+export default function LiveSpiderChart({ data, height = 500, maxScale = 5 }: LiveSpiderChartProps) {
   const chartData = data.map((point) => ({
     group: point.labelTh,
     'สภาพที่เป็นอยู่': point.current || 0,
@@ -65,9 +66,9 @@ export default function LiveSpiderChart({ data, height = 500 }: LiveSpiderChartP
           />
           <PolarRadiusAxis
             angle={90}
-            domain={[0, 5]}
+            domain={[0, maxScale]}
             tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 11 }}
-            tickCount={6}
+            tickCount={maxScale + 1}
             stroke="rgba(255,255,255,0.1)"
           />
           <Radar

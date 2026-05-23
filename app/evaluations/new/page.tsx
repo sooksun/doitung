@@ -53,6 +53,16 @@ export default function NewEvaluationPage() {
     note: '',
   });
 
+  // Teacher-pair (Thai ป.1–3) pickers
+  const [teachers, setTeachers] = useState<{ teacherId: number; userId: number | null; name: string }[]>([]);
+  const [directors, setDirectors] = useState<{ userId: number; name: string }[]>([]);
+  const [targetTeacherId, setTargetTeacherId] = useState('');
+  const [directorUserId, setDirectorUserId] = useState('');
+  const [loadingPickers, setLoadingPickers] = useState(false);
+
+  const selectedInstrument = instruments.find((i) => String(i.id) === formData.instrumentId);
+  const isThaiPair = selectedInstrument?.type === 'THAI_P1_3';
+
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
     if (!storedToken) {
@@ -62,6 +72,43 @@ export default function NewEvaluationPage() {
     setToken(storedToken);
     fetchInitialData(storedToken);
   }, [router]);
+
+  // Load the school's teachers + directors when a Thai ป.1–3 instrument and a school are chosen
+  useEffect(() => {
+    if (!isThaiPair || !formData.schoolId || !token) {
+      setTeachers([]);
+      setDirectors([]);
+      setTargetTeacherId('');
+      setDirectorUserId('');
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoadingPickers(true);
+      try {
+        const res = await fetch(`/api/schools/${formData.schoolId}/teachers`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const j = await res.json();
+          if (!cancelled && j.success) {
+            setTeachers(j.data.teachers || []);
+            setDirectors(j.data.directors || []);
+            // Default the director to the current user if they are one of the school's leaders
+            const selfDir = (j.data.directors || []).find((d: any) => d.userId === currentUserId);
+            setDirectorUserId(selfDir ? String(selfDir.userId) : '');
+          }
+        }
+      } catch {
+        /* ignore — UI shows empty pickers */
+      } finally {
+        if (!cancelled) setLoadingPickers(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isThaiPair, formData.schoolId, token, currentUserId]);
 
   const fetchInitialData = async (authToken: string) => {
     try {
@@ -182,6 +229,35 @@ export default function NewEvaluationPage() {
     setSubmitting(true);
 
     try {
+      // Thai ป.1–3 → create the SELF (teacher) + DIRECTOR (ผอ.) pair, then open the teacher's form
+      if (isThaiPair) {
+        if (!targetTeacherId || !directorUserId) {
+          setError('กรุณาเลือกครูที่ถูกประเมินและผู้อำนวยการผู้ประเมิน');
+          setSubmitting(false);
+          return;
+        }
+        const pairRes = await fetch('/api/evaluations/teacher-pair', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            instrumentId: parseInt(formData.instrumentId, 10),
+            schoolId: parseInt(formData.schoolId, 10),
+            academicYearId: parseInt(formData.academicYearId, 10),
+            termId: formData.termId ? parseInt(formData.termId, 10) : null,
+            targetTeacherId: parseInt(targetTeacherId, 10),
+            directorUserId: parseInt(directorUserId, 10),
+          }),
+        });
+        const pairData = await pairRes.json();
+        if (!pairRes.ok || !pairData.success) {
+          setError(pairData.error || 'สร้างการประเมินไม่สำเร็จ');
+          setSubmitting(false);
+          return;
+        }
+        router.push(`/assessment/${pairData.data.selfSessionId}`);
+        return;
+      }
+
       const res = await fetch('/api/evaluations', {
         method: 'POST',
         headers: {
@@ -301,6 +377,65 @@ export default function NewEvaluationPage() {
                 ))}
               </select>
             </div>
+
+            {isThaiPair && (
+              <div style={{
+                marginBottom: '1.5rem',
+                padding: '1rem',
+                background: '#f5f3ff',
+                border: '1px solid #ddd6fe',
+                borderRadius: '0.5rem',
+              }}>
+                <p style={{ margin: 0, marginBottom: '1rem', fontWeight: 600, color: '#5b21b6', fontSize: '0.95rem' }}>
+                  แบบประเมินรายบุคคล — ระบบจะสร้าง 2 ฝั่ง: ครูประเมินตนเอง + ผอ.ประเมิน
+                </p>
+
+                <div style={{ marginBottom: '1rem' }}>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', color: '#333', fontWeight: 500 }}>
+                    ครูที่ถูกประเมิน *
+                  </label>
+                  <select
+                    value={targetTeacherId}
+                    onChange={(e) => setTargetTeacherId(e.target.value)}
+                    required
+                    disabled={loadingPickers || teachers.length === 0}
+                    style={{ width: '100%', padding: '0.75rem', border: '1px solid #ddd', borderRadius: '0.5rem', fontSize: '1rem', boxSizing: 'border-box' }}
+                  >
+                    <option value="">
+                      {loadingPickers ? 'กำลังโหลด...' : teachers.length === 0 ? 'ไม่พบครูในโรงเรียนนี้' : 'เลือกครูที่ถูกประเมิน'}
+                    </option>
+                    {teachers.map((t) => (
+                      <option key={t.teacherId} value={t.teacherId}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', color: '#333', fontWeight: 500 }}>
+                    ผู้อำนวยการผู้ประเมิน *
+                  </label>
+                  <select
+                    value={directorUserId}
+                    onChange={(e) => setDirectorUserId(e.target.value)}
+                    required
+                    disabled={loadingPickers || directors.length === 0}
+                    style={{ width: '100%', padding: '0.75rem', border: '1px solid #ddd', borderRadius: '0.5rem', fontSize: '1rem', boxSizing: 'border-box' }}
+                  >
+                    <option value="">
+                      {loadingPickers ? 'กำลังโหลด...' : directors.length === 0 ? 'ยังไม่มี ผอ. ผูกกับโรงเรียนนี้' : 'เลือกผู้อำนวยการ'}
+                    </option>
+                    {directors.map((d) => (
+                      <option key={d.userId} value={d.userId}>{d.name}</option>
+                    ))}
+                  </select>
+                  {!loadingPickers && directors.length === 0 && (
+                    <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: '#b91c1c' }}>
+                      ⚠️ ต้องมีผู้ใช้สิทธิ์ &quot;ผู้อำนวยการ&quot; (SCHOOL_LEADER) ผูกกับโรงเรียนนี้ก่อน จึงจะสร้างได้
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div style={{ marginBottom: '1.5rem' }}>
               <label style={{
@@ -517,16 +652,16 @@ export default function NewEvaluationPage() {
             <div style={{ display: 'flex', gap: '1rem' }}>
               <button
                 type="submit"
-                disabled={submitting || !formData.schoolId}
+                disabled={submitting || !formData.schoolId || (isThaiPair && (!targetTeacherId || !directorUserId))}
                 style={{
                   padding: '0.75rem 1.5rem',
-                  background: submitting || !formData.schoolId ? '#ccc' : '#10b981',
+                  background: submitting || !formData.schoolId || (isThaiPair && (!targetTeacherId || !directorUserId)) ? '#ccc' : '#10b981',
                   color: 'white',
                   border: 'none',
                   borderRadius: '0.5rem',
                   fontSize: '1rem',
                   fontWeight: 'bold',
-                  cursor: submitting || !formData.schoolId ? 'not-allowed' : 'pointer',
+                  cursor: submitting || !formData.schoolId || (isThaiPair && (!targetTeacherId || !directorUserId)) ? 'not-allowed' : 'pointer',
                   transition: 'background 0.2s'
                 }}
               >

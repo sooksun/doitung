@@ -6,6 +6,8 @@ import { hashPassword } from '../lib/auth';
 // `node scripts/seed-production.js` and `tsx prisma/seed.ts`.
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const Q_MODEL_RUBRICS: Record<string, Record<number, string>> = require('../scripts/data/q-model-rubrics');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const THAI_P1_3: { key: string; th: string; items: { code: string; text: string; levels: Record<string, string> }[] }[] = require('../scripts/data/thai-p1-3');
 
 const prisma = new PrismaClient();
 
@@ -275,6 +277,63 @@ async function main() {
     }
   }
   console.log('✓ Q-Model: 4 sections × 47 indicators');
+
+  // --- THAI P.1–3 SELF-ASSESSMENT INSTRUMENT (idempotent — kept in sync with seed-production.js) ---
+  // Single-rating LIKERT_1_4 with a 4-level rubric per indicator (ระดับ 4 ดีเยี่ยม → 1 ต้องปรับปรุง).
+  // Canonical data: scripts/data/thai-p1-3.js (จาก docs/Rubric_thai_12 Dec 2025.docx) — 4 ด้าน / 50 ตัวชี้วัด.
+  const thaiInstrument = await prisma.instrument.upsert({
+    where: { code: 'THAI_P1_3' },
+    update: {},
+    create: {
+      code: 'THAI_P1_3',
+      nameTh: 'แบบประเมินตนเองการจัดการเรียนการสอนภาษาไทย ป.1–3',
+      nameEn: 'Self-Assessment: Thai Language Teaching P.1–3',
+      description: 'ประเมินการจัดการเรียนการสอนภาษาไทยระดับประถมศึกษาตอนต้น',
+      type: 'THAI_P1_3',
+      version: '1.0',
+      isActive: true,
+    },
+  });
+
+  for (let s = 0; s < THAI_P1_3.length; s++) {
+    const sec = THAI_P1_3[s];
+    let section = await prisma.instrumentSection.findFirst({
+      where: { instrumentId: thaiInstrument.id, nameEn: sec.key },
+    });
+    if (!section) {
+      section = await prisma.instrumentSection.create({
+        data: { instrumentId: thaiInstrument.id, nameTh: sec.th, nameEn: sec.key, order: s + 1 },
+      });
+    }
+    for (const item of sec.items) {
+      const existing = await prisma.indicator.findFirst({
+        where: { instrumentId: thaiInstrument.id, itemCode: item.code },
+      });
+      if (!existing) {
+        await prisma.indicator.create({
+          data: {
+            instrumentId: thaiInstrument.id,
+            sectionId: section.id,
+            itemCode: item.code,
+            textTh: item.text,
+            textEn: item.code,
+            scaleType: 'LIKERT_1_4',
+            minScore: 1,
+            maxScore: 4,
+            isActive: true,
+            levelDescriptors: item.levels,
+          },
+        });
+      } else {
+        const cur = JSON.stringify(existing.levelDescriptors ?? null);
+        const next = JSON.stringify(item.levels);
+        if (cur !== next) {
+          await prisma.indicator.update({ where: { id: existing.id }, data: { levelDescriptors: item.levels } });
+        }
+      }
+    }
+  }
+  console.log('✓ Thai P.1–3: 5 sections × 50 indicators (with rubric)');
 
   console.log('');
   console.log('🎉 Seed complete!');

@@ -20,6 +20,10 @@ interface Term {
   termNumber: number;
   academicYearId: number;
 }
+interface Instrument {
+  id: number;
+  nameTh: string;
+}
 
 interface ScopeSelectorProps {
   scope: 'school' | 'network' | 'district';
@@ -27,15 +31,18 @@ interface ScopeSelectorProps {
   networkId?: number;
   academicYearId?: number;
   termId?: number;
+  instrumentId?: number;
   schools: School[];
   networks: Network[];
   academicYears: AcademicYear[];
   terms: Term[];
+  instruments: Instrument[];
   onScopeChange: (scope: 'school' | 'network' | 'district') => void;
   onSchoolChange: (id?: number) => void;
   onNetworkChange: (id?: number) => void;
   onYearChange: (id?: number) => void;
   onTermChange: (id?: number) => void;
+  onInstrumentChange: (id?: number) => void;
 }
 
 const selectStyle: React.CSSProperties = {
@@ -75,15 +82,18 @@ export default function ScopeSelector({
   networkId,
   academicYearId,
   termId,
+  instrumentId,
   schools,
   networks,
   academicYears,
   terms,
+  instruments,
   onScopeChange,
   onSchoolChange,
   onNetworkChange,
   onYearChange,
   onTermChange,
+  onInstrumentChange,
 }: ScopeSelectorProps) {
   const filteredTerms = academicYearId
     ? terms.filter((t) => t.academicYearId === academicYearId)
@@ -98,6 +108,22 @@ export default function ScopeSelector({
         alignItems: 'center',
       }}
     >
+      {/* Instrument (assessment tool) selector */}
+      {instruments.length > 0 && (
+        <select
+          value={instrumentId ?? ''}
+          onChange={(e) => onInstrumentChange(e.target.value ? parseInt(e.target.value) : undefined)}
+          style={{ ...selectStyle, minWidth: '200px', fontWeight: 600 }}
+          title="เลือกเครื่องมือประเมิน"
+        >
+          {instruments.map((inst) => (
+            <option key={inst.id} value={inst.id} style={optionStyle}>
+              {inst.nameTh}
+            </option>
+          ))}
+        </select>
+      )}
+
       {/* Scope buttons */}
       <div style={{ display: 'flex', gap: '0.25rem' }}>
         {(['school', 'network', 'district'] as const).map((s) => {

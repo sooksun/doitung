@@ -28,8 +28,8 @@
 - [ ] Seed Instruments (DERS, THAI_P1_3, Q_MODEL)
 - [ ] Seed InstrumentSections สำหรับ DERS
 - [ ] Seed Indicators สำหรับ DERS (จากข้อมูลจริง)
-- [ ] Seed InstrumentSections สำหรับ THAI_P1_3
-- [ ] Seed Indicators สำหรับ THAI_P1_3 (จากข้อมูลจริง)
+- [x] Seed InstrumentSections สำหรับ THAI_P1_3 (4 ด้าน — idempotent ใน seed-production.js + prisma/seed.ts)
+- [x] Seed Indicators สำหรับ THAI_P1_3 (50 ตัวชี้วัด + เกณฑ์ 4 ระดับ จาก Rubric_thai_12 Dec 2025.docx → scripts/data/thai-p1-3.js)
 - [ ] Seed InstrumentSections สำหรับ Q_MODEL (6 มิติ: Q-Leadership, Q-PLC, Q-Learning, Q-Goal, Q-Info, Q-Network)
 - [ ] Seed Indicators สำหรับ Q_MODEL (จากข้อมูลจริง)
 - [ ] Seed Sample EvaluationSessions (1–2 sessions)
@@ -487,3 +487,60 @@ DB เก่ามี Q-Model instrument ซ้ำ 2 ตัว + section ซ้�
   `scripts/data/q-model-rubrics.js` เพื่อช่วย detect drift เมื่อ PDF อัปเดต
 - [ ] (Optional) Accessibility: เพิ่ม `aria-expanded` / `aria-controls` ที่
   ปุ่ม disclosure เพื่อ screen readers
+
+---
+
+## Phase: UI Redesign (Design System v2) 🚧
+
+Reskin 21 หน้าให้ใช้ design system เดียว — frontend-only, ไม่แตะ API/schema/data
+(spec: `PRD-redesign-handoff.md`, `PRD-design-v2.md`). PR ละ 1 หน้า/กลุ่ม.
+
+### PR #1 — รากฐาน + /login (เสร็จ)
+- [x] Design tokens `--de-*` ใน `app/globals.css` (brand/accent/ink/semantic/
+  surface/spacing/radius/shadow/motion/font) + dark `[data-theme="dark"]`
+- [x] Utility: `.de-app-shell` / `.de-container` / `.de-focus-ring` / `.de-link`
+  / `.de-mono` + `prefers-reduced-motion`
+- [x] Primitive classes + components `Button`/`Card`/`Input`/`Badge`/`Container`
+  ใน `app/components/ui/` + barrel `index.ts`
+- [x] Icon set (inline SVG) แทน emoji — `app/components/ui/icons.tsx`
+- [x] `ThemeProvider` + `ThemeToggle` (persist `localStorage['de-theme']`,
+  ไม่ชน `token`/`user`) + anti-FOUC script wire ใน `app/layout.tsx`
+- [x] JetBrains Mono ผ่าน `next/font` → `--de-font-mono`
+- [x] Reskin `/login` (2-column brand/form, show/hide password, theme toggle,
+  responsive ≤860px) — logic/auth/localStorage เหมือนเดิม 100%
+- [x] `npm run build` ผ่าน, ไม่มี TS error
+
+### ถัดไป
+- [ ] PR #2 — app shell + `/` (ตัด dev clutter: API status / quick links)
+- [ ] PR #3 — `/dashboard` (คง polling 5s)
+- [ ] PR #4 — กลุ่ม `/evaluations` (list / `[id]` / insights / new)
+- [ ] PR #5 — `/instruments` + `/reports`
+- [ ] PR #6 — `/admin/*` (users / schools / SAR / feature-flags)
+- [ ] PR #7 — `/sticky`
+- [ ] PR #8 ⭐ — `/assessment/[id]` (หวงห้าม): feature flag `new_assessment_ui`
+  + pilot 1 โรงเรียน + mysqldump ก่อน merge · คง dual/single mode, auto-save,
+  poll 5s, `score`≠`score2`
+
+---
+
+## Phase: แบบประเมิน ป.1–3 — Teacher-pair (ครูประเมินตนเอง + ผอ.ประเมิน) ✅
+
+ครู 1 คน ถูกประเมินโดย 2 คน (self + ผอ.) ในฟอร์มเดียว ผูกกับครูรายบุคคล
+(`targetTeacherId`). Frontend + minimal additive schema. ทำ mysqldump ก่อนแล้ว.
+
+- [x] Schema: enum `EvaluatorKind { SELF DIRECTOR }` + `EvaluationSession.evaluatorKind?`
+  (additive, `db push`) — ใช้ `targetTeacherId` ที่มีอยู่
+- [x] `POST /api/evaluations/teacher-pair` — ADMIN/ผอ. สร้าง 2 ฝั่ง (idempotent)
+- [x] `GET /api/evaluations/[id]/teacher-pair` — โหลด self+director+responses+editable
+- [x] `GET /api/schools/[schoolId]/teachers` — picker ครู + ผอ.
+- [x] `/evaluations/new` — picker ครูที่ถูกประเมิน + ผอ. (เฉพาะ instrument ป.1–3)
+- [x] `/assessment/[id]` — render 2 กลุ่ม (ครู/ผอ.) × (ระดับ+เป้าหมาย); แก้เฉพาะฝั่งตน;
+  saveResponse ต่อ session; responsesBySession; Q-Model/single เดิมไม่กระทบ
+- [x] `scripts/migrate-thai-teacher-pairs.js` — รันแล้วบน local (7 SELF + 2 DIRECTOR,
+  ข้อมูลเดิมครบ)
+- [x] `npx tsc --noEmit` = 0 errors
+- [ ] **ค้าง**: รีสตาร์ท dev server เพื่อโหลด Prisma client ใหม่ (process รันค้าง
+  cache client เก่า — endpoint pair จะ 400 จนกว่าจะ restart) แล้วทดสอบ UI สด +
+  `npm run build`
+- [ ] **ข้อควรรู้**: โรงเรียนต้องมี user role SCHOOL_LEADER ผูกอยู่ (ผ่าน Teacher.schoolId)
+  จึงจะสร้าง/มีฝั่ง ผอ. ได้

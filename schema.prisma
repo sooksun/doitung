@@ -45,6 +45,14 @@ enum EvaluationStatus {
   ARCHIVED
 }
 
+// For teacher-focused instruments (e.g. Thai ป.1–3) a teacher is evaluated by two
+// people: SELF (the teacher) + DIRECTOR (ผอ.). Each side is its own EvaluationSession
+// sharing the same targetTeacherId. NULL = legacy/single-evaluator session.
+enum EvaluatorKind {
+  SELF
+  DIRECTOR
+}
+
 enum Quarter {
   Q1
   Q2
@@ -369,8 +377,14 @@ model EvaluationSession {
   targetTeacherId Int? // optional: for teacher-focused instruments
   targetSchoolId  Int? // reserved: for school-level evaluations (Q-Model)
 
+  // SELF / DIRECTOR side of a teacher-pair assessment. NULL = legacy single-evaluator.
+  evaluatorKind EvaluatorKind?
+
   status EvaluationStatus @default(DRAFT)
   note   String?
+
+  // End-of-semester reflection written by the evaluation's owner (teacher). Free text.
+  reflection String? @db.Text
 
   createdAt   DateTime  @default(now())
   submittedAt DateTime?
@@ -578,6 +592,9 @@ model Evidence {
   id                  Int     @id @default(autoincrement())
   evaluationSessionId Int?
   okrActionId         Int?
+  // Optional: which InstrumentSection (dimension) this evidence belongs to, so the
+  // evaluation evidence page can group evidence per ด้าน. Scalar (no FK relation).
+  sectionId           Int?
   url                 String?
   description         String?
 

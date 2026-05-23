@@ -70,6 +70,7 @@ export interface EvaluationSessionDto {
   targetSchoolId: number | null;
   status: EvaluationStatus;
   note: string | null;
+  reflection?: string | null;
   createdAt: Date;
   submittedAt: Date | null;
   instrument?: InstrumentDto;
@@ -77,6 +78,7 @@ export interface EvaluationSessionDto {
   academicYear?: { id: number; year: string };
   term?: { id: number; name: string };
   evaluator?: { id: number; name: string; email: string | null };
+  targetTeacherName?: string | null;
   responsesCount?: number;
 }
 

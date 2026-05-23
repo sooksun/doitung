@@ -17,6 +17,9 @@ const POLL_INTERVAL = 5000; // 5 seconds
 interface LiveData {
   lastUpdated: string;
   scopeLabel: string;
+  instrumentId: number | null;
+  instrumentName: string;
+  maxScale: number;
   participatingSchools: number;
   totalSessions: number;
   totalResponses: number;
@@ -48,6 +51,7 @@ interface School { id: number; nameTh: string; }
 interface Network { id: number; name: string; }
 interface AcademicYear { id: number; year: string; }
 interface Term { id: number; termNumber: number; academicYearId: number; }
+interface Instrument { id: number; nameTh: string; type?: string; }
 
 export default function LiveDashboardPage() {
   const router = useRouter();
@@ -59,12 +63,14 @@ export default function LiveDashboardPage() {
   const [networkId, setNetworkId] = useState<number | undefined>();
   const [academicYearId, setAcademicYearId] = useState<number | undefined>();
   const [termId, setTermId] = useState<number | undefined>();
+  const [instrumentId, setInstrumentId] = useState<number | undefined>();
 
   // Reference data
   const [schools, setSchools] = useState<School[]>([]);
   const [networks, setNetworks] = useState<Network[]>([]);
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [terms, setTerms] = useState<Term[]>([]);
+  const [instruments, setInstruments] = useState<Instrument[]>([]);
 
   // Live data
   const [liveData, setLiveData] = useState<LiveData | null>(null);
@@ -72,7 +78,7 @@ export default function LiveDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [paused, setPaused] = useState(false);
   const [secondsAgo, setSecondsAgo] = useState(0);
-  const [activeIndicatorTab, setActiveIndicatorTab] = useState<'Q-Leadership' | 'Q-PLC' | 'Q-Learning' | 'Q-Students'>('Q-Leadership');
+  const [activeIndicatorTab, setActiveIndicatorTab] = useState<string>('');
   const lastFetchTime = useRef<number>(Date.now());
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -96,11 +102,22 @@ export default function LiveDashboardPage() {
       fetch('/api/networks', { headers }).then((r) => r.json()),
       fetch('/api/academic-years', { headers }).then((r) => r.json()),
       fetch('/api/terms', { headers }).then((r) => r.json()),
-    ]).then(([schoolsRes, networksRes, yearsRes, termsRes]) => {
+      fetch('/api/instruments', { headers }).then((r) => r.json()),
+    ]).then(([schoolsRes, networksRes, yearsRes, termsRes, instrumentsRes]) => {
       if (schoolsRes.success) setSchools(schoolsRes.data?.schools || schoolsRes.data || []);
       if (networksRes.success) setNetworks(networksRes.data?.networks || networksRes.data || []);
       if (yearsRes.success) setAcademicYears(yearsRes.data?.academicYears || yearsRes.data || []);
       if (termsRes.success) setTerms(termsRes.data?.terms || termsRes.data || []);
+      const instList: Instrument[] = instrumentsRes.success
+        ? (instrumentsRes.data?.items || instrumentsRes.data || [])
+        : [];
+      setInstruments(instList);
+      // Default to the Q-Model instrument (keeps the existing dashboard view), else the first one.
+      setInstrumentId((prev) => {
+        if (prev != null) return prev;
+        const q = instList.find((i) => i.type === 'Q_MODEL');
+        return q ? q.id : instList[0]?.id;
+      });
     }).catch(() => {});
   }, [token]);
 
@@ -112,6 +129,7 @@ export default function LiveDashboardPage() {
       if (scope === 'network' && networkId) params.set('networkId', String(networkId));
       if (academicYearId) params.set('academicYearId', String(academicYearId));
       if (termId) params.set('termId', String(termId));
+      if (instrumentId) params.set('instrumentId', String(instrumentId));
 
       const res = await fetch(`/api/live-dashboard?${params}`, {
         headers: { Authorization: `Bearer ${authToken}` },
@@ -142,7 +160,7 @@ export default function LiveDashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [scope, schoolId, networkId, academicYearId, termId, router]);
+  }, [scope, schoolId, networkId, academicYearId, termId, instrumentId, router]);
 
   // Set up polling
   useEffect(() => {
@@ -286,15 +304,18 @@ export default function LiveDashboardPage() {
           networkId={networkId}
           academicYearId={academicYearId}
           termId={termId}
+          instrumentId={instrumentId}
           schools={schools}
           networks={networks}
           academicYears={academicYears}
           terms={terms}
+          instruments={instruments}
           onScopeChange={(s) => { setScope(s); setSchoolId(undefined); setNetworkId(undefined); }}
           onSchoolChange={setSchoolId}
           onNetworkChange={setNetworkId}
           onYearChange={setAcademicYearId}
           onTermChange={setTermId}
+          onInstrumentChange={setInstrumentId}
         />
       </div>
 
@@ -387,7 +408,7 @@ export default function LiveDashboardPage() {
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(4, 1fr)',
+                  gridTemplateColumns: `repeat(${Math.max(1, (liveData?.dimensionScores ?? []).length)}, 1fr)`,
                   gap: '0.5rem 1.25rem',
                   marginBottom: '0.85rem',
                   paddingBottom: '0.85rem',
@@ -408,9 +429,9 @@ export default function LiveDashboardPage() {
               </div>
 
               <div style={{ fontSize: '1rem', fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: '0.5rem', textAlign: 'center' }}>
-                Assessment Pillars Comparison — 4 Main Dimensions
+                {liveData?.instrumentName || 'แบบประเมิน'} — {(liveData?.dimensionScores ?? []).length} ด้าน (สภาพที่เป็นอยู่ vs เป้าหมาย)
               </div>
-              <LiveSpiderChart data={liveData?.spiderData ?? []} height={420} />
+              <LiveSpiderChart data={liveData?.spiderData ?? []} height={420} maxScale={liveData?.maxScale ?? 5} />
             </div>
 
             {/* RIGHT PANEL — Indicator Health (4 tabs, scrollable list per tab) */}
@@ -427,25 +448,23 @@ export default function LiveDashboardPage() {
               }}
             >
               {(() => {
-                const TABS: Array<{ key: 'Q-Leadership' | 'Q-PLC' | 'Q-Learning' | 'Q-Students'; label: string; tooltip: string }> = [
-                  { key: 'Q-Leadership', label: 'LH',  tooltip: 'Q-Leadership ผู้บริหาร' },
-                  { key: 'Q-PLC',        label: 'PLC', tooltip: 'Q-PLC ชุมชนแห่งการเรียนรู้' },
-                  { key: 'Q-Learning',   label: 'LN',  tooltip: 'Q-Learning การจัดการเรียนรู้' },
-                  { key: 'Q-Students',   label: 'STD', tooltip: 'Q-Students ด้านนักเรียน' },
-                ];
+                const dims = liveData?.dimensionScores ?? [];
+                const TABS = dims.map((d, i) => ({ key: d.dimension, label: String(i + 1), tooltip: d.labelTh }));
                 const all = liveData?.indicatorHealth ?? [];
                 const counts = TABS.reduce((acc, t) => {
                   acc[t.key] = all.filter((i) => i.sectionKey === t.key).length;
                   return acc;
                 }, {} as Record<string, number>);
-                const filtered = all.filter((i) => i.sectionKey === activeIndicatorTab);
-                const activeMeta = TABS.find((t) => t.key === activeIndicatorTab);
+                // Keep the selected tab if it still exists; otherwise fall back to the first dimension.
+                const activeKey = TABS.some((t) => t.key === activeIndicatorTab) ? activeIndicatorTab : (TABS[0]?.key ?? '');
+                const filtered = all.filter((i) => i.sectionKey === activeKey);
+                const activeMeta = TABS.find((t) => t.key === activeKey);
 
                 return (
                   <>
                     <div style={{ display: 'flex', gap: '0.3rem', marginBottom: '0.6rem', flexShrink: 0 }}>
                       {TABS.map((t) => {
-                        const isActive = t.key === activeIndicatorTab;
+                        const isActive = t.key === activeKey;
                         return (
                           <button
                             key={t.key}
@@ -493,7 +512,7 @@ export default function LiveDashboardPage() {
                     </div>
 
                     <div
-                      key={activeIndicatorTab}
+                      key={activeKey}
                       className="indicator-scroll"
                       style={{
                         overflowY: 'auto',

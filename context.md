@@ -41,14 +41,31 @@ Student (linked to School)
 ```
 Instrument (type: DERS | THAI_P1_3 | Q_MODEL | OTHER)
   └── InstrumentSection (nameEn ใช้เป็น dimension key: Q-Leadership | Q-PLC | Q-Learning | Q-Students)
-        └── Indicator (textTh, textEn, code, minScore=1, maxScore=5, scaleType=LIKERT_1_5)
+        └── Indicator (textTh, textEn, code, minScore, maxScore, scaleType)
+              — Q-Model: LIKERT_1_5 (1..5); THAI_P1_3: LIKERT_1_4 (1..4)
 ```
 
-Q-Model มี 4 sections, 47 indicators:
+Q-Model (Q_MODEL) มี 4 sections, 47 indicators — dual-state (score+score2), LIKERT_1_5:
 - Q-Leadership (L1-L12): 12 ตัวชี้วัด
 - Q-PLC (PLC1-PLC10): 10 ตัวชี้วัด
 - Q-Learning (T1-T12): 12 ตัวชี้วัด
 - Q-Students (S1-S13): 13 ตัวชี้วัด
+
+แบบประเมินตนเองภาษาไทย ป.1–3 (THAI_P1_3) — LIKERT_1_4 + เกณฑ์ 4 ระดับต่อข้อ (`levelDescriptors`: 4 ดีเยี่ยม → 1 ต้องปรับปรุง), **5 ด้าน**, 50 ตัวชี้วัด (ดูโหมด teacher-pair ด้านล่าง):
+- ด้านห้องเรียน / Classroom (1.1.1–1.1.4, 1.2.1–1.2.2): 6
+- ด้านผู้เรียน / Learners (2.1–2.6): 6
+- ด้านผู้สอน (Facilitator) / Teacher as Facilitator (3.1–3.16): 16
+- การจัดกระบวนการเรียนรู้ / Learning Process (4.1.1–4.1.14): 14
+- การวัดประเมินผล / Assessment (4.2.1–4.2.8): 8
+
+> เดิมด้านที่ 4 รวม "การจัดกระบวนการเรียนรู้และการวัดประเมินผล" (22) — แยกเป็น 2 ด้านตาม itemCode 4.1.x / 4.2.x. DB เดิม migrate ด้วย `scripts/migrate-thai-split-section.js` (one-off, idempotent, ย้าย sectionId ของ 4.2.x; responses ผูกกับ indicatorId จึงไม่หาย). seed (`scripts/data/thai-p1-3.js` + ทั้ง 2 seed) เป็น data-driven loop — fresh seed ได้ 5 ด้านเลย.
+
+ข้อมูล canonical ของ THAI_P1_3 อยู่ที่ `scripts/data/thai-p1-3.js` (สกัดจาก `docs/Rubric_thai_12 Dec 2025.docx` ด้วย python-docx) — แก้ที่ไฟล์นี้ที่เดียว ใช้ร่วมทั้ง `prisma/seed.ts` และ `scripts/seed-production.js` (เหมือน q-model-rubrics.js)
+
+⚠️ หน้า `/assessment/[id]` ปรับ scale + จำนวนคอลัมน์ตาม `instrument.type` อัตโนมัติ:
+- `Q_MODEL` — dual 1–5: เป็นอยู่ (`score2`, ม่วง) + พึงประสงค์ (`score`, น้ำเงิน)
+- `THAI_P1_3` — **ประเมินครูรายบุคคล แบบ 2 ผู้ประเมิน** (teacher-pair): *ครูประเมินตนเอง* + *ผอ.ประเมิน* แสดงรวมในฟอร์มเดียว แต่ละฝั่งมี ระดับการประเมิน (`score`, เหลือง) + ค่าเป้าหมาย (`score2`, เขียว) สเกล 1–4; ต้องกรอกทั้งสองจึงนับว่า "ตอบครบ"
+- type อื่น (DERS ฯลฯ) — single (`score`) ตาม `minScore..maxScore` ของ indicator
 
 ### Evaluation Data
 ```
@@ -58,6 +75,32 @@ EvaluationSession (status: DRAFT → SUBMITTED → REVIEWED → ARCHIVED)
         └── score2 — สภาพที่เป็นอยู่ (Current State) แสดงด้วยสีม่วง
 ```
 ⚠️ หมายเหตุ: score = พึงประสงค์ (เป้าหมาย), score2 = เป็นอยู่ (ปัจจุบัน) — อย่าสับสน
+
+⚠️ ข้อยกเว้น `THAI_P1_3`: เก็บ **ระดับการประเมิน → `score`** (ข้อมูลเดิม คงไว้) และ **ค่าเป้าหมาย → `score2`** (เพิ่มใหม่) — กลับด้านจากความหมายของ Q-Model โดยตั้งใจ เพื่อไม่ย้าย/ทับ `score` เดิม. `saveResponse` จะ defer การ POST จนกว่าจะเลือก `score` (ระดับการประเมิน) ก่อน เพื่อกันค่าเป้าหมายไปทับ score. Dashboard/Live aggregate เฉพาะ Q-Model จึงไม่กระทบ.
+
+### Teacher-pair (THAI_P1_3) — ครูประเมินตนเอง + ผอ.ประเมิน
+
+ครู 1 คนถูกประเมินโดย **2 EvaluationSession** ที่ share `targetTeacherId` (FK→`Teacher`) + `instrument/year/term` เดียวกัน แยกด้วย enum **`EvaluatorKind { SELF, DIRECTOR }`** (`EvaluationSession.evaluatorKind`, nullable; `null` = legacy single):
+- **SELF** — `evaluatorId = teacher.userId` (ครูเป็นเจ้าของ/แก้ได้)
+- **DIRECTOR** — `evaluatorId =` ผอ. (SCHOOL_LEADER) ของโรงเรียน
+- ระบบสิทธิ์เดิม "เจ้าของ session แก้ได้" จึงทำงานต่อ: แต่ละฝั่งแก้เฉพาะของตน; ADMIN แก้ได้ทั้งคู่ (`editable: SELF|DIRECTOR|BOTH|NONE`)
+
+Endpoints:
+- `POST /api/evaluations/teacher-pair` — ADMIN/SCHOOL_LEADER สร้าง 2 ฝั่งทีเดียว (idempotent), evaluator แต่ละฝั่งกำหนดชัด (ทำใน endpoint นี้เพราะ `POST /api/evaluations` บังคับ `evaluatorId = me.id`)
+- `GET /api/evaluations/[id]/teacher-pair` — คืน self + director + responses + `editable` ให้ฟอร์มแสดงรวม
+- `GET /api/schools/[schoolId]/teachers` — รายชื่อครู + ผอ. สำหรับ picker ในหน้า `/evaluations/new`
+
+Migration ข้อมูลเดิม: `scripts/migrate-thai-teacher-pairs.js` (one-off, idempotent, รันมือหลัง backup; **ไม่อยู่ใน docker-entrypoint**) — mark THAI session เดิมเป็น SELF + backfill `targetTeacherId` จาก evaluator's Teacher + สร้างฝั่ง DIRECTOR ให้.
+
+### Evidence + Reflection (ปลายภาคเรียน) — หน้า `/evaluations/[id]`
+
+หน้านี้ = ครูเจ้าของแนบ **หลักฐาน** (รูป/เอกสาร/ลิงก์วิดีโอ) + เขียน **การสะท้อนคิด** **แยกตามรายด้าน (section)** ตอนปลายภาคเรียน (คะแนนกรอกที่ `/assessment/[id]`). แต่ละด้านเลือกตัวชี้วัด ≥1 ข้อ + สะท้อนคิด + แนบหลักฐาน; ต้องทำครบทุกด้าน (ป.1–3 = 5 ด้าน):
+- **Reflection เก็บเป็น JSON ในฟิลด์ `EvaluationSession.reflection`** (String? @db.Text): `{ "<sectionId>": { "indicatorIds": number[], "text": string } }` — แก้ผ่าน `PATCH /api/evaluations/[id]` (ส่ง string ทั้งก้อน; owner/ADMIN). "ด้านนั้นครบ" = มี indicator ≥1 + text ไม่ว่าง; หน้าโชว์ progress "ครบ X/N ด้าน"
+- หลักฐานเก็บใน model **`Evidence`** เดิม + เพิ่ม **`Evidence.sectionId Int?`** (additive, scalar) เพื่อจัดกลุ่มตามด้าน; ชนิด (image/document/link) infer จากนามสกุล/URL
+- Endpoints: `GET|POST /api/evaluations/[id]/evidence` (POST multipart: `file` หรือ `url` + `description` + `sectionId`; owner/ADMIN), `DELETE /api/evaluations/[id]/evidence/[evidenceId]`
+- ไฟล์อัปโหลดเขียนที่ `public/uploads/evidence/<sessionId>/` (เสิร์ฟ static; gitignored เหมือน SAR) — pattern เดียวกับ `app/api/admin/sar-documents/route.ts`
+- หน้าดึง `GET /api/instruments/[id]` (sections+indicators) มา render บล็อกรายด้าน
+- สิทธิ์: owner (`evaluatorId`) หรือ ADMIN เพิ่ม/ลบ/แก้ได้ (แม้สถานะ SUBMITTED); คนอื่นดูอย่างเดียว. "ปลายภาคเรียน ปีละ 2 ครั้ง" เป็นข้อความแนะนำ (ไม่ได้ lock ด้วยวันที่)
 
 ### Configuration
 ```
@@ -115,7 +158,10 @@ GET /api/live-dashboard
     networkId      = ID กลุ่มโรงเรียน (scope=network)
     academicYearId = ปีการศึกษา
     termId         = เทอม
+    instrumentId   = เครื่องมือประเมิน (เลือกได้; ไม่ใส่ = ค่าเริ่มต้น Q-Model)
 ```
+
+> **เลือกเครื่องมือได้**: `/live-dashboard` มี dropdown เลือก instrument. มิติ (dimensions) มาจาก section ของเครื่องมือที่เลือก — Q-Model คง 4 มิติ (match `nameEn`, current=`score2`/target=`score`); เครื่องมืออื่น (ป.1–3 5 ด้าน, DERS ฯลฯ) ใช้ section ของตัวเอง (current=`score`/target=`score2`). KPI/completion/spider/indicator health คำนวณตามเครื่องมือที่เลือก. `maxScale` มาจาก indicator max (5 สำหรับ Q-Model, 4 สำหรับ ป.1–3) ใช้กำหนด domain ของ spider. การรวมผล ป.1–3 รวมทั้งฝั่งครูประเมินตนเอง + ผอ.
 
 ---
 
@@ -173,17 +219,29 @@ Red    → percent < 70%
 
 ---
 
+## Design System (v2)
+
+Reskin ของ 21 หน้าให้ใช้ design system เดียว (ทิศทางอนุมัติแล้วใน `PRD-redesign-handoff.md` / `PRD-design-v2.md`). **Frontend-only — ไม่แตะ API/schema/data.** เริ่มลงโค้ดจริงแล้วที่ **PR #1 (รากฐาน) + reskin `/login`**.
+
+- **Design tokens** อยู่ใน `app/globals.css` ทั้งหมดขึ้นต้น `--de-*` (brand=indigo, accent=violet, ink=slate, semantic, surface, spacing, radius, shadow, motion, font). ใช้ผ่าน `var(--de-*)` เท่านั้น — **ห้าม hardcode hex ในหน้าใหม่**. มี utility: `.de-app-shell`, `.de-container`, `.de-focus-ring`, `.de-link`, `.de-mono` + รองรับ `prefers-reduced-motion`.
+- **Primitives** อยู่ใน `app/components/ui/` — `import { Button, Card, Input, Badge, Container } from '@/app/components/ui'`. ทุกตัวเป็น `'use client'`, ไม่มี external dep, accessible. ก่อนสร้าง component ใหม่ให้ reuse ของเดิมก่อน (props spec อยู่ใน `PRD-design-v2.md §3.2`). ไอคอนใช้ inline SVG จาก `app/components/ui/icons.tsx` แทน emoji.
+- **Theme/Dark mode**: `ThemeProvider` (จาก `app/components/ui`) ครอบใน `app/layout.tsx`, ตั้ง `data-theme` บน `<html>`, persist ที่ `localStorage['de-theme']` (**ห้ามชนกับ `token`/`user` ของ auth**). มี anti-FOUC inline script ใน layout + `<ThemeToggle/>` พร้อมใช้. dark mode override เฉพาะ token `--de-*` — หน้าที่ยังไม่ migrate (ใช้ inline style ของตัวเอง) จึงไม่กระทบ.
+- **Fonts**: Kanit (sans) + JetBrains Mono (mono) โหลดผ่าน `next/font` → `var(--de-font-sans)` / `var(--de-font-mono)`.
+- **สถานะ migrate**: `/login` ✅ (รากฐาน + proof). หน้าที่เหลือยังเป็น inline style เดิม — ทยอย migrate ทีละ PR ตามลำดับใน `PRD-redesign-handoff.md` (`/assessment/[id]` ทำท้ายสุด: หวงห้าม, ต้อง feature flag + pilot + mysqldump).
+
+---
+
 ## Frontend Pages
 
 | Route | Description |
 |-------|-------------|
 | `/` | Home with navigation cards |
-| `/login` | JWT authentication |
+| `/login` | JWT authentication — **reskin แล้ว (Design System v2)**: 2-column brand/form, show/hide password, theme toggle, responsive ≤860px |
 | `/dashboard` | Main dashboard (KPIs, Spider chart, Q-Model) |
 | `/live-dashboard` | **[ใหม่]** Real-time display screen for projector/TV |
 | `/evaluations` | List evaluation sessions |
 | `/evaluations/new` | Create new evaluation session |
-| `/evaluations/:id` | Detail view of session |
+| `/evaluations/:id` | **เพิ่มหลักฐาน (รูป/เอกสาร/ลิงก์วิดีโอ) + บันทึกการสะท้อนคิด** ของครูเจ้าของ ตอนปลายภาคเรียน (ปีละ 2 ครั้ง). คะแนนกรอกที่ /assessment/:id |
 | `/assessment/:id` | **[ใหม่]** กรอกแบบประเมิน Q-Model (Likert 1-5, tabs per section, auto-save) |
 | `/instruments` | List assessment instruments |
 | `/instruments/:id` | Instrument detail with sections/indicators |
@@ -344,6 +402,8 @@ bash deploy.sh
 | 103 indicators (ซ้ำ) | seed รันหลายครั้ง + code เปลี่ยน (Q-Leadership-01 → L1) ทำให้ findFirst ไม่เจอ | SQL cleanup ตรงๆ แล้ว re-seed: ดู "SQL Cleanup" ด้านล่าง |
 | `mysql: command not found` | Container ใช้ MariaDB ไม่ใช่ MySQL | ใช้ `mariadb` แทน `mysql` |
 | `Table 'eqap_db.Instrument' does not exist` | Database จริงชื่อ `okrsdoitung` ไม่ใช่ `eqap_db` | ระบุ `okrsdoitung` ใน SQL command |
+| dropdown สร้างการประเมินบน prod ขึ้นแค่ Q-Model | `seed-production.js` สร้างแค่ Q-Model; DERS/THAI_P1_3 มีเฉพาะ DB local | เพิ่ม THAI_P1_3 (4 ด้าน/50 ตัวชี้วัด + เกณฑ์ 4 ระดับ, LIKERT_1_4) ลง `seed-production.js` + `prisma/seed.ts` แบบ idempotent แล้ว re-deploy/seed |
+| THAI_P1_3 ใน local ซ้ำ (54 indicator / 18 section แทน 16/4) | ถูกสร้างผ่าน UI/สคริปต์ซ้ำหลายรอบแบบไม่ idempotent | เก็บชุดล่าสุดที่ถูกต้อง (section 41–44) ลบที่เหลือ — 0 EvaluationResponse อ้างถึงจึงปลอดภัย |
 
 ### SQL Cleanup (กรณี indicators ซ้ำ)
 ```bash
@@ -426,6 +486,17 @@ score (สภาพที่พึงประสงค์)
 - [x] `seed-production.js` ทำ idempotent update — เปรียบเทียบ
   `JSON.stringify(levelDescriptors)` ก่อน emit UPDATE เพื่อไม่ churn
   `updatedAt` ทุก boot
+
+### Phase ปัจจุบัน: เปิดใช้แบบประเมินตนเองภาษาไทย ป.1–3 (THAI_P1_3) ✅ เสร็จ local / ⏳ รอ deploy
+แบบประเมินตนเองภาษาไทย ป.1–3 เป็น single-rating LIKERT_1_4 + เกณฑ์ 4 ระดับต่อข้อ (**4 ด้าน / 50 ตัวชี้วัด** ตาม `docs/Rubric_thai_12 Dec 2025.docx`) เดิมมีเฉพาะใน DB local เป็นเวอร์ชันย่อ 16 ข้อที่ไม่มีเกณฑ์ และฟอร์มประเมิน hardcode เป็น Q-Model (1–5 + dual state) จึงใช้งานจริงไม่ได้
+
+- [x] หน้า `/assessment/[id]` ปรับ scale + คอลัมน์ตาม `instrument.type` (dual เฉพาะ `Q_MODEL`) และ `minScore..maxScore` ของ indicator; ป้ายระดับ 1–4 = ต้องปรับปรุง/พอใช้/ดี/ดีเยี่ยม
+- [x] สกัด rubric เต็มจาก docx → `scripts/data/thai-p1-3.js` (4 ด้าน/50 ตัวชี้วัด + เกณฑ์ 4 ระดับ) เป็น single source ใช้ร่วมทั้ง dev/prod seed
+- [x] refactor `scripts/seed-production.js` + `prisma/seed.ts` ให้ `require('./data/thai-p1-3')` แบบ idempotent + sync `levelDescriptors`
+- [x] reseed local DB: ล้างของเดิมแล้วสร้างใหม่ → 4 ด้าน (6/6/16/22) / 50 ตัวชี้วัด ทุกข้อมี rubric
+- [x] ทดสอบ local (Preview): ฟอร์ม 50 ข้อ 4 แท็บ, "ดูเกณฑ์" กางเกณฑ์ 4 ระดับได้, save score เดี่ยว (1–4) progress นับถูก; Q-Model ยัง dual 1–5 (47 ข้อ) ไม่ regress
+- [ ] **Deploy prod**: `git pull origin main && bash deploy.sh` → `docker-entrypoint.sh` รัน `seed-production.js` สร้าง instrument บน prod (additive, ไม่แตะข้อมูลเดิม)
+- [ ] **หมายเหตุ**: `/api/dashboard/*` (summary/q-model/spider-graph) ยัง aggregate เฉพาะ 4 มิติ Q-Model. **`/live-dashboard` เลือก instrument ได้แล้ว** — ดู THAI ป.1–3 / DERS ได้ (มิติ = section ของเครื่องมือนั้น)
 
 ### One-shot: Q-Model instrument migration (ทำครั้งเดียวต่อ env)
 DB เก่าก่อน May 2026 cleanup เคยมี Q-Model instrument 2 ตัว (legacy

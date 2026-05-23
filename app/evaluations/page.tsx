@@ -268,7 +268,7 @@ export default function EvaluationsPage() {
                           fontSize: '0.875rem'
                         }}
                       >
-                        ดูรายละเอียด
+                        บันทึกสะท้อนคิด
                       </Link>
                       {(meId === evaluation.evaluatorId || isAdmin) && evaluation.status !== 'ARCHIVED' && (
                         <button

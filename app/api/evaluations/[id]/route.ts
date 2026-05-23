@@ -95,6 +95,7 @@ export async function GET(
       targetSchoolId: evaluation.targetSchoolId,
       status: evaluation.status,
       note: evaluation.note,
+      reflection: evaluation.reflection,
       createdAt: evaluation.createdAt,
       submittedAt: evaluation.submittedAt,
       instrument: {
@@ -123,6 +124,14 @@ export async function GET(
             name: evaluation.term.name,
           }
         : undefined,
+      evaluator: evaluation.evaluator
+        ? {
+            id: evaluation.evaluator.id,
+            name: evaluation.evaluator.name,
+            email: evaluation.evaluator.email,
+          }
+        : undefined,
+      targetTeacherName: evaluation.targetTeacher?.user?.name ?? null,
       responsesCount: evaluation._count.responses,
     };
 
@@ -153,7 +162,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { status, note } = body;
+    const { status, note, reflection } = body;
 
     const updateData: any = {};
     if (status) {
@@ -163,6 +172,7 @@ export async function PATCH(
       }
     }
     if (note !== undefined) updateData.note = note;
+    if (reflection !== undefined) updateData.reflection = reflection;
 
     const evaluation = await prisma.evaluationSession.update({
       where: { id },
@@ -181,6 +191,7 @@ export async function PATCH(
         targetSchoolId: evaluation.targetSchoolId,
         status: evaluation.status,
         note: evaluation.note,
+        reflection: evaluation.reflection,
         createdAt: evaluation.createdAt,
         submittedAt: evaluation.submittedAt,
       } as EvaluationSessionDto,

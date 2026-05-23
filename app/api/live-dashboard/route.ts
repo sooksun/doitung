@@ -1,6 +1,9 @@
 // app/api/live-dashboard/route.ts
 // GET /api/live-dashboard - Real-time aggregated data for Live Display Dashboard
 // Supports scope: school | network | district. Counts non-ARCHIVED sessions (DRAFT included).
+// Supports instrumentId: which assessment tool to aggregate (defaults to the Q-Model instrument).
+//   - Q-Model: 4 fixed dimensions matched by InstrumentSection.nameEn; current = score2 (สภาพที่เป็นอยู่), target = score.
+//   - Other instruments (e.g. Thai ป.1–3): dimensions = the instrument's own sections; current = score, target = score2.
 
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -13,6 +16,8 @@ const Q_DIMENSIONS = [
   { key: 'Q-Students',   labelTh: 'Q-Students ด้านนักเรียน', order: 4 },
 ];
 
+type Status = 'green' | 'yellow' | 'red';
+
 export async function GET(request: NextRequest) {
   try {
     const sp = request.nextUrl.searchParams;
@@ -21,6 +26,7 @@ export async function GET(request: NextRequest) {
     const networkId = parseIntParam(sp, 'networkId');
     const academicYearId = parseIntParam(sp, 'academicYearId');
     const termId = parseIntParam(sp, 'termId');
+    const instrumentId = parseIntParam(sp, 'instrumentId');
 
     // Resolve scope → school filter
     let schoolFilter: { schoolId?: number | { in: number[] } } = {};
@@ -63,24 +69,50 @@ export async function GET(request: NextRequest) {
     if (academicYearId) sessionWhere.academicYearId = academicYearId;
     if (termId) sessionWhere.termId = termId;
 
-    // 1. Session counts → completion rate
-    const totalSessions = await prisma.evaluationSession.count({ where: sessionWhere });
+    // ---- Target instrument (selectable; defaults to Q-Model) ----
+    const indicatorSelect = {
+      select: { id: true, sectionId: true, itemCode: true, minScore: true, maxScore: true, textTh: true, textEn: true },
+    } as const;
+    let instrument =
+      instrumentId != null
+        ? await prisma.instrument.findUnique({
+            where: { id: instrumentId },
+            include: { sections: true, indicators: indicatorSelect },
+          })
+        : null;
+    if (!instrument) {
+      instrument = await prisma.instrument.findFirst({
+        where: { type: 'Q_MODEL' },
+        include: { sections: true, indicators: indicatorSelect },
+      });
+    }
+
+    const isQModel = instrument?.type === 'Q_MODEL';
+    // "current" = สภาพที่เป็นอยู่/ระดับปัจจุบัน, "target" = เป้าหมาย. Q-Model stores current in score2;
+    // teacher-rated tools (Thai ป.1–3) store the rating in score and the target in score2.
+    const currentField: 'score' | 'score2' = isQModel ? 'score2' : 'score';
+
+    // Per-instrument session filter
+    const instSessionWhere = { ...sessionWhere, instrumentId: instrument?.id ?? -1 };
+
+    // 1. Session counts → completion rate (scoped to the selected instrument)
+    const totalSessions = await prisma.evaluationSession.count({ where: instSessionWhere });
     const submittedSessions = await prisma.evaluationSession.count({
-      where: { ...sessionWhere, status: { in: ['SUBMITTED', 'REVIEWED'] } },
+      where: { ...instSessionWhere, status: { in: ['SUBMITTED', 'REVIEWED'] } },
     });
     const completionRate = totalSessions > 0
       ? Math.round((submittedSessions / totalSessions) * 100)
       : 0;
 
     const totalResponses = await prisma.evaluationResponse.count({
-      where: { evaluationSession: sessionWhere },
+      where: { evaluationSession: instSessionWhere },
     });
 
     // Active evaluators = sessions with activity in the last hour (count distinct evaluators)
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     const recentSessions = await prisma.evaluationSession.findMany({
       where: {
-        ...sessionWhere,
+        ...instSessionWhere,
         OR: [
           { submittedAt: { gte: oneHourAgo } },
           { responses: { some: { createdAt: { gte: oneHourAgo } } } },
@@ -92,114 +124,107 @@ export async function GET(request: NextRequest) {
 
     // All-time evaluators in scope: distinct evaluatorIds whose session has at least one response.
     const totalEvaluatorRows = await prisma.evaluationSession.findMany({
-      where: { ...sessionWhere, responses: { some: {} } },
+      where: { ...instSessionWhere, responses: { some: {} } },
       select: { evaluatorId: true },
       distinct: ['evaluatorId'],
     });
     const totalEvaluators = totalEvaluatorRows.length;
 
-    // Q-Model instrument
-    const qModel = await prisma.instrument.findFirst({
-      where: { type: 'Q_MODEL' },
-      include: {
-        sections: true,
-        indicators: { select: { id: true, sectionId: true, itemCode: true, minScore: true, maxScore: true, textTh: true, textEn: true } },
-      },
-    });
+    // ---- Dimensions ----
+    // Q-Model: the 4 fixed dimensions matched by nameEn. Other instruments: all their sections in order.
+    type Dim = { key: string; labelTh: string; order: number; sectionId: number | null };
+    let dims: Dim[] = [];
+    if (instrument) {
+      if (isQModel) {
+        dims = Q_DIMENSIONS.map((d) => {
+          const sec = instrument!.sections.find((s) => s.nameEn === d.key);
+          return { key: d.key, labelTh: d.labelTh, order: d.order, sectionId: sec ? sec.id : null };
+        });
+      } else {
+        dims = instrument.sections
+          .slice()
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+          .map((s, i) => ({
+            key: s.nameEn || `sec-${s.id}`,
+            labelTh: s.nameTh,
+            order: s.order ?? i + 1,
+            sectionId: s.id,
+          }));
+      }
+    }
 
-    // 2. Spider data + 3. Dimension scores per Q-Model dimension
-    const spiderData: Array<{
-      dimension: string;
-      labelTh: string;
-      current: number;        // avg score2 (1-5)
-      target: number;         // avg score (1-5)
-    }> = [];
+    const maxScale = instrument?.indicators.reduce((mx, i) => Math.max(mx, i.maxScore), 0) || 5;
+    const instrumentName = instrument?.nameTh ?? '';
 
+    const spiderData: Array<{ dimension: string; labelTh: string; current: number; target: number }> = [];
     const dimensionScores: Array<{
       dimension: string;
       labelTh: string;
       percent: number;
-      status: 'green' | 'yellow' | 'red';
-      avgScore: number;          // avg score2 (1-5 scale, "current" / สภาพที่เป็นอยู่)
-      maxScore: number;          // upper bound of indicator scale (5 for Q-Model)
+      status: Status;
+      avgScore: number;
+      maxScore: number;
     }> = [];
 
-    if (!qModel) {
-      for (const dim of Q_DIMENSIONS) {
+    for (const dim of dims) {
+      const indicators = dim.sectionId != null && instrument
+        ? instrument.indicators.filter((i) => i.sectionId === dim.sectionId)
+        : [];
+
+      if (indicators.length === 0) {
         spiderData.push({ dimension: dim.key, labelTh: dim.labelTh, current: 0, target: 0 });
-        dimensionScores.push({ dimension: dim.key, labelTh: dim.labelTh, percent: 0, status: 'red', avgScore: 0, maxScore: 5 });
+        dimensionScores.push({ dimension: dim.key, labelTh: dim.labelTh, percent: 0, status: 'red', avgScore: 0, maxScore: maxScale });
+        continue;
       }
-    } else {
-      for (const dim of Q_DIMENSIONS) {
-        const section = qModel.sections.find((s) => s.nameEn === dim.key);
-        const indicators = section
-          ? qModel.indicators.filter((i) => i.sectionId === section.id)
-          : [];
 
-        if (indicators.length === 0) {
-          spiderData.push({ dimension: dim.key, labelTh: dim.labelTh, current: 0, target: 0 });
-          dimensionScores.push({ dimension: dim.key, labelTh: dim.labelTh, percent: 0, status: 'red', avgScore: 0, maxScore: 5 });
-          continue;
-        }
+      const indicatorIds = indicators.map((i) => i.id);
+      const agg = await prisma.evaluationResponse.aggregate({
+        where: { indicatorId: { in: indicatorIds }, evaluationSession: instSessionWhere },
+        _avg: { score: true, score2: true },
+      });
+      const avgCurrent = (currentField === 'score2' ? agg._avg.score2 : agg._avg.score) ?? 0;
+      const avgTarget = (currentField === 'score2' ? agg._avg.score : agg._avg.score2) ?? 0;
 
-        const indicatorIds = indicators.map((i) => i.id);
+      spiderData.push({
+        dimension: dim.key,
+        labelTh: dim.labelTh,
+        current: Math.round(avgCurrent * 10) / 10,
+        target: Math.round(avgTarget * 10) / 10,
+      });
 
-        // Aggregate score + score2 across all indicators in this section in one query
-        const agg = await prisma.evaluationResponse.aggregate({
-          where: {
-            indicatorId: { in: indicatorIds },
-            evaluationSession: { ...sessionWhere, instrumentId: qModel.id },
-          },
-          _avg: { score: true, score2: true },
-        });
-
-        const avgScore2 = agg._avg.score2 ?? 0;
-        const avgScore = agg._avg.score ?? 0;
-
-        spiderData.push({
-          dimension: dim.key,
-          labelTh: dim.labelTh,
-          current: Math.round(avgScore2 * 10) / 10,
-          target: Math.round(avgScore * 10) / 10,
-        });
-
-        // Per-indicator percent for this section, then average → dimension percent
-        const perIndAggs = await Promise.all(
-          indicators.map((ind) =>
-            prisma.evaluationResponse.aggregate({
-              where: {
-                indicatorId: ind.id,
-                evaluationSession: { ...sessionWhere, instrumentId: qModel.id },
-              },
-              _avg: { score2: true },
-            })
-          )
-        );
-        const percents: number[] = [];
-        for (let i = 0; i < indicators.length; i++) {
-          const ind = indicators[i];
-          const avg = perIndAggs[i]._avg.score2;
-          if (avg === null) continue;
-          const range = ind.maxScore - ind.minScore;
-          if (range <= 0) continue;
-          percents.push(Math.max(0, Math.min(100, ((avg - ind.minScore) / range) * 100)));
-        }
-        const percent = percents.length
-          ? Math.round(percents.reduce((a, b) => a + b, 0) / percents.length)
-          : 0;
-        let status: 'green' | 'yellow' | 'red' = 'red';
-        if (percent >= 90) status = 'green';
-        else if (percent >= 70) status = 'yellow';
-
-        dimensionScores.push({
-          dimension: dim.key,
-          labelTh: dim.labelTh,
-          percent,
-          status,
-          avgScore: Math.round(avgScore2 * 10) / 10,
-          maxScore: indicators[0].maxScore,
-        });
+      // Per-indicator percent (current field), then average → dimension percent
+      const perIndAggs = await Promise.all(
+        indicators.map((ind) =>
+          prisma.evaluationResponse.aggregate({
+            where: { indicatorId: ind.id, evaluationSession: instSessionWhere },
+            _avg: { score: true, score2: true },
+          })
+        )
+      );
+      const percents: number[] = [];
+      for (let i = 0; i < indicators.length; i++) {
+        const ind = indicators[i];
+        const avg = currentField === 'score2' ? perIndAggs[i]._avg.score2 : perIndAggs[i]._avg.score;
+        if (avg === null || avg === undefined) continue;
+        const range = ind.maxScore - ind.minScore;
+        if (range <= 0) continue;
+        percents.push(Math.max(0, Math.min(100, ((avg - ind.minScore) / range) * 100)));
       }
+      const percent = percents.length
+        ? Math.round(percents.reduce((a, b) => a + b, 0) / percents.length)
+        : 0;
+      let status: Status = 'red';
+      if (percent >= 90) status = 'green';
+      else if (percent >= 70) status = 'yellow';
+
+      dimensionScores.push({
+        dimension: dim.key,
+        labelTh: dim.labelTh,
+        percent,
+        status,
+        avgScore: Math.round(avgCurrent * 10) / 10,
+        maxScore: indicators[0].maxScore,
+      });
     }
 
     // 4. Overall quality index — average non-zero dimensions
@@ -211,43 +236,38 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 5. Indicator health — ALL 47 Q-Model indicators with current state, ordered by
-    // section (dimension order from Q_DIMENSIONS) then by item code / id.
+    // 5. Indicator health — all of the instrument's indicators (current state), ordered by
+    // dimension order then item code / id.
     const indicatorHealth: Array<{
       code: string | null;
       nameTh: string;
-      score: number | null;      // null = no data yet
+      score: number | null;
       max: number;
       progress: number | null;
       sectionKey: string;
       sectionLabelTh: string;
     }> = [];
 
-    if (qModel) {
-      // Build section lookup → dimension info, with order matching Q_DIMENSIONS.
-      // Indicators outside the 4 active dimensions are skipped (legacy sections).
+    if (instrument) {
       const sectionInfo = new Map<number, { key: string; labelTh: string; order: number }>();
-      for (const sec of qModel.sections) {
-        const dim = Q_DIMENSIONS.find((d) => d.key === sec.nameEn);
-        if (dim) {
-          sectionInfo.set(sec.id, { key: dim.key, labelTh: dim.labelTh, order: dim.order });
+      for (const dim of dims) {
+        if (dim.sectionId != null) {
+          sectionInfo.set(dim.sectionId, { key: dim.key, labelTh: dim.labelTh, order: dim.order });
         }
       }
 
-      const activeIndicators = qModel.indicators.filter(
+      const activeIndicators = instrument.indicators.filter(
         (ind) => ind.sectionId !== null && sectionInfo.has(ind.sectionId)
       );
 
       const stats = await Promise.all(
         activeIndicators.map(async (ind) => {
           const agg = await prisma.evaluationResponse.aggregate({
-            where: {
-              indicatorId: ind.id,
-              evaluationSession: { ...sessionWhere, instrumentId: qModel.id },
-            },
-            _avg: { score2: true },
+            where: { indicatorId: ind.id, evaluationSession: instSessionWhere },
+            _avg: { score: true, score2: true },
           });
-          return { ind, avg: agg._avg.score2 };
+          const avg = currentField === 'score2' ? agg._avg.score2 : agg._avg.score;
+          return { ind, avg };
         })
       );
 
@@ -263,14 +283,14 @@ export async function GET(request: NextRequest) {
       for (const { ind, avg } of stats) {
         const range = ind.maxScore - ind.minScore;
         let progress: number | null = null;
-        if (avg !== null && range > 0) {
+        if (avg !== null && avg !== undefined && range > 0) {
           progress = Math.max(0, Math.min(100, Math.round(((avg - ind.minScore) / range) * 100)));
         }
         const sec = ind.sectionId ? sectionInfo.get(ind.sectionId) : undefined;
         indicatorHealth.push({
           code: ind.itemCode,
           nameTh: ind.textTh,
-          score: avg !== null ? Math.round(avg * 10) / 10 : null,
+          score: avg !== null && avg !== undefined ? Math.round(avg * 10) / 10 : null,
           max: ind.maxScore,
           progress,
           sectionKey: sec?.key ?? '',
@@ -282,6 +302,9 @@ export async function GET(request: NextRequest) {
     return successResponse({
       lastUpdated: new Date().toISOString(),
       scopeLabel,
+      instrumentId: instrument?.id ?? null,
+      instrumentName,
+      maxScale,
       participatingSchools,
       totalSessions,
       totalResponses,
