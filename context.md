@@ -386,6 +386,7 @@ bash deploy.sh
 | `docker-entrypoint.sh` | Startup: TCP DB check → prisma db push → seed → node server.js |
 | `docker-compose.yml` | Services: app + MariaDB + networks + volumes |
 | `deploy.sh` | One-command: git pull → stop → remove image → build → up |
+| `update-db.sh` | One-shot DB updater (รันบน host หลัง deploy): backup → `prisma db push` → seed THAI_P1_3 → verify. Fail-loud (ต่างจาก entrypoint ที่กลบ error). One-off migration เป็น opt-in (`RUN_THAI_MIGRATION=1`) |
 | `.dockerignore` | Exclude node_modules/.next/.env (ลด context จาก 700MB → <10MB) |
 
 ### Known Issues & Fixes ที่เคยพบ
