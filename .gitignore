@@ -39,3 +39,9 @@ next-env.d.ts
 
 # uploaded SAR PDFs (mounted as Docker volume in prod; never committed)
 /public/uploads/
+
+# PII / debug artifacts from seed scripts — keep these off git.
+# (the seeder reads de-list.json; regenerate locally via scripts/read-de-list.py)
+/scripts/de-list.json
+/scripts/*-output.txt
+/scripts/school-*.txt
