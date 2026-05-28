@@ -45,3 +45,5 @@ next-env.d.ts
 /scripts/de-list.json
 /scripts/*-output.txt
 /scripts/school-*.txt
+/scripts/*credentials*.xlsx
+/scripts/*credentials*.csv
