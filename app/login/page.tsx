@@ -255,25 +255,6 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            <div
-              style={{
-                marginTop: 'var(--de-space-6)',
-                padding: 'var(--de-space-4)',
-                background: 'var(--de-surface-sunken)',
-                border: '1px solid var(--de-border)',
-                borderRadius: 'var(--de-radius-md)',
-              }}
-            >
-              <p style={{ margin: 0, marginBottom: 'var(--de-space-2)', fontWeight: 600, fontSize: '0.82rem', color: 'var(--de-text-soft)' }}>
-                บัญชีทดสอบ
-              </p>
-              <ul className="de-mono" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.8rem', color: 'var(--de-text-muted)' }}>
-                <li>admin@local / Admin123</li>
-                <li>leader@example.com / Leader123</li>
-                <li>teacher@example.com / Teacher123</li>
-              </ul>
-            </div>
-
             <div style={{ marginTop: 'var(--de-space-6)', textAlign: 'center' }}>
               <Link href="/" className="de-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--de-space-2)' }}>
                 <IconArrowLeft width={17} height={17} />
