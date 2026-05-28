@@ -165,23 +165,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div style={{
-          marginTop: '2rem',
-          padding: '1rem',
-          background: '#f5f5f5',
-          borderRadius: '0.5rem',
-          fontSize: '0.9rem',
-          color: '#666'
-        }}>
-          <p style={{ marginBottom: '0.5rem', fontWeight: 'bold' }}>Default Users:</p>
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-            <li>• admin@local / Admin123</li>
-            <li>• leader@example.com / Leader123</li>
-            <li>• teacher@example.com / Teacher123</li>
-          </ul>
-        </div>
-
-        <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+        <div style={{ marginTop: '2rem', textAlign: 'center' }}>
           <Link href="/" style={{ color: '#667eea', textDecoration: 'none' }}>
             ← กลับหน้าหลัก
           </Link>
