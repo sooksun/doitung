@@ -22,6 +22,10 @@ interface BoardInfo {
   schoolId: number;
   status: 'ACTIVE' | 'ARCHIVED';
   isOwner: boolean;
+  /** True iff this request actually inserted the board row (not reactivated
+   *  an existing one). Forwarded to StickyBoardSurface so seedFromText only
+   *  fires on the genuine first open. */
+  wasJustCreated: boolean;
 }
 
 export interface StickyNoteModalProps {
@@ -31,10 +35,11 @@ export interface StickyNoteModalProps {
   contextType: string;
   contextId: string;
   schoolId: number | null;
-  // See StickyNoteButtonProps.initialText — kept identical here so the seed +
-  // safety-net behaviour reaches StickyBoardSurface.
-  initialText?: string;
   onApplyText: (joined: string) => void;
+  /** Forwarded to StickyBoardSurface. Pre-populates an empty board with one
+   *  sticky note per comma-separated piece on first load. See StickyNoteButton
+   *  for the user-facing description. */
+  seedFromText?: string | null;
 }
 
 function getBearer(): string | null {
@@ -49,8 +54,8 @@ export function StickyNoteModal({
   contextType,
   contextId,
   schoolId,
-  initialText,
   onApplyText,
+  seedFromText,
 }: StickyNoteModalProps) {
   const [board, setBoard] = useState<BoardInfo | null>(null);
   const [boardError, setBoardError] = useState<string | null>(null);
@@ -185,7 +190,8 @@ export function StickyNoteModal({
             closeLabel="บันทึกและปิด"
             onClose={handleSurfaceClose}
             pollIntervalMs={5000}
-            seedContentIfEmpty={initialText}
+            seedFromText={seedFromText}
+            wasJustCreated={board.wasJustCreated}
           />
         )}
       </div>

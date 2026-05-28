@@ -242,10 +242,6 @@ export type IcebergCellAccessoryArgs = {
   layerKey: keyof Iceberg;
   layerNo: 1 | 2 | 3 | 4;
   side: 'current' | 'desired';
-  // Current text of this cell — handed to the accessory so the sticky-board
-  // can seed itself with the existing textarea content on first open (prevents
-  // data loss on legacy SARs that have text but no notes yet).
-  currentText: string;
 };
 
 export function IcebergInput({
@@ -332,7 +328,7 @@ export function IcebergInput({
                 zIndex: 1,
               }}
             >
-              <CellWithAccessory accessory={renderCellAccessory?.({ layerKey: key, layerNo, side: 'current', currentText: value[key].current })}>
+              <CellWithAccessory accessory={renderCellAccessory?.({ layerKey: key, layerNo, side: 'current' })}>
                 <textarea
                   value={value[key].current}
                   onChange={(e) => setCell(key, 'current', e.target.value)}
@@ -344,7 +340,7 @@ export function IcebergInput({
                   style={stickyMode ? READ_ONLY_TEXTAREA_CURRENT : TEXTAREA_BASE}
                 />
               </CellWithAccessory>
-              <CellWithAccessory accessory={renderCellAccessory?.({ layerKey: key, layerNo, side: 'desired', currentText: value[key].desired })}>
+              <CellWithAccessory accessory={renderCellAccessory?.({ layerKey: key, layerNo, side: 'desired' })}>
                 <textarea
                   value={value[key].desired}
                   onChange={(e) => setCell(key, 'desired', e.target.value)}

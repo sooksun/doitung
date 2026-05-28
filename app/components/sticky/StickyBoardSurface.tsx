@@ -47,19 +47,17 @@ export interface StickyBoardSurfaceProps {
 
   pollIntervalMs?: number;
 
-  /**
-   * Optional seed text. If the board finishes its first load with zero notes
-   * AND this string is non-empty, a single note is auto-created so the existing
-   * textarea content is preserved as a real note (prevents data loss on legacy
-   * SARs that have text but were never brainstormed on the board).
-   *
-   * Also acts as a safety net inside handleClose: if the user never touched a
-   * note in this session AND there are no notes at close time, the joined text
-   * falls back to this string instead of wiping the textarea — protects against
-   * (a) seed failures, (b) the user clicking Close before the seed network call
-   * completes.
-   */
-  seedContentIfEmpty?: string;
+  /** When supplied AND the surface mounts on a board that this request just
+   *  created on the server, the text is split by "," (whitespace trimmed,
+   *  empty pieces dropped) and each chunk becomes a new sticky note. Used to
+   *  import comma-separated Iceberg cell text into individual brainstorm
+   *  notes on first open. */
+  seedFromText?: string | null;
+  /** Server signal that THIS client request actually inserted the board row.
+   *  Required for seedFromText to fire — protects against re-seeding after
+   *  page reloads, board clears, and concurrent tabs (each of which would
+   *  otherwise see notes.length === 0 momentarily and double-seed). */
+  wasJustCreated?: boolean;
 }
 
 function joinNotes(contents: string[]): string {
@@ -68,6 +66,21 @@ function joinNotes(contents: string[]): string {
     .filter((c) => c.length > 0)
     .join(', ');
 }
+
+// Tracks board ids that have already had their sticky notes reconciled with
+// the caller's textarea content in this browser session. Prevents:
+//   • React StrictMode's intentional double-mount in dev from running the
+//     reconcile pass twice
+//   • The reconcile effect from re-running every time `notes` state changes
+//     (which happens after each addNote/deleteNote inside the pass)
+//   • Re-reconciling the same board if the modal closes and reopens within
+//     one page load — once we've reconciled once, the user's manual edits
+//     after that should be respected, not overwritten on the next open
+// Refreshing the page resets the set, so a stale dataset that shows up on a
+// fresh load *is* re-reconciled. That's deliberate — it's how 12 duplicate
+// stickers from a previous buggy session get auto-cleaned next time the user
+// opens the cell with the canonical comma-separated text in the textarea.
+const reconciledBoardIds = new Set<string>();
 
 function defaultShareUrl(boardKey: string): string {
   if (typeof window === 'undefined') return '';
@@ -86,7 +99,8 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
     closeAlsoClosesBoard = false,
     showClearButton,
     pollIntervalMs = 5000,
-    seedContentIfEmpty,
+    seedFromText,
+    wasJustCreated = false,
   } = props;
 
   const { notes, notesRef, loading, error, closed, addNote, patchNote, deleteNote } = useStickyNotes({
@@ -95,26 +109,99 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
     pollIntervalMs,
   });
 
-  // Tracks whether THIS user touched a note during this session — used by
-  // handleClose's safety net to tell apart "user intentionally cleared the
-  // board" from "user opened-and-closed without doing anything (or seed
-  // didn't propagate in time)". Polling updates from other collaborators are
-  // explicitly NOT counted.
-  const userModifiedRef = useRef(false);
-
-  // Have we already attempted the one-shot seed for this surface mount? Guards
-  // the effect from re-firing if `notes` momentarily becomes empty again (e.g.
-  // user adds then deletes the seed note — we must NOT re-seed in that case).
-  const seedAttemptedRef = useRef(false);
-
-  // Snapshot the seed text once so we keep the same fallback value even if a
-  // late parent re-render changes the prop.
-  const seedTextRef = useRef<string>((seedContentIfEmpty || '').trim());
+  // ── Reconcile board contents with caller-supplied textarea text ──────────
+  // Goal: after this pass, every comma-separated piece in `seedFromText`
+  // appears as exactly ONE sticky note on the board. Both directions are
+  // handled:
+  //   • Pieces missing from the board → create one note per missing piece.
+  //   • Pieces with multiple matching notes (duplicates from past buggy seed
+  //     runs or accidental clicks) → keep the OLDEST note, archive the rest.
+  // Notes whose content is *not* among the textarea pieces are LEFT ALONE —
+  // they represent ideas the user added beyond what's in the textarea, and
+  // wiping them would destroy real brainstorming work.
+  //
+  // Owner-only: deleting other authors' notes requires board ownership. For
+  // shared/guest viewers this effect is a no-op. The module-level
+  // `reconciledBoardIds` set ensures the pass runs at most once per
+  // (boardId, page-load) — re-renders triggered by the addNote/deleteNote
+  // updates inside the loop won't re-fire it.
   useEffect(() => {
-    if (!seedAttemptedRef.current) {
-      seedTextRef.current = (seedContentIfEmpty || '').trim();
+    if (reconciledBoardIds.has(boardId)) return;
+    if (loading) return;          // wait for the initial /api/sticky-notes fetch
+    if (closed) return;           // archived board → no inserts/deletes
+    if (error) return;            // load failed → leave it alone, retry next mount
+    if (!isOwner) return;         // only owner can delete others' notes
+
+    const text = (seedFromText || '').trim();
+    if (!text) {
+      // Nothing to reconcile against. Mark anyway so a later re-render
+      // passing different text doesn't trigger a stale pass.
+      reconciledBoardIds.add(boardId);
+      return;
     }
-  }, [seedContentIfEmpty]);
+
+    const piecesRaw = text
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+    // Dedupe pieces themselves — "a, a, b" should yield one "a" + one "b".
+    // Preserves first-occurrence order so the resulting board reads top-to-
+    // bottom in the same order as the textarea.
+    const seen = new Set<string>();
+    const pieces: string[] = [];
+    for (const p of piecesRaw) {
+      if (!seen.has(p)) {
+        seen.add(p);
+        pieces.push(p);
+      }
+    }
+    if (pieces.length === 0) {
+      reconciledBoardIds.add(boardId);
+      return;
+    }
+
+    // Claim BEFORE awaiting any mutation — this is what defeats both the
+    // StrictMode double-mount in dev and any accidental re-render-driven
+    // re-entry (e.g. notes state changing as we delete/create).
+    reconciledBoardIds.add(boardId);
+
+    void (async () => {
+      // Snapshot the notes we observed at reconcile-start. Using notesRef
+      // would let polling / mid-loop addNote responses race with our
+      // bookkeeping; this snapshot lets us reason about a stable starting
+      // state.
+      const startSnapshot = notesRef.current.slice();
+      const piecesSet = new Set(pieces);
+
+      for (const piece of pieces) {
+        const matches = startSnapshot
+          .filter((n) => (n.content || '').trim() === piece)
+          .sort((a, b) => {
+            const aT = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const bT = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            return aT - bT;
+          });
+
+        if (matches.length === 0) {
+          // Missing piece → create exactly one note for it.
+          // eslint-disable-next-line no-await-in-loop
+          await addNote({ content: piece });
+        } else if (matches.length > 1) {
+          // Duplicates → keep the oldest, archive the rest.
+          for (let i = 1; i < matches.length; i++) {
+            // eslint-disable-next-line no-await-in-loop
+            await deleteNote(matches[i].id);
+          }
+        }
+        // matches.length === 1 → already canonical, no-op
+      }
+
+      // Pieces-not-on-board notes (added by user beyond textarea) are left
+      // alone on purpose — see comment block above.
+      void piecesSet; // documents intent for the unused-set name
+    })();
+  }, [boardId, loading, closed, error, seedFromText, notes.length, isOwner, notesRef, addNote, deleteNote]);
 
   const cardHandles = useRef<Map<string, StickyNoteCardHandle | null>>(new Map());
 
@@ -157,8 +244,7 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
       toastError('บอร์ดถูกเก็บไว้แล้ว');
       return;
     }
-    const note = await addNote();
-    if (note) userModifiedRef.current = true;
+    await addNote();
   };
 
   const handleClear = async () => {
@@ -174,13 +260,58 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
     if (!ok) return;
     const result = await clearBoardOwner(boardId);
     if (result) {
-      userModifiedRef.current = true;
       toastSuccess(`ล้างโน้ต ${result.cleared} ใบสำเร็จ`);
       // Force-refresh local list — server has soft-archived everything.
       cardHandles.current.clear();
     } else {
       toastError('ล้างไม่สำเร็จ');
     }
+  };
+
+  // Comma-separated pieces from the seed text, computed for both the visibility
+  // gate of the resync button and the actual import action below.
+  const seedPieces = (seedFromText || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+
+  // "นำเข้าจากช่อง" — owner-only repair tool. Archives every active note on
+  // this board, then re-creates one note per comma-separated piece in the
+  // current Iceberg cell text. Solves two real cases:
+  //   1. Boards left with duplicate stickers from previous buggy seed runs
+  //      (the row exists, so wasJustCreated never fires re-seeding).
+  //   2. User edited the cell textarea directly and wants to re-sync.
+  const handleResync = async () => {
+    if (!isOwner) {
+      toastError('เฉพาะเจ้าของบอร์ดเท่านั้นที่นำเข้าจากช่องได้');
+      return;
+    }
+    if (seedPieces.length === 0) {
+      toastError('ช่องนี้ไม่มีข้อความให้แยก');
+      return;
+    }
+    const ok = await toastConfirm(
+      `จะลบโน้ตทั้งหมด ${notes.length} ใบบนบอร์ด แล้วสร้างโน้ตใหม่ ${seedPieces.length} ใบ จากข้อความในช่อง Iceberg`,
+      { title: 'นำเข้าจากช่อง?', confirmLabel: 'นำเข้า', danger: true },
+    );
+    if (!ok) return;
+
+    // Step 1 — clear (idempotent if board already empty, server returns 0).
+    if (notes.length > 0) {
+      const cleared = await clearBoardOwner(boardId);
+      if (!cleared) {
+        toastError('ล้างไม่สำเร็จ');
+        return;
+      }
+    }
+    cardHandles.current.clear();
+
+    // Step 2 — sequentially create one sticky per piece.
+    for (const content of seedPieces) {
+      // eslint-disable-next-line no-await-in-loop
+      await addNote({ content });
+    }
+    toastSuccess(`นำเข้าโน้ต ${seedPieces.length} ใบสำเร็จ`);
   };
 
   const handleCopyLink = async () => {
@@ -201,27 +332,11 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
   const handleSaveContent = useCallback(
     async (id: string, content: string) => {
       const updated = await patchNote(id, { content });
-      if (updated) userModifiedRef.current = true;
       return !!updated;
     },
     [patchNote],
   );
 
-  const handleDelete = useCallback(
-    async (id: string) => {
-      // deleteNote is fire-and-forget on the optimistic side, so we mark the
-      // intent as soon as it's invoked. This is what tells handleClose's
-      // safety net "the user really meant for this to disappear" — without
-      // it, deleting the last note would look identical to a no-op session
-      // and the safety net would resurrect the original seed text.
-      userModifiedRef.current = true;
-      await deleteNote(id);
-    },
-    [deleteNote],
-  );
-
-  // Spatial / visual fields below — touching them doesn't change the joined
-  // textarea content, so they intentionally do NOT flip userModifiedRef.
   const handleCommitPosition = useCallback(
     (id: string, x: number, y: number) => {
       patchNote(id, { x, y });
@@ -245,65 +360,15 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
     [patchNote, notesRef],
   );
 
-  // One-shot board seeder. Runs at most once per surface mount, after the
-  // initial reload has actually completed (we know that's happened once we've
-  // observed loading flipping true → false). If the board is empty AND the
-  // host passed `seedContentIfEmpty`, we create a single note carrying that
-  // text so:
-  //   1. Legacy SAR text isn't invisible on the board — the user sees their
-  //      old content as a real Post-it they can edit.
-  //   2. Closing the modal without doing anything still produces a non-empty
-  //      `joined` (= original text), so the textarea is preserved.
-  // Seed itself does NOT flip userModifiedRef — it's mechanical, not a user
-  // action. The user has to actually interact for the dirty flag to flip.
-  const everSawLoadingRef = useRef(false);
-  useEffect(() => {
-    if (loading) everSawLoadingRef.current = true;
-  }, [loading]);
-
-  useEffect(() => {
-    if (seedAttemptedRef.current) return;
-    if (!everSawLoadingRef.current) return;
-    if (loading) return;
-    // First reload has just completed. Mark `seedAttempted` BEFORE the
-    // notes-length check — that way, if the board already had notes at load
-    // time we still commit "we've decided not to seed" and prevent the effect
-    // from re-firing later (e.g. when the user manually deletes the last note
-    // in the same modal session — that must clear the cell, not re-seed it
-    // with the original text).
-    seedAttemptedRef.current = true;
-    if (closed) return;
-    if (!seedTextRef.current) return;
-    if (notes.length > 0) return;
-    addNote({ content: seedTextRef.current }).catch(() => {
-      // Seed failed (network/perm) — the handleClose safety net still
-      // preserves the original textarea content.
-    });
-  }, [loading, notes.length, closed, addNote]);
-
   const handleClose = async () => {
     await Promise.all(
       Array.from(cardHandles.current.values()).map((h) => (h ? h.flushIfDirty() : Promise.resolve())),
     );
     const joined = joinNotes(notesRef.current.map((n) => n.content));
-    // Safety net: if the user never touched a note in this session AND the
-    // board ended up empty AND we had original textarea content, fall back to
-    // the original text. This protects against:
-    //   - race where the user clicks "บันทึกและปิด" before the seed POST has
-    //     propagated through optimistic state,
-    //   - seed network failure (board ended up legitimately empty),
-    //   - user opening the modal just to look around without editing.
-    // It does NOT trigger when the user actively added / cleared / deleted
-    // notes — userModifiedRef.current is true in those cases, so the empty
-    // join is what gets applied and the textarea is correctly wiped.
-    const safeJoined =
-      joined.length === 0 && !userModifiedRef.current && seedTextRef.current.length > 0
-        ? seedTextRef.current
-        : joined;
     if (closeAlsoClosesBoard && isOwner) {
       await closeBoardOwner(boardId);
     }
-    await onClose(safeJoined);
+    await onClose(joined);
   };
 
   // Archived-state UI: replace the whole surface so users can't keep poking
@@ -326,6 +391,10 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
   }
 
   const showClear = (showClearButton ?? isOwner) && isOwner;
+  // Show the resync button only inside contexts that supplied seed text and
+  // only to owners — the standalone /sticky page passes no seedFromText so
+  // the button stays hidden there.
+  const showResync = isOwner && seedPieces.length > 0;
 
   return (
     <div
@@ -374,6 +443,16 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
         >
           {isFullscreen ? '🗗 ย่อหน้าจอ' : '⛶ เต็มจอ'}
         </button>
+        {showResync && (
+          <button
+            type="button"
+            onClick={handleResync}
+            style={ghostBtn}
+            title={`ล้างโน้ตทั้งหมด แล้วสร้างใหม่จากข้อความในช่อง (${seedPieces.length} ใบ)`}
+          >
+            🔄 นำเข้าจากช่อง
+          </button>
+        )}
         {showClear && (
           <button type="button" onClick={handleClear} style={ghostBtn} disabled={notes.length === 0}>ล้างบอร์ด</button>
         )}
@@ -409,7 +488,7 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
           onCommitPosition={handleCommitPosition}
           onColorChange={handleColorChange}
           onZIndexBump={handleZIndexBump}
-          onDelete={handleDelete}
+          onDelete={(id) => deleteNote(id)}
         />
       </div>
     </div>

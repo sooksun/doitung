@@ -17,14 +17,14 @@ export interface StickyNoteButtonProps {
   title: string;
   disabled?: boolean;
   disabledReason?: string;
-  // Existing textarea content for this cell. Threaded into the modal so the
-  // board can seed itself on first open when it has no notes yet (legacy SARs
-  // whose text was created before sticky integration). Also acts as a
-  // safety net inside the surface: if the user closes the modal without ever
-  // editing a note AND the board has zero notes, this is what the textarea
-  // keeps showing instead of being wiped.
-  initialText?: string;
   onApplyText: (text: string) => void;
+  /** If supplied AND the resolved board has zero active notes when the modal
+   *  first loads, the text is split by "," (whitespace trimmed, empty pieces
+   *  dropped) and each chunk becomes a new sticky note. This lets a user with
+   *  existing comma-separated text in the Iceberg cell click "ระดมสมอง" once
+   *  and have the brainstorming board pre-populated with those ideas as
+   *  individual notes. Captured at click time, not re-read while modal open. */
+  seedFromText?: string | null;
 }
 
 export function StickyNoteButton({
@@ -34,13 +34,19 @@ export function StickyNoteButton({
   title,
   disabled = false,
   disabledReason,
-  initialText,
   onApplyText,
+  seedFromText,
 }: StickyNoteButtonProps) {
   const [open, setOpen] = useState(false);
+  // Snapshot the seed text at the moment the user clicks. The modal only
+  // looks at this prop on its first board load — capturing here ensures we
+  // seed from what the user *saw in the textarea when they clicked*, not
+  // from a later re-render of the parent.
+  const [seedSnapshot, setSeedSnapshot] = useState<string | null>(null);
 
   const handleOpen = () => {
     if (disabled) return;
+    setSeedSnapshot(seedFromText ?? null);
     setOpen(true);
   };
 
@@ -78,8 +84,8 @@ export function StickyNoteButton({
           contextType={contextType}
           contextId={contextId}
           schoolId={schoolId}
-          initialText={initialText}
           onApplyText={onApplyText}
+          seedFromText={seedSnapshot}
         />
       )}
     </>

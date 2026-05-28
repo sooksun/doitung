@@ -1,5 +1,6 @@
 // app/live-dashboard/components/ScopeSelector.tsx
-// Scope filter: school | network | district + year/term selectors
+// Scope filter (school | network | district) + year/term selectors — DE Design v2 (PRD §3.1)
+// Uses .ld-scope-tabs + .ld-select classes from dashboard.css.
 
 'use client';
 
@@ -20,10 +21,6 @@ interface Term {
   termNumber: number;
   academicYearId: number;
 }
-interface Instrument {
-  id: number;
-  nameTh: string;
-}
 
 interface ScopeSelectorProps {
   scope: 'school' | 'network' | 'district';
@@ -31,49 +28,21 @@ interface ScopeSelectorProps {
   networkId?: number;
   academicYearId?: number;
   termId?: number;
-  instrumentId?: number;
   schools: School[];
   networks: Network[];
   academicYears: AcademicYear[];
   terms: Term[];
-  instruments: Instrument[];
   onScopeChange: (scope: 'school' | 'network' | 'district') => void;
   onSchoolChange: (id?: number) => void;
   onNetworkChange: (id?: number) => void;
   onYearChange: (id?: number) => void;
   onTermChange: (id?: number) => void;
-  onInstrumentChange: (id?: number) => void;
 }
 
-const selectStyle: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.1)',
-  color: '#e2e8f0',
-  border: '1px solid rgba(255,255,255,0.2)',
-  borderRadius: '0.4rem',
-  padding: '0.35rem 0.75rem',
-  fontSize: '0.85rem',
-  fontFamily: 'Kanit, sans-serif',
-  cursor: 'pointer',
-  outline: 'none',
-  minWidth: '140px',
-};
-
-// Native <option> popup uses the OS/browser surface, not the dark dashboard
-// background — explicitly set black-on-white so the list is readable when open.
-const optionStyle: React.CSSProperties = {
-  color: '#000',
-  background: '#fff',
-};
-
-const btnBase: React.CSSProperties = {
-  padding: '0.4rem 1rem',
-  borderRadius: '0.4rem',
-  border: 'none',
-  cursor: 'pointer',
-  fontSize: '0.85rem',
-  fontFamily: 'Kanit, sans-serif',
-  fontWeight: 600,
-  transition: 'all 0.15s',
+const SCOPE_LABEL: Record<ScopeSelectorProps['scope'], string> = {
+  school: 'รายโรงเรียน',
+  network: 'กลุ่มโรงเรียน',
+  district: 'เขตพื้นที่',
 };
 
 export default function ScopeSelector({
@@ -82,80 +51,48 @@ export default function ScopeSelector({
   networkId,
   academicYearId,
   termId,
-  instrumentId,
   schools,
   networks,
   academicYears,
   terms,
-  instruments,
   onScopeChange,
   onSchoolChange,
   onNetworkChange,
   onYearChange,
   onTermChange,
-  onInstrumentChange,
 }: ScopeSelectorProps) {
   const filteredTerms = academicYearId
     ? terms.filter((t) => t.academicYearId === academicYearId)
     : terms;
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: '0.5rem',
-        alignItems: 'center',
-      }}
-    >
-      {/* Instrument (assessment tool) selector */}
-      {instruments.length > 0 && (
-        <select
-          value={instrumentId ?? ''}
-          onChange={(e) => onInstrumentChange(e.target.value ? parseInt(e.target.value) : undefined)}
-          style={{ ...selectStyle, minWidth: '200px', fontWeight: 600 }}
-          title="เลือกเครื่องมือประเมิน"
-        >
-          {instruments.map((inst) => (
-            <option key={inst.id} value={inst.id} style={optionStyle}>
-              {inst.nameTh}
-            </option>
-          ))}
-        </select>
-      )}
-
-      {/* Scope buttons */}
-      <div style={{ display: 'flex', gap: '0.25rem' }}>
-        {(['school', 'network', 'district'] as const).map((s) => {
-          const label = s === 'school' ? 'รายโรงเรียน' : s === 'network' ? 'กลุ่มโรงเรียน' : 'เขตพื้นที่';
-          const active = scope === s;
-          return (
-            <button
-              key={s}
-              onClick={() => onScopeChange(s)}
-              style={{
-                ...btnBase,
-                background: active ? '#818cf8' : 'rgba(255,255,255,0.1)',
-                color: active ? '#fff' : '#cbd5e1',
-                boxShadow: active ? '0 0 10px #818cf880' : 'none',
-              }}
-            >
-              {label}
-            </button>
-          );
-        })}
+    <>
+      <span className="ld-filter-label">ขอบเขต</span>
+      <div className="ld-scope-tabs" role="tablist">
+        {(['school', 'network', 'district'] as const).map((s) => (
+          <button
+            key={s}
+            type="button"
+            role="tab"
+            aria-pressed={scope === s}
+            onClick={() => onScopeChange(s)}
+            className="ld-scope-tab"
+          >
+            {SCOPE_LABEL[s]}
+          </button>
+        ))}
       </div>
 
-      {/* Conditional dropdowns */}
       {scope === 'school' && (
         <select
+          aria-label="เลือกโรงเรียน"
           value={schoolId ?? ''}
           onChange={(e) => onSchoolChange(e.target.value ? parseInt(e.target.value) : undefined)}
-          style={selectStyle}
+          className="ld-select"
         >
-          <option value="" style={optionStyle}>-- เลือกโรงเรียน --</option>
+          <option value="">— เลือกโรงเรียน —</option>
           {schools.map((s) => (
-            <option key={s.id} value={s.id} style={optionStyle}>
+            <option key={s.id} value={s.id}>
               {s.nameTh}
             </option>
           ))}
@@ -164,51 +101,52 @@ export default function ScopeSelector({
 
       {scope === 'network' && (
         <select
+          aria-label="เลือกกลุ่มโรงเรียน"
           value={networkId ?? ''}
           onChange={(e) => onNetworkChange(e.target.value ? parseInt(e.target.value) : undefined)}
-          style={selectStyle}
+          className="ld-select"
         >
-          <option value="" style={optionStyle}>-- เลือกกลุ่มโรงเรียน --</option>
+          <option value="">— เลือกกลุ่มโรงเรียน —</option>
           {networks.map((n) => (
-            <option key={n.id} value={n.id} style={optionStyle}>
+            <option key={n.id} value={n.id}>
               {n.name}
             </option>
           ))}
         </select>
       )}
 
-      {/* Year filter */}
       <select
+        aria-label="ปีการศึกษา"
         value={academicYearId ?? ''}
         onChange={(e) => {
           onYearChange(e.target.value ? parseInt(e.target.value) : undefined);
           onTermChange(undefined);
         }}
-        style={selectStyle}
+        className="ld-select"
       >
-        <option value="" style={optionStyle}>ทุกปีการศึกษา</option>
+        <option value="">ทุกปีการศึกษา</option>
         {academicYears.map((y) => (
-          <option key={y.id} value={y.id} style={optionStyle}>
+          <option key={y.id} value={y.id}>
             ปีการศึกษา {y.year}
           </option>
         ))}
       </select>
 
-      {/* Term filter */}
       {academicYearId && filteredTerms.length > 0 && (
         <select
+          aria-label="ภาคเรียน"
           value={termId ?? ''}
           onChange={(e) => onTermChange(e.target.value ? parseInt(e.target.value) : undefined)}
-          style={selectStyle}
+          className="ld-select"
         >
-          <option value="" style={optionStyle}>ทุกเทอม</option>
+          <option value="">ทุกเทอม</option>
           {filteredTerms.map((t) => (
-            <option key={t.id} value={t.id} style={optionStyle}>
+            <option key={t.id} value={t.id}>
               เทอม {t.termNumber}
             </option>
           ))}
         </select>
       )}
-    </div>
+    </>
   );
 }

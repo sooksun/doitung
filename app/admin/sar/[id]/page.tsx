@@ -293,7 +293,7 @@ export default function SarDetailPage() {
                   <IcebergInput
                     value={icebergDraft}
                     onChange={setIcebergDraft}
-                    renderCellAccessory={({ layerNo, side, currentText }) => {
+                    renderCellAccessory={({ layerNo, side }) => {
                       // Edit-mode boards are scoped to THIS SarDocument id, so
                       // they're separate from the draft boards used on
                       // /admin/sar/new (those use sar:draft:school:..:year:..).
@@ -309,10 +309,12 @@ export default function SarDetailPage() {
                           contextId={contextId}
                           schoolId={doc.schoolId}
                           title={`${layerCfg.label} / ${sideLabel}`}
-                          // Pass current cell text so the board can seed a note
-                          // from legacy textarea content + use it as a safety
-                          // net if the user closes without ever editing.
-                          initialText={currentText}
+                          // Pre-seed: comma-separated text already in the
+                          // cell becomes one sticky note per chunk on the
+                          // first open of an empty board (e.g. when the
+                          // saved iceberg has "test31, test32, test33"
+                          // and the admin clicks "ระดมสมอง").
+                          seedFromText={icebergDraft[layerCfg.key][side]}
                           onApplyText={(text) =>
                             setIcebergDraft((prev) => ({
                               ...prev,

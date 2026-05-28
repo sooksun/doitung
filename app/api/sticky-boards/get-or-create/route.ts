@@ -4,19 +4,24 @@
 // Auth required. Body: { contextType, contextId, schoolId }
 //
 // Returns the StickyBoard for (contextType, contextId), creating it on first
-// call. Implementation detail: the route uses `prisma.stickyBoard.upsert`
-// against the @@unique([contextType, contextId]) compound key, which makes
-// the operation atomic even when two collaborators click the brainstorming
-// chip on the same fresh cell within the same millisecond — only one row
-// gets created, and the other request finds it via the unique index.
+// call. Atomic against the @@unique([contextType, contextId]) compound key.
 //
-// If a prior board for the same context was archived (status = ARCHIVED),
-// upsert flips it back to ACTIVE so notes from the previous brainstorming
-// session reappear unchanged. The board's `id`, `shareKey`, and `ownerUserId`
-// are stable across reactivations — the original creator stays the owner and
+// Strategy: explicit findUnique → create-with-P2002-fallback → optional
+// reactivate-if-archived. We deliberately AVOID `upsert` here because callers
+// (the Iceberg seed feature) need to know whether THIS request actually
+// inserted the row — `wasJustCreated: true` only fires for the one request
+// that won the race; concurrent callers that hit P2002 and re-fetch see
+// `wasJustCreated: false`. Without this, every page reload looks like "first
+// time" to the client and the seed runs again, duplicating notes.
+//
+// If a prior board for the same context was archived (status = ARCHIVED), it
+// is flipped back to ACTIVE so notes from the previous brainstorming session
+// reappear unchanged. The board's `id`, `shareKey`, and `ownerUserId` are
+// stable across reactivations — the original creator stays the owner and
 // previously-shared links keep working.
 
 import { NextRequest } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { successResponse, errorResponse, requireAuth, hasRole } from '@/lib/api-utils';
 import { newShareKey } from '@/lib/sticky-guest';
@@ -51,28 +56,53 @@ export async function POST(request: NextRequest) {
       return errorResponse('Forbidden: ไม่มีสิทธิ์เปิดบอร์ดของโรงเรียนนี้', 403);
     }
 
-    // Atomic get-or-create against the unique (contextType, contextId) index.
-    // - On first call:    INSERT new row with caller as owner.
-    // - On repeat call:   row exists, `update` reactivates it to ACTIVE if it
-    //                     was previously archived (no-op otherwise). The
-    //                     ownerUserId / shareKey set on first INSERT are
-    //                     immutable — any number of follow-up callers see the
-    //                     same id, the same shareKey, and the same owner.
-    const board = await prisma.stickyBoard.upsert({
+    // Step 1 — find existing row. On the common "board already exists" path
+    // we do exactly one read.
+    let board = await prisma.stickyBoard.findUnique({
       where: { contextType_contextId: { contextType, contextId } },
-      update: {
-        status: 'ACTIVE',
-        closedAt: null,
-      },
-      create: {
-        shareKey: newShareKey(),
-        ownerUserId: me.id,
-        schoolId,
-        contextType,
-        contextId,
-        status: 'ACTIVE',
-      },
     });
+
+    let wasJustCreated = false;
+
+    // Step 2 — if absent, attempt to insert. Two concurrent first-callers can
+    // both reach this branch; the unique index guarantees only one INSERT
+    // succeeds, and the other catches P2002 and re-fetches the winner's row.
+    if (!board) {
+      try {
+        board = await prisma.stickyBoard.create({
+          data: {
+            shareKey: newShareKey(),
+            ownerUserId: me.id,
+            schoolId,
+            contextType,
+            contextId,
+            status: 'ACTIVE',
+          },
+        });
+        wasJustCreated = true;
+      } catch (e: unknown) {
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+          // Race lost to another concurrent first-caller — re-fetch the row
+          // they just inserted. wasJustCreated stays false, which is correct:
+          // *we* did not create it, so we must not seed.
+          board = await prisma.stickyBoard.findUnique({
+            where: { contextType_contextId: { contextType, contextId } },
+          });
+          if (!board) throw e; // unreachable in practice
+        } else {
+          throw e;
+        }
+      }
+    }
+
+    // Step 3 — reactivate if the existing row was archived. Skips when the
+    // row was just created (it's already ACTIVE).
+    if (!wasJustCreated && board.status === 'ARCHIVED') {
+      board = await prisma.stickyBoard.update({
+        where: { id: board.id },
+        data: { status: 'ACTIVE', closedAt: null },
+      });
+    }
 
     const owner = await prisma.user.findUnique({
       where: { id: board.ownerUserId },
@@ -90,6 +120,9 @@ export async function POST(request: NextRequest) {
       status: board.status,
       isOwner: board.ownerUserId === me.id,
       createdAt: board.createdAt,
+      // Clients use this to gate one-time setup work (Iceberg cell text → seed
+      // sticky notes) so reloads/re-opens never duplicate notes.
+      wasJustCreated,
     });
   } catch (error: any) {
     if (error?.message?.startsWith('Unauthorized')) return errorResponse(error.message, 401);
