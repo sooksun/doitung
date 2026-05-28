@@ -412,8 +412,11 @@ export default function AssessmentPage() {
       if (res.ok) {
         setResponsesBySession((prev) => ({ ...prev, [activeSessionId]: {} }));
         setSubmitted(false);
-        // Reload session to pick up the DRAFT status
-        loadAll(token);
+        // Reload session to pick up the DRAFT status. Bump the run-token so
+        // this manual reload also gets the stale-write protection — if the
+        // user navigates mid-reload, the older promise short-circuits.
+        const myToken = ++loadAllTokenRef.current;
+        loadAll(token, myToken);
       } else {
         const j = await res.json().catch(() => ({}));
         setError(j?.error || 'เคลียร์คะแนนไม่สำเร็จ');
