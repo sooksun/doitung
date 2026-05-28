@@ -70,6 +70,11 @@ export default function NewEvaluationPage() {
   const selectedInstrument = instruments.find((i) => String(i.id) === formData.instrumentId);
   const isThaiPair = selectedInstrument?.type === 'THAI_P1_3';
 
+  // Tracks the most recent fetchInitialData run + terms-fetch tag so unmount
+  // or rapid academic-year switching can drop stale responses.
+  const initialLoadTokenRef = useRef(0);
+  const termsRequestIdRef = useRef(0);
+
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
     if (!storedToken) {
@@ -77,7 +82,12 @@ export default function NewEvaluationPage() {
       return;
     }
     setToken(storedToken);
-    fetchInitialData(storedToken);
+    const runToken = ++initialLoadTokenRef.current;
+    fetchInitialData(storedToken, runToken);
+    return () => {
+      // Bump on cleanup so the in-flight run skips any further setState.
+      initialLoadTokenRef.current++;
+    };
   }, [router]);
 
   // Load the school's teachers + directors when a Thai ป.1–3 instrument and a school are chosen
@@ -117,7 +127,17 @@ export default function NewEvaluationPage() {
     };
   }, [isThaiPair, formData.schoolId, token, currentUserId]);
 
-  const fetchInitialData = async (authToken: string) => {
+  const fetchInitialData = async (authToken: string, runToken?: number) => {
+    const stillCurrent = () =>
+      runToken == null || initialLoadTokenRef.current === runToken;
+    const handleAuth = (status: number) => {
+      if (status === 401) {
+        localStorage.removeItem('token');
+        if (stillCurrent()) router.push('/login');
+        return true;
+      }
+      return false;
+    };
     try {
       // Fetch instruments, schools, academic years, terms, and current user in parallel
       const [instrumentsRes, schoolsRes, academicYearsRes, meRes] = await Promise.all([
@@ -135,9 +155,14 @@ export default function NewEvaluationPage() {
         }),
       ]);
 
+      if (!stillCurrent()) return;
+      if (handleAuth(instrumentsRes.status) || handleAuth(schoolsRes.status) ||
+          handleAuth(academicYearsRes.status) || handleAuth(meRes.status)) return;
+
       // Get current user info — id, roles, and bound school (if any)
       if (meRes.ok) {
         const meData = await meRes.json();
+        if (!stillCurrent()) return;
         if (meData.success && meData.data?.id) {
           setCurrentUserId(meData.data.id);
           const roles = Array.isArray(meData.data.roles) ? meData.data.roles : [];
@@ -153,6 +178,7 @@ export default function NewEvaluationPage() {
       // Parse responses
       if (instrumentsRes.ok) {
         const instrumentsData = await instrumentsRes.json();
+        if (!stillCurrent()) return;
         if (instrumentsData.success && instrumentsData.data?.items) {
           setInstruments(instrumentsData.data.items);
         } else if (Array.isArray(instrumentsData)) {
@@ -162,6 +188,7 @@ export default function NewEvaluationPage() {
 
       if (schoolsRes.ok) {
         const schoolsData = await schoolsRes.json();
+        if (!stillCurrent()) return;
         if (schoolsData.success) {
           setSchools(schoolsData.data || []);
         } else if (Array.isArray(schoolsData)) {
@@ -171,57 +198,51 @@ export default function NewEvaluationPage() {
 
       if (academicYearsRes.ok) {
         const academicYearsData = await academicYearsRes.json();
+        if (!stillCurrent()) return;
         const years = academicYearsData.success ? (academicYearsData.data || []) : (Array.isArray(academicYearsData) ? academicYearsData : []);
-        
+
         if (years.length > 0) {
           setAcademicYears(years);
           // Set default academic year
           setFormData((prev) => ({ ...prev, academicYearId: years[0].id.toString() }));
-          
+
           // Fetch terms for the first academic year
           const firstYearId = years[0].id;
           try {
             const termsRes = await fetch(`/api/academic-years/${firstYearId}/terms`, {
               headers: { 'Authorization': `Bearer ${authToken}` },
             });
+            if (!stillCurrent()) return;
+            if (handleAuth(termsRes.status)) return;
             if (termsRes.ok) {
               const termsData = await termsRes.json();
-              // Parse response - handle different response structures
-              let terms = [];
-              if (termsData.success && termsData.data !== undefined) {
+              if (!stillCurrent()) return;
+              // Parse response — handle different envelope shapes the API
+              // has historically returned (success+data, raw array, nested).
+              let terms: any[] = [];
+              if (termsData?.success && termsData.data !== undefined) {
                 terms = Array.isArray(termsData.data) ? termsData.data : [];
-                console.log(`Terms response (initial) - Year ID: ${firstYearId}, Found ${terms.length} terms:`, terms);
               } else if (Array.isArray(termsData)) {
                 terms = termsData;
-                console.log(`Terms response (initial) - Year ID: ${firstYearId}, Array response, Found ${terms.length} terms:`, terms);
-              } else if (termsData.data && Array.isArray(termsData.data)) {
+              } else if (termsData?.data && Array.isArray(termsData.data)) {
                 terms = termsData.data;
-                console.log(`Terms response (initial) - Year ID: ${firstYearId}, Nested data, Found ${terms.length} terms:`, terms);
-              } else {
-                console.warn('Terms response (initial) - Unexpected structure:', JSON.stringify(termsData, null, 2));
               }
-              
+
               setTerms(terms);
-              if (terms.length === 0) {
-                console.warn(`⚠️ No terms found for academic year ID: ${firstYearId}. Please create terms for this academic year in the database.`);
-              }
             } else {
-              const errorText = await termsRes.text();
-              console.error('Failed to fetch terms (initial):', termsRes.status, errorText);
               setTerms([]);
             }
-          } catch (err) {
-            console.error('Error fetching terms:', err);
+          } catch {
+            /* ignore — UI will show empty terms list */
           }
         } else {
           setAcademicYears([]);
         }
       }
-    } catch (err) {
-      setError('เกิดข้อผิดพลาดในการโหลดข้อมูล');
-      console.error(err);
+    } catch {
+      if (stillCurrent()) setError('เกิดข้อผิดพลาดในการโหลดข้อมูล');
     } finally {
-      setLoading(false);
+      if (stillCurrent()) setLoading(false);
     }
   };
 
@@ -537,41 +558,39 @@ export default function NewEvaluationPage() {
                 onChange={async (e) => {
                   const newYearId = e.target.value;
                   setFormData({ ...formData, academicYearId: newYearId, termId: '' });
-                  // Fetch terms for selected academic year
+                  // Tag this terms request so a faster later request can
+                  // invalidate it on resolve — switching years rapidly used
+                  // to leave the slower (older year's) response wining, so
+                  // the term picker showed terms from the wrong year.
+                  const myReqId = ++termsRequestIdRef.current;
                   if (newYearId && token) {
                     try {
                       const termsRes = await fetch(`/api/academic-years/${newYearId}/terms`, {
                         headers: { 'Authorization': `Bearer ${token}` },
                       });
+                      if (termsRequestIdRef.current !== myReqId) return; // stale
+                      if (termsRes.status === 401) {
+                        localStorage.removeItem('token');
+                        router.push('/login');
+                        return;
+                      }
                       if (termsRes.ok) {
                         const termsData = await termsRes.json();
-                        // Parse response - handle different response structures
-                        let terms = [];
-                        if (termsData.success && termsData.data !== undefined) {
+                        if (termsRequestIdRef.current !== myReqId) return;
+                        let terms: any[] = [];
+                        if (termsData?.success && termsData.data !== undefined) {
                           terms = Array.isArray(termsData.data) ? termsData.data : [];
-                          console.log(`Terms response (on change) - Year ID: ${newYearId}, Found ${terms.length} terms:`, terms);
                         } else if (Array.isArray(termsData)) {
                           terms = termsData;
-                          console.log(`Terms response (on change) - Year ID: ${newYearId}, Array response, Found ${terms.length} terms:`, terms);
-                        } else if (termsData.data && Array.isArray(termsData.data)) {
+                        } else if (termsData?.data && Array.isArray(termsData.data)) {
                           terms = termsData.data;
-                          console.log(`Terms response (on change) - Year ID: ${newYearId}, Nested data, Found ${terms.length} terms:`, terms);
-                        } else {
-                          console.warn('Terms response (on change) - Unexpected structure:', JSON.stringify(termsData, null, 2));
                         }
-                        
                         setTerms(terms);
-                        if (terms.length === 0) {
-                          console.warn(`⚠️ No terms found for academic year ID: ${newYearId}. Please create terms for this academic year in the database.`);
-                        }
                       } else {
-                        const errorText = await termsRes.text();
-                        console.error('Failed to fetch terms (on change):', termsRes.status, errorText, 'For year:', newYearId);
                         setTerms([]);
                       }
-                    } catch (err) {
-                      console.error('Error fetching terms:', err);
-                      setTerms([]);
+                    } catch {
+                      if (termsRequestIdRef.current === myReqId) setTerms([]);
                     }
                   } else {
                     setTerms([]);

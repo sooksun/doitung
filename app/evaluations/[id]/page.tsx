@@ -76,62 +76,103 @@ export default function EvaluationEvidencePage() {
     if (!stored) { router.push('/login'); return; }
     setToken(stored);
 
+    // Cancelled flag so each helper bails out of its setState calls if the
+    // user navigates / re-mounts before the fetch resolves. Without this,
+    // React 18 strict-mode + slow networks can trigger "cannot setState on
+    // unmounted component" warnings AND leak stale data into the next mount.
+    let cancelled = false;
+    const handleAuth = (res: Response) => {
+      if (res.status === 401) {
+        localStorage.removeItem('token');
+        if (!cancelled) router.push('/login');
+        return true;
+      }
+      return false;
+    };
+
     fetch('/api/feature-flags/me', { headers: { Authorization: `Bearer ${stored}` } })
-      .then((r) => r.json()).then((j) => { if (j.success && j.data?.flags?.aiEnabled) setAiEnabled(true); }).catch(() => {});
+      .then((r) => { if (handleAuth(r)) throw new Error('unauth'); return r.json(); })
+      .then((j) => { if (!cancelled && j?.success && j.data?.flags?.aiEnabled) setAiEnabled(true); })
+      .catch(() => {});
     fetch('/api/auth/me', { headers: { Authorization: `Bearer ${stored}` } })
-      .then((r) => r.json()).then((j) => {
-        if (j?.success && j.data) { setMeId(j.data.id); setIsAdmin(Array.isArray(j.data.roles) && j.data.roles.includes('ADMIN')); }
-      }).catch(() => {});
+      .then((r) => { if (handleAuth(r)) throw new Error('unauth'); return r.json(); })
+      .then((j) => {
+        if (!cancelled && j?.success && j.data) {
+          setMeId(j.data.id);
+          setIsAdmin(Array.isArray(j.data.roles) && j.data.roles.includes('ADMIN'));
+        }
+      })
+      .catch(() => {});
 
     const evalId = parseInt(id, 10);
-    if (id && !isNaN(evalId)) loadAll(stored, evalId);
+    if (id && !isNaN(evalId)) loadAll(stored, evalId, () => cancelled);
     else setLoading(false);
+    return () => { cancelled = true; };
   }, [id, router]);
 
-  const loadAll = async (authToken: string, evalId: number) => {
+  const loadAll = async (authToken: string, evalId: number, isCancelled?: () => boolean) => {
+    const cancelled = () => !!isCancelled?.();
     try {
       const [evalRes, evRes] = await Promise.all([
         fetch(`/api/evaluations/${evalId}`, { headers: { Authorization: `Bearer ${authToken}` } }),
         fetch(`/api/evaluations/${evalId}/evidence`, { headers: { Authorization: `Bearer ${authToken}` } }),
       ]);
-      if (evalRes.status === 401) { localStorage.removeItem('token'); router.push('/login'); return; }
+      if (cancelled()) return;
+      if (evalRes.status === 401 || evRes.status === 401) {
+        localStorage.removeItem('token');
+        router.push('/login');
+        return;
+      }
 
       let data: Evaluation | null = null;
       if (evalRes.ok) {
         const j = await evalRes.json();
-        data = j.success ? j.data : j;
-        setEvaluation(data);
-        let parsed: Record<number, SectionReflection> = {};
-        try {
-          const raw = JSON.parse(data!.reflection || '{}');
-          if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-            for (const [k, v] of Object.entries(raw as Record<string, any>)) {
-              parsed[Number(k)] = {
-                indicatorIds: Array.isArray(v?.indicatorIds) ? v.indicatorIds.map(Number) : [],
-                text: typeof v?.text === 'string' ? v.text : '',
-              };
+        if (cancelled()) return;
+        // Only trust an envelope with success=true + a data object. Older
+        // branches would fall back to the raw envelope, which doesn't carry
+        // the `reflection` field — `data!.reflection` would then access a
+        // missing prop and a stricter future TS config would surface it as
+        // an error. Bailing here also avoids feeding garbage to the
+        // reflection parser below.
+        if (j?.success && j.data && typeof j.data === 'object') {
+          data = j.data as Evaluation;
+          setEvaluation(data);
+          let parsed: Record<number, SectionReflection> = {};
+          try {
+            const raw = JSON.parse(data.reflection || '{}');
+            if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+              for (const [k, v] of Object.entries(raw as Record<string, any>)) {
+                parsed[Number(k)] = {
+                  indicatorIds: Array.isArray(v?.indicatorIds) ? v.indicatorIds.map(Number) : [],
+                  text: typeof v?.text === 'string' ? v.text : '',
+                };
+              }
             }
-          }
-        } catch { /* legacy/plain text — start fresh */ }
-        setReflections(parsed);
+          } catch { /* legacy/plain text — start fresh */ }
+          setReflections(parsed);
+        }
       }
       if (evRes.ok) {
         const j = await evRes.json();
-        setEvidence(j.success ? j.data : (Array.isArray(j) ? j : []));
+        if (cancelled()) return;
+        setEvidence(j?.success ? j.data : (Array.isArray(j) ? j : []));
       }
 
       if (data?.instrumentId) {
         const instRes = await fetch(`/api/instruments/${data.instrumentId}`, { headers: { Authorization: `Bearer ${authToken}` } });
+        if (cancelled()) return;
+        if (instRes.status === 401) { localStorage.removeItem('token'); router.push('/login'); return; }
         if (instRes.ok) {
           const j = await instRes.json();
-          const inst = j.success ? j.data : j;
-          setSections(((inst.sections || []) as Section[]).slice().sort((a, b) => a.order - b.order));
+          if (cancelled()) return;
+          const inst = j?.success ? j.data : j;
+          setSections(((inst?.sections || []) as Section[]).slice().sort((a, b) => a.order - b.order));
         }
       }
     } catch {
       // ignore
     } finally {
-      setLoading(false);
+      if (!cancelled()) setLoading(false);
     }
   };
 

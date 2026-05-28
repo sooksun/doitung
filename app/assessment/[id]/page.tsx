@@ -107,30 +107,62 @@ export default function AssessmentPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Ref guard mirrors handleSubmit on /evaluations/new — `setSubmitting(true)`
+  // commits asynchronously so a fast double-click/Enter spam can pass the
+  // `if (submitting)` check twice before the disabled state lands; the ref
+  // flips synchronously so the second invocation bails before any PATCH.
+  const submittingRef = useRef(false);
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [schoolAggregate, setSchoolAggregate] = useState<SchoolAggregate | null>(null);
+  // Tracks the most recent loadAll invocation. Re-mounting (e.g. switching
+  // between sessions) raises this so any in-flight fetch from a previous
+  // mount sees its token != current and skips its setState calls.
+  const loadAllTokenRef = useRef(0);
 
   useEffect(() => {
     const stored = localStorage.getItem('token');
     if (!stored) { router.push('/login'); return; }
     setToken(stored);
-    loadAll(stored);
+    const myToken = ++loadAllTokenRef.current;
+    loadAll(stored, myToken);
+    return () => {
+      // Bump the token on unmount/re-run so any in-flight loadAll from THIS
+      // mount sees its token != current and stops calling setState.
+      loadAllTokenRef.current++;
+    };
   }, [router, sessionId]);
 
-  const loadAll = async (authToken: string) => {
+  const loadAll = async (authToken: string, runToken: number) => {
+    const stillCurrent = () => loadAllTokenRef.current === runToken;
+    const handleAuth = (status: number) => {
+      if (status === 401) {
+        localStorage.removeItem('token');
+        router.push('/login');
+        return true;
+      }
+      return false;
+    };
     try {
       const [sessionRes, meRes] = await Promise.all([
         fetch(`/api/evaluations/${sessionId}`, { headers: { Authorization: `Bearer ${authToken}` } }),
         fetch(`/api/auth/me`, { headers: { Authorization: `Bearer ${authToken}` } }),
       ]);
+      if (!stillCurrent()) return;
+      if (handleAuth(sessionRes.status) || handleAuth(meRes.status)) return;
 
-      if (!sessionRes.ok) { setError('ไม่พบแบบประเมินนี้'); setLoading(false); return; }
+      if (!sessionRes.ok) {
+        setError('ไม่พบแบบประเมินนี้');
+        setLoading(false);
+        return;
+      }
       const sessionData = await sessionRes.json();
-      const sess: Session = sessionData.data || sessionData;
+      if (!stillCurrent()) return;
+      const sess: Session = sessionData?.data || sessionData;
       setSession(sess);
 
       const meJson = meRes.ok ? await meRes.json() : null;
+      if (!stillCurrent()) return;
       const me = meJson?.data;
       const isAdmin = !!me && Array.isArray(me.roles) && me.roles.includes('ADMIN');
 
@@ -139,12 +171,16 @@ export default function AssessmentPage() {
         fetch(`/api/instruments/${sess.instrumentId}/sections`, { headers: { Authorization: `Bearer ${authToken}` } }),
         fetch(`/api/instruments/${sess.instrumentId}/indicators`, { headers: { Authorization: `Bearer ${authToken}` } }),
       ]);
+      if (!stillCurrent()) return;
+      if (handleAuth(sectionsRes.status) || handleAuth(indicatorsRes.status)) return;
       if (sectionsRes.ok) {
         const sd = await sectionsRes.json();
+        if (!stillCurrent()) return;
         setSections((sd.data || sd).sort((a: Section, b: Section) => a.order - b.order));
       }
       if (indicatorsRes.ok) {
         const id = await indicatorsRes.json();
+        if (!stillCurrent()) return;
         setIndicators(id.data || id);
       }
 
@@ -159,8 +195,11 @@ export default function AssessmentPage() {
         const pairRes = await fetch(`/api/evaluations/${sessionId}/teacher-pair`, {
           headers: { Authorization: `Bearer ${authToken}` },
         });
+        if (!stillCurrent()) return;
+        if (handleAuth(pairRes.status)) return;
         if (pairRes.ok) {
           const pj = await pairRes.json();
+          if (!stillCurrent()) return;
           if (pj.success && pj.data) {
             const { self, director, editable, targetTeacher } = pj.data;
             if (editable === 'NONE' && !isAdmin) {
@@ -197,20 +236,29 @@ export default function AssessmentPage() {
       const responsesRes = await fetch(`/api/evaluations/${sessionId}/responses`, {
         headers: { Authorization: `Bearer ${authToken}` },
       });
+      if (!stillCurrent()) return;
+      if (handleAuth(responsesRes.status)) return;
       if (responsesRes.ok) {
         const rd = await responsesRes.json();
+        if (!stillCurrent()) return;
         setResponsesBySession({ [Number(sessionId)]: toMap(rd.data || rd) });
       }
     } catch {
-      setError('เกิดข้อผิดพลาดในการโหลดข้อมูล');
+      if (stillCurrent()) setError('เกิดข้อผิดพลาดในการโหลดข้อมูล');
     } finally {
-      setLoading(false);
+      if (stillCurrent()) setLoading(false);
     }
   };
 
   // Real-time school-wide aggregate (polls /api/live-dashboard scoped to this session's school)
   useEffect(() => {
     if (!token || !session) return;
+    // AbortController scoped to THIS effect run. When deps change or the
+    // component unmounts, we abort the in-flight fetch — without it, a slow
+    // response from a previous (now-stale) school/year/term could land after
+    // the new schoolAggregate from a fresh fetch and visibly clobber it.
+    const controller = new AbortController();
+    let cancelled = false;
     const fetchAggregate = async () => {
       try {
         const params = new URLSearchParams({
@@ -221,19 +269,30 @@ export default function AssessmentPage() {
         if (session.termId) params.set('termId', String(session.termId));
         const res = await fetch(`/api/live-dashboard?${params}`, {
           headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
         });
+        if (res.status === 401) {
+          localStorage.removeItem('token');
+          router.push('/login');
+          return;
+        }
         if (res.ok) {
           const json = await res.json();
-          if (json.success) setSchoolAggregate(json.data);
+          if (!cancelled && json?.success) setSchoolAggregate(json.data);
         }
-      } catch {
-        // silent — keep showing last good data
+      } catch (err: any) {
+        // AbortError is expected on teardown — stay silent. Other failures
+        // keep showing the last good aggregate.
       }
     };
     fetchAggregate();
     const id = setInterval(fetchAggregate, AGG_POLL_INTERVAL);
-    return () => clearInterval(id);
-  }, [token, session]);
+    return () => {
+      cancelled = true;
+      controller.abort();
+      clearInterval(id);
+    };
+  }, [token, session, router]);
 
   // --- Instrument-shape adaptors ---
   // Q-Model is dual-state (สภาพที่เป็นอยู่ = score2 + สภาพที่พึงประสงค์ = score) on a 1–5
@@ -365,31 +424,45 @@ export default function AssessmentPage() {
   };
 
   const handleSubmit = async () => {
-    if (!token || submitting) return;
-    const total = indicators.length;
-    const answered = indicators.filter((ind) => isAnswered(activeResponses[ind.id])).length;
-    if (answered < total) {
-      const ok = await toastConfirm(
-        `ตอบแล้ว ${answered}/${total} ข้อ\n\nต้องการส่งแบบประเมินเลยหรือไม่?`,
-        { title: 'ยังตอบไม่ครบ', confirmLabel: 'ส่งเลย', danger: false }
-      );
-      if (!ok) return;
-    }
-    setSubmitting(true);
+    if (!token || submittingRef.current) return;
+    // Lock the ref BEFORE the `await toastConfirm` so a double-click that
+    // arrives mid-confirmation can't slip past the guard (the React state
+    // `submitting` doesn't commit until after a render).
+    submittingRef.current = true;
     try {
+      const total = indicators.length;
+      const answered = indicators.filter((ind) => isAnswered(activeResponses[ind.id])).length;
+      if (answered < total) {
+        const ok = await toastConfirm(
+          `ตอบแล้ว ${answered}/${total} ข้อ\n\nต้องการส่งแบบประเมินเลยหรือไม่?`,
+          { title: 'ยังตอบไม่ครบ', confirmLabel: 'ส่งเลย', danger: false }
+        );
+        if (!ok) {
+          submittingRef.current = false;
+          return;
+        }
+      }
+      setSubmitting(true);
       const res = await fetch(`/api/evaluations/${activeSessionId}`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'SUBMITTED' }),
       });
+      if (res.status === 401) {
+        localStorage.removeItem('token');
+        router.push('/login');
+        return;
+      }
       if (res.ok) {
         setSubmitted(true);
         router.push('/evaluations');
-      } else {
-        setError('ส่งแบบประเมินไม่สำเร็จ');
+        return; // navigating — leave ref locked so a phantom re-render can't re-fire
       }
+      setError('ส่งแบบประเมินไม่สำเร็จ');
+      submittingRef.current = false;
     } catch {
       setError('เกิดข้อผิดพลาดในการส่งแบบประเมิน');
+      submittingRef.current = false;
     } finally {
       setSubmitting(false);
     }

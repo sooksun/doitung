@@ -21,6 +21,30 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return errorResponse('การประเมินนี้ไม่ใช่รูปแบบครูประเมินตนเอง + ผอ.ประเมิน', 400);
     }
 
+    // Scope check — match the eval GET so the pair view doesn't leak who-
+    // evaluates-whom across schools via ID guessing. Admin sees all;
+    // everyone else must be the evaluator, the target teacher's user, or
+    // bound (via Teacher) to the same school.
+    if (!hasRole(me, 'ADMIN')) {
+      const isEvaluator = current.evaluatorId === me.id;
+      const targetTeacher = await prisma.teacher.findUnique({
+        where: { id: current.targetTeacherId },
+        select: { userId: true, schoolId: true },
+      });
+      const isTargetTeacher = !!targetTeacher && targetTeacher.userId === me.id;
+      let inSameSchool = false;
+      if (!isEvaluator && !isTargetTeacher) {
+        const myTeacher = await prisma.teacher.findUnique({
+          where: { userId: me.id },
+          select: { schoolId: true },
+        });
+        inSameSchool = !!myTeacher && myTeacher.schoolId === current.schoolId;
+      }
+      if (!isEvaluator && !isTargetTeacher && !inSameSchool) {
+        return errorResponse('คุณไม่มีสิทธิ์ดูการประเมินคู่นี้', 403);
+      }
+    }
+
     const base = {
       instrumentId: current.instrumentId,
       academicYearId: current.academicYearId,

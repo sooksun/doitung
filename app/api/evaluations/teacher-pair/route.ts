@@ -25,12 +25,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const sId = parseInt(schoolId, 10);
-    const tId = parseInt(targetTeacherId, 10);
-    const dId = parseInt(directorUserId, 10);
-    const iId = parseInt(instrumentId, 10);
-    const ayId = parseInt(academicYearId, 10);
-    const tmId = termId ? parseInt(termId, 10) : null;
+    // Coerce + validate IDs in one place. `parseInt` happily returns NaN for
+    // garbage (empty string, "abc", undefined), and the original
+    // truthy check above misses `0`; using Number.isFinite + positive guard
+    // catches both. termId is optional: only null vs valid-positive-int.
+    const toPositiveId = (v: unknown): number | null => {
+      if (v == null || v === '') return null;
+      const n = typeof v === 'number' ? v : Number(String(v));
+      return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
+    };
+    const sId = toPositiveId(schoolId);
+    const tId = toPositiveId(targetTeacherId);
+    const dId = toPositiveId(directorUserId);
+    const iId = toPositiveId(instrumentId);
+    const ayId = toPositiveId(academicYearId);
+    if (!sId || !tId || !dId || !iId || !ayId) {
+      return errorResponse('Invalid ID(s): must be positive integers', 400);
+    }
+    let tmId: number | null = null;
+    if (termId != null && termId !== '') {
+      const parsed = toPositiveId(termId);
+      if (!parsed) return errorResponse('Invalid termId', 400);
+      tmId = parsed;
+    }
 
     // Authorization: ADMIN, or a SCHOOL_LEADER bound (via Teacher record) to this school.
     const isAdmin = hasRole(me, 'ADMIN');
