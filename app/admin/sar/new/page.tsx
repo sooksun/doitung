@@ -186,7 +186,7 @@ export default function NewSarPage() {
               <IcebergInput
                 value={iceberg}
                 onChange={setIceberg}
-                renderCellAccessory={({ layerNo, side }) => {
+                renderCellAccessory={({ layerNo, side, currentText }) => {
                   // Every cell of the 4×2 matrix gets its own brainstorming
                   // board — distinct contextId ⇒ distinct StickyBoard ⇒
                   // distinct shareKey + owner + lifecycle.
@@ -205,6 +205,10 @@ export default function NewSarPage() {
                       title={`${layerCfg.label} / ${sideLabel}`}
                       disabled={!ready}
                       disabledReason="กรุณาเลือกโรงเรียนและปีการศึกษาก่อน"
+                      // Pass current cell text so the board can seed a note
+                      // from existing content + use it as a safety net if the
+                      // user closes without ever editing.
+                      initialText={currentText}
                       onApplyText={(text) =>
                         setIceberg((prev) => ({
                           ...prev,

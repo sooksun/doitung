@@ -46,6 +46,20 @@ export interface StickyBoardSurfaceProps {
   showClearButton?: boolean;
 
   pollIntervalMs?: number;
+
+  /**
+   * Optional seed text. If the board finishes its first load with zero notes
+   * AND this string is non-empty, a single note is auto-created so the existing
+   * textarea content is preserved as a real note (prevents data loss on legacy
+   * SARs that have text but were never brainstormed on the board).
+   *
+   * Also acts as a safety net inside handleClose: if the user never touched a
+   * note in this session AND there are no notes at close time, the joined text
+   * falls back to this string instead of wiping the textarea — protects against
+   * (a) seed failures, (b) the user clicking Close before the seed network call
+   * completes.
+   */
+  seedContentIfEmpty?: string;
 }
 
 function joinNotes(contents: string[]): string {
@@ -72,6 +86,7 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
     closeAlsoClosesBoard = false,
     showClearButton,
     pollIntervalMs = 5000,
+    seedContentIfEmpty,
   } = props;
 
   const { notes, notesRef, loading, error, closed, addNote, patchNote, deleteNote } = useStickyNotes({
@@ -79,6 +94,27 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
     boardKey,
     pollIntervalMs,
   });
+
+  // Tracks whether THIS user touched a note during this session — used by
+  // handleClose's safety net to tell apart "user intentionally cleared the
+  // board" from "user opened-and-closed without doing anything (or seed
+  // didn't propagate in time)". Polling updates from other collaborators are
+  // explicitly NOT counted.
+  const userModifiedRef = useRef(false);
+
+  // Have we already attempted the one-shot seed for this surface mount? Guards
+  // the effect from re-firing if `notes` momentarily becomes empty again (e.g.
+  // user adds then deletes the seed note — we must NOT re-seed in that case).
+  const seedAttemptedRef = useRef(false);
+
+  // Snapshot the seed text once so we keep the same fallback value even if a
+  // late parent re-render changes the prop.
+  const seedTextRef = useRef<string>((seedContentIfEmpty || '').trim());
+  useEffect(() => {
+    if (!seedAttemptedRef.current) {
+      seedTextRef.current = (seedContentIfEmpty || '').trim();
+    }
+  }, [seedContentIfEmpty]);
 
   const cardHandles = useRef<Map<string, StickyNoteCardHandle | null>>(new Map());
 
@@ -121,7 +157,8 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
       toastError('บอร์ดถูกเก็บไว้แล้ว');
       return;
     }
-    await addNote();
+    const note = await addNote();
+    if (note) userModifiedRef.current = true;
   };
 
   const handleClear = async () => {
@@ -137,6 +174,7 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
     if (!ok) return;
     const result = await clearBoardOwner(boardId);
     if (result) {
+      userModifiedRef.current = true;
       toastSuccess(`ล้างโน้ต ${result.cleared} ใบสำเร็จ`);
       // Force-refresh local list — server has soft-archived everything.
       cardHandles.current.clear();
@@ -163,11 +201,27 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
   const handleSaveContent = useCallback(
     async (id: string, content: string) => {
       const updated = await patchNote(id, { content });
+      if (updated) userModifiedRef.current = true;
       return !!updated;
     },
     [patchNote],
   );
 
+  const handleDelete = useCallback(
+    async (id: string) => {
+      // deleteNote is fire-and-forget on the optimistic side, so we mark the
+      // intent as soon as it's invoked. This is what tells handleClose's
+      // safety net "the user really meant for this to disappear" — without
+      // it, deleting the last note would look identical to a no-op session
+      // and the safety net would resurrect the original seed text.
+      userModifiedRef.current = true;
+      await deleteNote(id);
+    },
+    [deleteNote],
+  );
+
+  // Spatial / visual fields below — touching them doesn't change the joined
+  // textarea content, so they intentionally do NOT flip userModifiedRef.
   const handleCommitPosition = useCallback(
     (id: string, x: number, y: number) => {
       patchNote(id, { x, y });
@@ -191,15 +245,65 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
     [patchNote, notesRef],
   );
 
+  // One-shot board seeder. Runs at most once per surface mount, after the
+  // initial reload has actually completed (we know that's happened once we've
+  // observed loading flipping true → false). If the board is empty AND the
+  // host passed `seedContentIfEmpty`, we create a single note carrying that
+  // text so:
+  //   1. Legacy SAR text isn't invisible on the board — the user sees their
+  //      old content as a real Post-it they can edit.
+  //   2. Closing the modal without doing anything still produces a non-empty
+  //      `joined` (= original text), so the textarea is preserved.
+  // Seed itself does NOT flip userModifiedRef — it's mechanical, not a user
+  // action. The user has to actually interact for the dirty flag to flip.
+  const everSawLoadingRef = useRef(false);
+  useEffect(() => {
+    if (loading) everSawLoadingRef.current = true;
+  }, [loading]);
+
+  useEffect(() => {
+    if (seedAttemptedRef.current) return;
+    if (!everSawLoadingRef.current) return;
+    if (loading) return;
+    // First reload has just completed. Mark `seedAttempted` BEFORE the
+    // notes-length check — that way, if the board already had notes at load
+    // time we still commit "we've decided not to seed" and prevent the effect
+    // from re-firing later (e.g. when the user manually deletes the last note
+    // in the same modal session — that must clear the cell, not re-seed it
+    // with the original text).
+    seedAttemptedRef.current = true;
+    if (closed) return;
+    if (!seedTextRef.current) return;
+    if (notes.length > 0) return;
+    addNote({ content: seedTextRef.current }).catch(() => {
+      // Seed failed (network/perm) — the handleClose safety net still
+      // preserves the original textarea content.
+    });
+  }, [loading, notes.length, closed, addNote]);
+
   const handleClose = async () => {
     await Promise.all(
       Array.from(cardHandles.current.values()).map((h) => (h ? h.flushIfDirty() : Promise.resolve())),
     );
     const joined = joinNotes(notesRef.current.map((n) => n.content));
+    // Safety net: if the user never touched a note in this session AND the
+    // board ended up empty AND we had original textarea content, fall back to
+    // the original text. This protects against:
+    //   - race where the user clicks "บันทึกและปิด" before the seed POST has
+    //     propagated through optimistic state,
+    //   - seed network failure (board ended up legitimately empty),
+    //   - user opening the modal just to look around without editing.
+    // It does NOT trigger when the user actively added / cleared / deleted
+    // notes — userModifiedRef.current is true in those cases, so the empty
+    // join is what gets applied and the textarea is correctly wiped.
+    const safeJoined =
+      joined.length === 0 && !userModifiedRef.current && seedTextRef.current.length > 0
+        ? seedTextRef.current
+        : joined;
     if (closeAlsoClosesBoard && isOwner) {
       await closeBoardOwner(boardId);
     }
-    await onClose(joined);
+    await onClose(safeJoined);
   };
 
   // Archived-state UI: replace the whole surface so users can't keep poking
@@ -305,7 +409,7 @@ export function StickyBoardSurface(props: StickyBoardSurfaceProps) {
           onCommitPosition={handleCommitPosition}
           onColorChange={handleColorChange}
           onZIndexBump={handleZIndexBump}
-          onDelete={(id) => deleteNote(id)}
+          onDelete={handleDelete}
         />
       </div>
     </div>

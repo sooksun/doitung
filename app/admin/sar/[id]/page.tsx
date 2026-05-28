@@ -293,7 +293,7 @@ export default function SarDetailPage() {
                   <IcebergInput
                     value={icebergDraft}
                     onChange={setIcebergDraft}
-                    renderCellAccessory={({ layerNo, side }) => {
+                    renderCellAccessory={({ layerNo, side, currentText }) => {
                       // Edit-mode boards are scoped to THIS SarDocument id, so
                       // they're separate from the draft boards used on
                       // /admin/sar/new (those use sar:draft:school:..:year:..).
@@ -309,6 +309,10 @@ export default function SarDetailPage() {
                           contextId={contextId}
                           schoolId={doc.schoolId}
                           title={`${layerCfg.label} / ${sideLabel}`}
+                          // Pass current cell text so the board can seed a note
+                          // from legacy textarea content + use it as a safety
+                          // net if the user closes without ever editing.
+                          initialText={currentText}
                           onApplyText={(text) =>
                             setIcebergDraft((prev) => ({
                               ...prev,

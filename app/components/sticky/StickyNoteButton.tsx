@@ -17,6 +17,13 @@ export interface StickyNoteButtonProps {
   title: string;
   disabled?: boolean;
   disabledReason?: string;
+  // Existing textarea content for this cell. Threaded into the modal so the
+  // board can seed itself on first open when it has no notes yet (legacy SARs
+  // whose text was created before sticky integration). Also acts as a
+  // safety net inside the surface: if the user closes the modal without ever
+  // editing a note AND the board has zero notes, this is what the textarea
+  // keeps showing instead of being wiped.
+  initialText?: string;
   onApplyText: (text: string) => void;
 }
 
@@ -27,6 +34,7 @@ export function StickyNoteButton({
   title,
   disabled = false,
   disabledReason,
+  initialText,
   onApplyText,
 }: StickyNoteButtonProps) {
   const [open, setOpen] = useState(false);
@@ -70,6 +78,7 @@ export function StickyNoteButton({
           contextType={contextType}
           contextId={contextId}
           schoolId={schoolId}
+          initialText={initialText}
           onApplyText={onApplyText}
         />
       )}

@@ -242,6 +242,10 @@ export type IcebergCellAccessoryArgs = {
   layerKey: keyof Iceberg;
   layerNo: 1 | 2 | 3 | 4;
   side: 'current' | 'desired';
+  // Current text of this cell — handed to the accessory so the sticky-board
+  // can seed itself with the existing textarea content on first open (prevents
+  // data loss on legacy SARs that have text but no notes yet).
+  currentText: string;
 };
 
 export function IcebergInput({
@@ -253,12 +257,18 @@ export function IcebergInput({
   onChange: (v: Iceberg) => void;
   // Optional slot rendered in the top-right corner of each textarea — used by
   // /admin/sar/new and the SAR edit panel to attach the Sticky Notes button
-  // to specific cells.
+  // to specific cells. When provided, the textareas become read-only — content
+  // is owned by the sticky board, and direct keyboard editing is disallowed.
   renderCellAccessory?: (args: IcebergCellAccessoryArgs) => React.ReactNode;
 }) {
   const setCell = (layer: keyof Iceberg, side: 'current' | 'desired', text: string) => {
     onChange({ ...value, [layer]: { ...value[layer], [side]: text } });
   };
+
+  const stickyMode = !!renderCellAccessory;
+  const readOnlyTitle = stickyMode
+    ? 'แก้ไขผ่านปุ่ม 📌 ระดมสมอง เท่านั้น — ข้อความในช่องนี้สร้างจากโน้ตอัตโนมัติ'
+    : undefined;
 
   return (
     <div style={{ marginTop: '0.5rem' }}>
@@ -277,6 +287,31 @@ export function IcebergInput({
         <ColumnPill kind="teal">🎯 สิ่งที่อยากให้เกิด</ColumnPill>
         <div />
       </div>
+
+      {stickyMode && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '0.5rem',
+            padding: '0.5rem 0.75rem',
+            marginBottom: '0.6rem',
+            background: '#fef3c7',
+            border: '1px dashed #f59e0b',
+            borderRadius: '0.4rem',
+            fontSize: '0.78rem',
+            color: '#78350f',
+            lineHeight: 1.45,
+          }}
+        >
+          <span aria-hidden style={{ flexShrink: 0 }}>🔒</span>
+          <span>
+            ช่องในตารางนี้แสดงข้อความที่สร้างจากบอร์ดระดมสมอง <strong>(พิมพ์ตรง ๆ ในช่องไม่ได้)</strong> —
+            กดปุ่ม <span style={{ background: '#fde68a', padding: '0 4px', borderRadius: 3, fontWeight: 700 }}>📌 ระดมสมอง</span>{' '}
+            ที่มุมขวาบนของแต่ละช่องเพื่อเพิ่ม/แก้ไข/ลบโน้ต
+          </span>
+        </div>
+      )}
 
       {/* Body: 4 layer rows × (current / desired / right-label) — with iceberg
           curve + red divider drawn behind cols 1+2. */}
@@ -297,20 +332,28 @@ export function IcebergInput({
                 zIndex: 1,
               }}
             >
-              <CellWithAccessory accessory={renderCellAccessory?.({ layerKey: key, layerNo, side: 'current' })}>
+              <CellWithAccessory accessory={renderCellAccessory?.({ layerKey: key, layerNo, side: 'current', currentText: value[key].current })}>
                 <textarea
                   value={value[key].current}
                   onChange={(e) => setCell(key, 'current', e.target.value)}
-                  placeholder={placeholderCurrent}
-                  style={TEXTAREA_BASE}
+                  placeholder={stickyMode ? 'กด 📌 ระดมสมอง เพื่อเพิ่มโน้ต' : placeholderCurrent}
+                  readOnly={stickyMode}
+                  title={readOnlyTitle}
+                  onPaste={stickyMode ? (e) => e.preventDefault() : undefined}
+                  onDrop={stickyMode ? (e) => e.preventDefault() : undefined}
+                  style={stickyMode ? READ_ONLY_TEXTAREA_CURRENT : TEXTAREA_BASE}
                 />
               </CellWithAccessory>
-              <CellWithAccessory accessory={renderCellAccessory?.({ layerKey: key, layerNo, side: 'desired' })}>
+              <CellWithAccessory accessory={renderCellAccessory?.({ layerKey: key, layerNo, side: 'desired', currentText: value[key].desired })}>
                 <textarea
                   value={value[key].desired}
                   onChange={(e) => setCell(key, 'desired', e.target.value)}
-                  placeholder={placeholderDesired}
-                  style={{ ...TEXTAREA_BASE, background: '#fefce8', borderColor: '#facc15' }}
+                  placeholder={stickyMode ? 'กด 📌 ระดมสมอง เพื่อเพิ่มโน้ต' : placeholderDesired}
+                  readOnly={stickyMode}
+                  title={readOnlyTitle}
+                  onPaste={stickyMode ? (e) => e.preventDefault() : undefined}
+                  onDrop={stickyMode ? (e) => e.preventDefault() : undefined}
+                  style={stickyMode ? READ_ONLY_TEXTAREA_DESIRED : { ...TEXTAREA_BASE, background: '#fefce8', borderColor: '#facc15' }}
                 />
               </CellWithAccessory>
               <RightSideLabel label={label} sublabel={sublabel} />
@@ -321,6 +364,25 @@ export function IcebergInput({
     </div>
   );
 }
+
+// Read-only variants — used whenever an accessory (sticky button) is mounted.
+// Visually they still look like the editable cells (so users can tell the
+// columns apart), but the cursor + caret behaviour and `readOnly` attribute
+// make it clear that typing won't stick. Direct paste / drop is also blocked
+// via event handlers above so users can't sneak content in around `readOnly`.
+const READ_ONLY_TEXTAREA_CURRENT: React.CSSProperties = {
+  ...TEXTAREA_BASE,
+  background: '#f9fafb',
+  cursor: 'default',
+  caretColor: 'transparent',
+};
+const READ_ONLY_TEXTAREA_DESIRED: React.CSSProperties = {
+  ...TEXTAREA_BASE,
+  background: '#fefce8',
+  borderColor: '#facc15',
+  cursor: 'default',
+  caretColor: 'transparent',
+};
 
 function CellWithAccessory({ children, accessory }: { children: React.ReactNode; accessory?: React.ReactNode }) {
   if (!accessory) return <>{children}</>;

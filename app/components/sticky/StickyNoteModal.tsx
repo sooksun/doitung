@@ -31,6 +31,9 @@ export interface StickyNoteModalProps {
   contextType: string;
   contextId: string;
   schoolId: number | null;
+  // See StickyNoteButtonProps.initialText — kept identical here so the seed +
+  // safety-net behaviour reaches StickyBoardSurface.
+  initialText?: string;
   onApplyText: (joined: string) => void;
 }
 
@@ -46,6 +49,7 @@ export function StickyNoteModal({
   contextType,
   contextId,
   schoolId,
+  initialText,
   onApplyText,
 }: StickyNoteModalProps) {
   const [board, setBoard] = useState<BoardInfo | null>(null);
@@ -181,6 +185,7 @@ export function StickyNoteModal({
             closeLabel="บันทึกและปิด"
             onClose={handleSurfaceClose}
             pollIntervalMs={5000}
+            seedContentIfEmpty={initialText}
           />
         )}
       </div>
