@@ -66,22 +66,28 @@ export async function POST(request: NextRequest) {
     if (!targetTeacher) return errorResponse('ไม่พบครูที่ถูกประเมิน', 404);
     if (targetTeacher.schoolId !== sId) return errorResponse('ครูที่เลือกไม่ได้อยู่ในโรงเรียนนี้', 400);
 
-    // Director must (a) be an active user, (b) hold the SCHOOL_LEADER role, and
-    // (c) be bound to THIS school via their Teacher record. Without this check
-    // a caller could pass any user id and silently assign, e.g., another
-    // school's director as the evaluator for this pair.
+    // Director must (a) be an active user, (b) hold the SCHOOL_LEADER role,
+    // and (c) be either bound to THIS school via Teacher OR not bound to any
+    // school via Teacher (a "floating" director that the admin is assigning
+    // to this school). A SCHOOL_LEADER bound to a DIFFERENT school is still
+    // rejected — we don't want cross-tenant assignment. This OR-pair mirrors
+    // the LIST query in /api/schools/:id/teachers so the picker and the
+    // validator agree.
     const director = await prisma.user.findFirst({
       where: {
         id: dId,
         isActive: true,
-        teacher: { is: { schoolId: sId } },
         roles: { some: { role: { name: 'SCHOOL_LEADER' } } },
+        OR: [
+          { teacher: { is: { schoolId: sId } } },
+          { teacher: { is: null } },
+        ],
       },
       select: { id: true },
     });
     if (!director) {
       return errorResponse(
-        'ผู้ประเมิน (ผอ.) ที่เลือกไม่ใช่ผู้อำนวยการที่ผูกกับโรงเรียนนี้',
+        'ผู้ประเมิน (ผอ.) ที่เลือกไม่ใช่ผู้อำนวยการที่ใช้งานได้สำหรับโรงเรียนนี้',
         400,
       );
     }

@@ -24,17 +24,32 @@ export async function GET(request: NextRequest, { params }: { params: { schoolId
 
     const [teachers, directors] = await Promise.all([
       prisma.teacher.findMany({
-        where: { schoolId },
+        where: { schoolId, user: { isActive: true } },
         select: { id: true, user: { select: { id: true, name: true } } },
         orderBy: { id: 'asc' },
       }),
+      // Directors = active SCHOOL_LEADER users in EITHER of two buckets:
+      //   (a) bound to THIS school via Teacher  → the canonical case
+      //   (b) not bound to any school via Teacher → "floating" directors
+      //       (they exist in production where seeds didn't give SCHOOL_LEADERs
+      //       a Teacher row). Without bucket (b) the picker is empty on those
+      //       schools and the school admin can't create a teacher-pair at all.
+      // A SCHOOL_LEADER bound to a DIFFERENT school is intentionally excluded
+      // — that's a cross-tenant assignment we don't want to enable here.
       prisma.user.findMany({
         where: {
           isActive: true,
-          teacher: { schoolId },
           roles: { some: { role: { name: RoleType.SCHOOL_LEADER } } },
+          OR: [
+            { teacher: { is: { schoolId } } },
+            { teacher: { is: null } },
+          ],
         },
-        select: { id: true, name: true },
+        select: {
+          id: true,
+          name: true,
+          teacher: { select: { schoolId: true } },
+        },
         orderBy: { id: 'asc' },
       }),
     ]);
@@ -45,7 +60,14 @@ export async function GET(request: NextRequest, { params }: { params: { schoolId
         userId: t.user?.id ?? null,
         name: t.user?.name ?? '(ไม่มีชื่อ)',
       })),
-      directors: directors.map((d) => ({ userId: d.id, name: d.name })),
+      directors: directors.map((d) => ({
+        userId: d.id,
+        name: d.name,
+        // Tells the UI whether this director is canonically bound to the
+        // school (Teacher.schoolId match) or is a floating director shown as
+        // a fallback. Frontend can group them visually.
+        boundToSchool: d.teacher?.schoolId === schoolId,
+      })),
     });
   } catch (error: any) {
     if (typeof error?.message === 'string' && error.message.startsWith('Unauthorized')) {

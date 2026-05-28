@@ -174,8 +174,22 @@ export async function POST(request: NextRequest) {
   try {
     const me = await requireAuth(request);
     const isAdmin = hasRole(me, 'ADMIN');
-    if (!isAdmin && !hasRole(me, 'SCHOOL_LEADER') && !hasRole(me, 'SCHOOL_ADMIN')) {
-      return errorResponse('Forbidden: ต้องเป็น admin / school admin / ผู้บริหาร', 403);
+    // TEACHER is included here because the brainstorm flow at /admin/sar/:id
+    // is collaborative — teachers (not just leaders) own the Iceberg cells and
+    // sticky-note board for their school. Without TEACHER in the allowlist,
+    // editing the board worked but pressing "บันทึกเวอร์ชันใหม่" returned 403.
+    // School scoping is still enforced by `userMaySchool` below: a teacher can
+    // only save SARs for the school their Teacher row is bound to.
+    if (
+      !isAdmin &&
+      !hasRole(me, 'SCHOOL_LEADER') &&
+      !hasRole(me, 'SCHOOL_ADMIN') &&
+      !hasRole(me, 'TEACHER')
+    ) {
+      return errorResponse(
+        'Forbidden: ต้องเป็น admin / school admin / ผู้บริหาร / ครู',
+        403,
+      );
     }
 
     const form = await request.formData();
