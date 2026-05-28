@@ -33,11 +33,20 @@ export async function DELETE(
     if (!ev || ev.evaluationSessionId !== id) return errorResponse('ไม่พบหลักฐาน', 404);
 
     // Remove the locally-stored file (external links have no file to delete).
+    // Defence in depth: if a future code path lets attacker-controlled bytes
+    // into `ev.url` (e.g. via raw-SQL fixups, a buggy upload path, or a
+    // legacy migration), the path.resolve check below makes sure we only
+    // unlink files inside the evidence uploads root — `/uploads/evidence/..
+    // /../something` would resolve outside the root and bail out.
     if (ev.url && ev.url.startsWith('/uploads/evidence/')) {
-      try {
-        fs.unlinkSync(path.join(process.cwd(), 'public', ev.url));
-      } catch {
-        /* file already gone — ignore */
+      const uploadsRoot = path.resolve(path.join(process.cwd(), 'public', 'uploads', 'evidence'));
+      const target = path.resolve(path.join(process.cwd(), 'public', ev.url));
+      if (target.startsWith(uploadsRoot + path.sep)) {
+        try {
+          fs.unlinkSync(target);
+        } catch {
+          /* file already gone — ignore */
+        }
       }
     }
 

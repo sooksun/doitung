@@ -23,6 +23,7 @@ const protectedApiRoutes = [
   '/api/admin',
   '/api/ai',
   '/api/feature-flags',
+  '/api/schools',
 ];
 
 export function middleware(request: NextRequest) {

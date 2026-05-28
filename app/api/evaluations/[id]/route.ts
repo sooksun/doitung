@@ -14,6 +14,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const me = await requireAuth(request);
     const id = parseInt(params.id, 10);
     if (isNaN(id)) {
       return errorResponse('Invalid evaluation ID', 400);
@@ -84,6 +85,27 @@ export async function GET(
       return errorResponse('ไม่พบการประเมินที่ต้องการ', 404);
     }
 
+    // Authorization scope: ADMIN sees everything; everyone else must have a
+    // direct relationship to the session — evaluator, target teacher, or a
+    // member of the same school (SCHOOL_ADMIN / SCHOOL_LEADER / TEACHER bound
+    // via Teacher.schoolId). Anything else is 403 so PII (evaluator email,
+    // reflection text) doesn't leak via ID guessing.
+    if (!hasRole(me, 'ADMIN')) {
+      const isEvaluator = evaluation.evaluatorId === me.id;
+      const isTargetTeacher = evaluation.targetTeacher?.user?.id === me.id;
+      let inSameSchool = false;
+      if (!isEvaluator && !isTargetTeacher) {
+        const teacher = await prisma.teacher.findUnique({
+          where: { userId: me.id },
+          select: { schoolId: true },
+        });
+        inSameSchool = !!teacher && teacher.schoolId === evaluation.schoolId;
+      }
+      if (!isEvaluator && !isTargetTeacher && !inSameSchool) {
+        return errorResponse('คุณไม่มีสิทธิ์เข้าถึงการประเมินนี้', 403);
+      }
+    }
+
     const evaluationDto: EvaluationSessionDto = {
       id: evaluation.id,
       instrumentId: evaluation.instrumentId,
@@ -136,7 +158,8 @@ export async function GET(
     };
 
     return successResponse(evaluationDto);
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.message?.startsWith('Unauthorized')) return errorResponse(error.message, 401);
     return handleApiError(error);
   }
 }

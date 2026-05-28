@@ -3,7 +3,7 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -35,6 +35,13 @@ export default function NewEvaluationPage() {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  // Ref-based guard for handleSubmit. `setSubmitting(true)` only takes effect
+  // after the next React render, so a fast double-click / Enter spam can pass
+  // the `if (submitting)` check twice before the disabled state lands on the
+  // button. The ref flips synchronously inside the handler, so the second
+  // invocation bails before any fetch fires (and thus before duplicate
+  // evaluations / teacher-pair sessions are created on the server).
+  const submittingRef = useRef(false);
   const [error, setError] = useState('');
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
 
@@ -220,11 +227,13 @@ export default function NewEvaluationPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingRef.current) return;
     if (!token || !currentUserId) {
       setError('กรุณาเข้าสู่ระบบใหม่');
       return;
     }
 
+    submittingRef.current = true;
     setError('');
     setSubmitting(true);
 
@@ -234,6 +243,7 @@ export default function NewEvaluationPage() {
         if (!targetTeacherId || !directorUserId) {
           setError('กรุณาเลือกครูที่ถูกประเมินและผู้อำนวยการผู้ประเมิน');
           setSubmitting(false);
+          submittingRef.current = false;
           return;
         }
         const pairRes = await fetch('/api/evaluations/teacher-pair', {
@@ -252,6 +262,7 @@ export default function NewEvaluationPage() {
         if (!pairRes.ok || !pairData.success) {
           setError(pairData.error || 'สร้างการประเมินไม่สำเร็จ');
           setSubmitting(false);
+          submittingRef.current = false;
           return;
         }
         router.push(`/assessment/${pairData.data.selfSessionId}`);
@@ -279,6 +290,7 @@ export default function NewEvaluationPage() {
       if (!res.ok || !data.success) {
         setError(data.error || 'สร้างการประเมินไม่สำเร็จ');
         setSubmitting(false);
+        submittingRef.current = false;
         return;
       }
 
@@ -291,6 +303,7 @@ export default function NewEvaluationPage() {
     } catch (err) {
       setError('เกิดข้อผิดพลาดในการสร้างการประเมิน');
       setSubmitting(false);
+      submittingRef.current = false;
     }
   };
 

@@ -4,7 +4,7 @@
 
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { toastConfirm } from '@/lib/toast';
@@ -81,6 +81,19 @@ export default function AssessmentPage() {
   // Responses keyed by session id. Single-evaluator instruments have one entry;
   // a Thai ป.1–3 teacher-pair has two (SELF + DIRECTOR), each editable by its owner.
   const [responsesBySession, setResponsesBySession] = useState<Record<number, ResponseMap>>({});
+  // Mirror of `responsesBySession` for synchronous reads inside `saveResponse`.
+  // The callback can't rely on the state-from-deps version because rapid radio
+  // clicks fire two handlers in the same React tick — the second one would
+  // read the un-updated state and POST a payload that drops the first click's
+  // change (e.g. clicking score=3 then score2=4 ends up sending {score:null,
+  // score2:4} and the saved score is lost). The ref is mutated synchronously
+  // after each setResponsesBySession call so consecutive saves always start
+  // from the post-merge view.
+  const responsesRef = useRef<Record<number, ResponseMap>>({});
+  // Per-indicator in-flight AbortController, so a brand-new click for the
+  // same indicator can cancel the previous POST. Closes the "two POSTs in
+  // flight, late one with stale fields wins" race.
+  const inflightAbortRef = useRef<Map<number, AbortController>>(new Map());
   const [pair, setPair] = useState<{
     selfSessionId: number | null;
     directorSessionId: number | null;
@@ -252,10 +265,18 @@ export default function AssessmentPage() {
   })();
   const activeResponses: ResponseMap = responsesBySession[activeSessionId] || {};
 
+  // Keep responsesRef in sync with state for the synchronous reads inside saveResponse.
+  useEffect(() => {
+    responsesRef.current = responsesBySession;
+  }, [responsesBySession]);
+
   const saveResponse = useCallback(async (targetSessionId: number, indicatorId: number, field: 'score' | 'score2', value: number) => {
     if (!token) return;
 
-    const current = (responsesBySession[targetSessionId] || {})[indicatorId] || { score: null, score2: null };
+    // Read latest values from the ref, not the closure, so rapid back-to-back
+    // clicks on different fields of the same indicator each see the others'
+    // change.
+    const current = (responsesRef.current[targetSessionId] || {})[indicatorId] || { score: null, score2: null };
     const updated = { ...current, [field]: value };
 
     // Optimistic local update first so the radio reflects the choice immediately.
@@ -263,6 +284,13 @@ export default function AssessmentPage() {
       ...prev,
       [targetSessionId]: { ...(prev[targetSessionId] || {}), [indicatorId]: updated },
     }));
+    // Mirror into the ref synchronously so a follow-up call within the same
+    // tick already sees the new value (don't wait for React to re-render +
+    // run the responsesBySession-tracking effect).
+    responsesRef.current = {
+      ...responsesRef.current,
+      [targetSessionId]: { ...(responsesRef.current[targetSessionId] || {}), [indicatorId]: updated },
+    };
 
     // The API requires a numeric `score`. Q-Model keeps its original fallback so a
     // "สภาพที่เป็นอยู่"(score2)-first click still persists. For single-rating tools that
@@ -270,6 +298,14 @@ export default function AssessmentPage() {
     // into `score` (= ระดับการประเมิน) — defer the POST until ระดับการประเมิน itself is set.
     const scoreToSend = isDualState ? (updated.score ?? value) : updated.score;
     if (scoreToSend == null) return;
+
+    // Cancel any in-flight POST for the same indicator so a late response
+    // can't overwrite a fresher one (server side is upsert-by-indicator so
+    // last write wins per row).
+    const prevAbort = inflightAbortRef.current.get(indicatorId);
+    if (prevAbort) prevAbort.abort();
+    const ctrl = new AbortController();
+    inflightAbortRef.current.set(indicatorId, ctrl);
 
     setSaving(indicatorId);
     try {
@@ -283,13 +319,24 @@ export default function AssessmentPage() {
             score2: updated.score2 ?? null,
           }],
         }),
+        signal: ctrl.signal,
       });
-    } catch {
-      // silent — state already updated optimistically
+    } catch (err: any) {
+      // AbortError is expected when a newer click cancels us — silent. Other
+      // failures are also silent here because the state was already updated
+      // optimistically and the next save will retry.
+      if (err?.name !== 'AbortError') {
+        // swallow
+      }
     } finally {
-      setSaving(null);
+      // Only clear the saving badge if WE are still the latest in-flight
+      // request — otherwise the newer click is still spinning.
+      if (inflightAbortRef.current.get(indicatorId) === ctrl) {
+        inflightAbortRef.current.delete(indicatorId);
+        setSaving(null);
+      }
     }
-  }, [token, responsesBySession, isDualState]);
+  }, [token, isDualState]);
 
   const handleClearAll = async () => {
     if (!token || !sessionId) return;

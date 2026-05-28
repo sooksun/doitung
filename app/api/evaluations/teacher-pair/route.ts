@@ -49,10 +49,32 @@ export async function POST(request: NextRequest) {
     if (!targetTeacher) return errorResponse('ไม่พบครูที่ถูกประเมิน', 404);
     if (targetTeacher.schoolId !== sId) return errorResponse('ครูที่เลือกไม่ได้อยู่ในโรงเรียนนี้', 400);
 
-    // Director user must exist
-    const director = await prisma.user.findUnique({ where: { id: dId } });
-    if (!director) return errorResponse('ไม่พบผู้อำนวยการที่เลือก', 404);
+    // Director must (a) be an active user, (b) hold the SCHOOL_LEADER role, and
+    // (c) be bound to THIS school via their Teacher record. Without this check
+    // a caller could pass any user id and silently assign, e.g., another
+    // school's director as the evaluator for this pair.
+    const director = await prisma.user.findFirst({
+      where: {
+        id: dId,
+        isActive: true,
+        teacher: { is: { schoolId: sId } },
+        roles: { some: { role: { name: 'SCHOOL_LEADER' } } },
+      },
+      select: { id: true },
+    });
+    if (!director) {
+      return errorResponse(
+        'ผู้ประเมิน (ผอ.) ที่เลือกไม่ใช่ผู้อำนวยการที่ผูกกับโรงเรียนนี้',
+        400,
+      );
+    }
 
+    // Serializable isolation closes the find-then-create race: two concurrent
+    // POSTs for the same (target, instrument, year, term, kind) tuple can't
+    // both see "no existing row" simultaneously — InnoDB gap locks make the
+    // second transaction wait, find the first's row on retry, and return it.
+    // Without this the request was idempotent only when responses were spaced
+    // out enough for the first INSERT to commit.
     const result = await prisma.$transaction(async (tx) => {
       const base = { instrumentId: iId, academicYearId: ayId, termId: tmId, targetTeacherId: tId };
 
@@ -83,7 +105,7 @@ export async function POST(request: NextRequest) {
       }
 
       return { selfSessionId: selfS.id, directorSessionId: dirS.id };
-    });
+    }, { isolationLevel: 'Serializable' });
 
     return successResponse(result, 'สร้างการประเมินคู่ (ครูประเมินตนเอง + ผอ.ประเมิน) สำเร็จ');
   } catch (error: any) {
