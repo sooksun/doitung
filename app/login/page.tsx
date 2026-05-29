@@ -75,7 +75,7 @@ export default function LoginPage() {
             🔐 เข้าสู่ระบบ
           </h1>
           <p style={{ color: '#666' }}>
-            School QA + RBM Dashboard
+            TSQM โรงเรียนพัฒนาตนเอง
           </p>
         </div>
 
