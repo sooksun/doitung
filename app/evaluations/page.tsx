@@ -3,7 +3,7 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toastError, toastConfirm } from '@/lib/toast';
@@ -32,6 +32,13 @@ interface Evaluation {
   };
 }
 
+interface SchoolOption {
+  id: number;
+  code: string | null;
+  nameTh: string | null;
+  name: string;
+}
+
 const PAGE_SIZE = 20;
 
 export default function EvaluationsPage() {
@@ -44,6 +51,29 @@ export default function EvaluationsPage() {
   const [error, setError] = useState('');
   const [meId, setMeId] = useState<number | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+
+  // School filter — admin only. Non-admins are scoped to their own school
+  // server-side regardless of what we send, so the input would be misleading.
+  const [schools, setSchools] = useState<SchoolOption[]>([]);
+  const [schoolInput, setSchoolInput] = useState('');
+  const [appliedSchoolId, setAppliedSchoolId] = useState<string>('');
+
+  // Resolve the typed text to a schoolId — exact match on "<code> <nameTh>"
+  // or on code alone, then fall back to startsWith on either field. Same
+  // pattern /users uses, so admins get consistent autocomplete behaviour.
+  const resolvedSchoolId = useMemo(() => {
+    const q = schoolInput.trim();
+    if (!q) return '';
+    const exact = schools.find((s) => {
+      const label = `${s.code || ''} ${s.nameTh || s.name || ''}`.trim();
+      return label === q || s.code === q;
+    });
+    if (exact) return String(exact.id);
+    const startsWith = schools.find(
+      (s) => (s.code || '').startsWith(q) || (s.nameTh || '').startsWith(q),
+    );
+    return startsWith ? String(startsWith.id) : '';
+  }, [schoolInput, schools]);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
@@ -58,17 +88,28 @@ export default function EvaluationsPage() {
       .then((j) => {
         if (j?.success && j.data) {
           setMeId(j.data.id);
-          setIsAdmin(Array.isArray(j.data.roles) && j.data.roles.includes('ADMIN'));
+          const admin = Array.isArray(j.data.roles) && j.data.roles.includes('ADMIN');
+          setIsAdmin(admin);
+          // Lazy-load schools only when the filter would actually appear.
+          if (admin) {
+            fetch('/api/schools?isActive=true', { headers: { Authorization: `Bearer ${storedToken}` } })
+              .then((r) => r.json())
+              .then((sj) => {
+                if (sj?.success && Array.isArray(sj.data)) setSchools(sj.data);
+              })
+              .catch(() => {});
+          }
         }
       })
       .catch(() => {});
-    fetchEvaluations(storedToken, 1);
+    fetchEvaluations(storedToken, 1, '');
   }, [router]);
 
-  const fetchEvaluations = async (authToken: string, pageNum: number) => {
+  const fetchEvaluations = async (authToken: string, pageNum: number, schoolId: string) => {
     setLoading(true);
     try {
       const qs = new URLSearchParams({ page: String(pageNum), limit: String(PAGE_SIZE) });
+      if (schoolId) qs.set('schoolId', schoolId);
       const res = await fetch(`/api/evaluations?${qs}`, {
         headers: { 'Authorization': `Bearer ${authToken}` },
       });
@@ -100,7 +141,28 @@ export default function EvaluationsPage() {
   const goToPage = (p: number) => {
     if (!token) return;
     setPage(p);
-    fetchEvaluations(token, p);
+    fetchEvaluations(token, p, appliedSchoolId);
+  };
+
+  const applySchoolFilter = () => {
+    if (!token) return;
+    // If admin typed text but nothing resolved, show a hint instead of silently
+    // dropping the filter — saves them wondering "why didn't anything narrow?"
+    if (schoolInput.trim() && !resolvedSchoolId) {
+      toastError('ไม่พบโรงเรียนที่ตรงกับคำค้น');
+      return;
+    }
+    setAppliedSchoolId(resolvedSchoolId);
+    setPage(1);
+    fetchEvaluations(token, 1, resolvedSchoolId);
+  };
+
+  const clearSchoolFilter = () => {
+    if (!token) return;
+    setSchoolInput('');
+    setAppliedSchoolId('');
+    setPage(1);
+    fetchEvaluations(token, 1, '');
   };
 
   const handleClear = async (id: number) => {
@@ -125,7 +187,7 @@ export default function EvaluationsPage() {
       // step back so the user doesn't land on an empty screen.
       const nextPage = evaluations.length === 1 && page > 1 ? page - 1 : page;
       if (nextPage !== page) setPage(nextPage);
-      fetchEvaluations(token, nextPage);
+      fetchEvaluations(token, nextPage, appliedSchoolId);
     } catch {
       toastError('เกิดข้อผิดพลาด');
     }
@@ -200,6 +262,82 @@ export default function EvaluationsPage() {
             </Link>
           </div>
         </div>
+
+        {/* Filters — admin only. Non-admins are pinned to their own school by
+            the API regardless, so the input would just confuse them. */}
+        {isAdmin && (
+          <div style={{
+            background: 'white',
+            padding: '1rem 1.5rem',
+            borderRadius: '0.5rem',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            marginBottom: '1rem',
+            display: 'flex',
+            gap: '0.75rem',
+            alignItems: 'end',
+            flexWrap: 'wrap',
+          }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: '1 1 300px' }}>
+              <span style={{ fontSize: '0.85rem', color: '#666' }}>
+                โรงเรียน {schoolInput.trim() && !resolvedSchoolId && (
+                  <span style={{ color: '#ef4444', fontSize: '0.75rem' }}>(ไม่พบ)</span>
+                )}
+              </span>
+              <input
+                list="schools-datalist"
+                value={schoolInput}
+                onChange={(e) => setSchoolInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') applySchoolFilter(); }}
+                placeholder="พิมพ์รหัสหรือชื่อโรงเรียน (เช่น 57030136 หรือ บ้านห้วยอื้น)"
+                style={{
+                  padding: '0.5rem 0.75rem',
+                  border: '1px solid #ddd',
+                  borderRadius: '0.4rem',
+                  fontSize: '0.9rem',
+                }}
+              />
+              <datalist id="schools-datalist">
+                {schools.map((s) => (
+                  <option key={s.id} value={`${s.code || ''} ${s.nameTh || s.name || ''}`.trim()} />
+                ))}
+              </datalist>
+            </label>
+            <button
+              onClick={applySchoolFilter}
+              style={{
+                padding: '0.55rem 1.1rem',
+                background: '#667eea',
+                color: 'white',
+                border: 'none',
+                borderRadius: '0.4rem',
+                fontSize: '0.9rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                height: 'fit-content',
+              }}
+            >
+              🔍 ค้นหา
+            </button>
+            {appliedSchoolId && (
+              <button
+                onClick={clearSchoolFilter}
+                style={{
+                  padding: '0.55rem 1rem',
+                  background: '#f3f4f6',
+                  color: '#374151',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '0.4rem',
+                  fontSize: '0.9rem',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  height: 'fit-content',
+                }}
+              >
+                ล้างตัวกรอง
+              </button>
+            )}
+          </div>
+        )}
 
         {error && (
           <div style={{
