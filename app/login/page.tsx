@@ -102,7 +102,7 @@ export default function LoginPage() {
                 fontSize: '1rem',
                 boxSizing: 'border-box'
               }}
-              placeholder="admin@local"
+              placeholder="email"
             />
           </div>
 
@@ -128,7 +128,7 @@ export default function LoginPage() {
                 fontSize: '1rem',
                 boxSizing: 'border-box'
               }}
-              placeholder="Admin123"
+              placeholder="password"
             />
           </div>
 
