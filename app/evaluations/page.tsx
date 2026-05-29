@@ -32,10 +32,14 @@ interface Evaluation {
   };
 }
 
+const PAGE_SIZE = 20;
+
 export default function EvaluationsPage() {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [meId, setMeId] = useState<number | null>(null);
@@ -58,12 +62,14 @@ export default function EvaluationsPage() {
         }
       })
       .catch(() => {});
-    fetchEvaluations(storedToken);
+    fetchEvaluations(storedToken, 1);
   }, [router]);
 
-  const fetchEvaluations = async (authToken: string) => {
+  const fetchEvaluations = async (authToken: string, pageNum: number) => {
+    setLoading(true);
     try {
-      const res = await fetch('/api/evaluations', {
+      const qs = new URLSearchParams({ page: String(pageNum), limit: String(PAGE_SIZE) });
+      const res = await fetch(`/api/evaluations?${qs}`, {
         headers: { 'Authorization': `Bearer ${authToken}` },
       });
 
@@ -79,14 +85,22 @@ export default function EvaluationsPage() {
       const data = await res.json();
       if (data.success && data.data?.items) {
         setEvaluations(data.data.items);
+        setTotal(data.data.total ?? data.data.items.length);
       } else if (Array.isArray(data)) {
         setEvaluations(data);
+        setTotal(data.length);
       }
     } catch (err) {
       setError('เกิดข้อผิดพลาดในการโหลดข้อมูล');
     } finally {
       setLoading(false);
     }
+  };
+
+  const goToPage = (p: number) => {
+    if (!token) return;
+    setPage(p);
+    fetchEvaluations(token, p);
   };
 
   const handleClear = async (id: number) => {
@@ -106,12 +120,18 @@ export default function EvaluationsPage() {
         toastError(json.error || 'เคลียร์ไม่สำเร็จ');
         return;
       }
-      // Optimistic remove: drop the row immediately so the UI feels responsive
-      setEvaluations((prev) => prev.filter((e) => e.id !== id));
+      // Refetch the current page so the row that backfills from the next page
+      // appears in place. If we just removed the only item on a non-first page,
+      // step back so the user doesn't land on an empty screen.
+      const nextPage = evaluations.length === 1 && page > 1 ? page - 1 : page;
+      if (nextPage !== page) setPage(nextPage);
+      fetchEvaluations(token, nextPage);
     } catch {
       toastError('เกิดข้อผิดพลาด');
     }
   };
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, { bg: string; text: string }> = {
@@ -300,6 +320,94 @@ export default function EvaluationsPage() {
             </div>
           )}
         </div>
+
+        {/* Pagination */}
+        {total > 0 && (
+          <div style={{
+            marginTop: '1rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '0.5rem',
+            flexWrap: 'wrap',
+          }}>
+            <div style={{ fontSize: '0.85rem', color: '#666' }}>
+              แสดง {(evaluations.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1).toLocaleString('th-TH')}
+              {' – '}
+              {((page - 1) * PAGE_SIZE + evaluations.length).toLocaleString('th-TH')}
+              {' จากทั้งหมด '}
+              <strong>{total.toLocaleString('th-TH')}</strong>
+              {' รายการ'}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => goToPage(1)}
+                disabled={page <= 1 || loading}
+                title="หน้าแรก"
+                style={{
+                  padding: '0.4rem 0.75rem',
+                  background: page <= 1 || loading ? '#e5e7eb' : '#667eea',
+                  color: page <= 1 || loading ? '#9ca3af' : 'white',
+                  border: 'none',
+                  borderRadius: '0.3rem',
+                  cursor: page <= 1 || loading ? 'not-allowed' : 'pointer',
+                  fontSize: '0.85rem',
+                }}
+              >
+                «
+              </button>
+              <button
+                onClick={() => goToPage(Math.max(1, page - 1))}
+                disabled={page <= 1 || loading}
+                style={{
+                  padding: '0.4rem 0.85rem',
+                  background: page <= 1 || loading ? '#e5e7eb' : '#667eea',
+                  color: page <= 1 || loading ? '#9ca3af' : 'white',
+                  border: 'none',
+                  borderRadius: '0.3rem',
+                  cursor: page <= 1 || loading ? 'not-allowed' : 'pointer',
+                  fontSize: '0.85rem',
+                }}
+              >
+                ← ก่อนหน้า
+              </button>
+              <span style={{ padding: '0 0.6rem', fontSize: '0.85rem', color: '#666' }}>
+                หน้า <strong>{page}</strong> / {totalPages}
+              </span>
+              <button
+                onClick={() => goToPage(Math.min(totalPages, page + 1))}
+                disabled={page >= totalPages || loading}
+                style={{
+                  padding: '0.4rem 0.85rem',
+                  background: page >= totalPages || loading ? '#e5e7eb' : '#667eea',
+                  color: page >= totalPages || loading ? '#9ca3af' : 'white',
+                  border: 'none',
+                  borderRadius: '0.3rem',
+                  cursor: page >= totalPages || loading ? 'not-allowed' : 'pointer',
+                  fontSize: '0.85rem',
+                }}
+              >
+                ถัดไป →
+              </button>
+              <button
+                onClick={() => goToPage(totalPages)}
+                disabled={page >= totalPages || loading}
+                title="หน้าสุดท้าย"
+                style={{
+                  padding: '0.4rem 0.75rem',
+                  background: page >= totalPages || loading ? '#e5e7eb' : '#667eea',
+                  color: page >= totalPages || loading ? '#9ca3af' : 'white',
+                  border: 'none',
+                  borderRadius: '0.3rem',
+                  cursor: page >= totalPages || loading ? 'not-allowed' : 'pointer',
+                  fontSize: '0.85rem',
+                }}
+              >
+                »
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

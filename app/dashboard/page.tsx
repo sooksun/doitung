@@ -416,6 +416,20 @@ export default function DashboardPage() {
             🌐 จัดการกลุ่มโรงเรียน
           </Link>
           <Link
+            href="/admin/evaluations"
+            style={{
+              padding: '1rem',
+              background: 'white',
+              borderRadius: '0.5rem',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              textDecoration: 'none',
+              color: '#333',
+              textAlign: 'center'
+            }}
+          >
+            🔄 Reset/ยกเลิกการประเมิน
+          </Link>
+          <Link
             href="/live-dashboard"
             style={{
               padding: '1rem',
