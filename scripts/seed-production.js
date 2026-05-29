@@ -62,6 +62,69 @@ async function main() {
   await ensureRole(teacherUser.id, teacherRole.id);
   console.log('✓ Users + role links');
 
+  // --- EXTRA NAMED USERS ---
+  // Real users with fixed emails (not auto-generated t1-/t2- pattern). Added
+  // here so they survive a fresh container start. Idempotent: existing users
+  // get their role + school binding re-asserted, but the password is NOT
+  // overwritten (different from demo users above) so manual password resets
+  // by the user survive across redeploys.
+  //
+  // Adding more rows: append to EXTRA_USERS. schoolCode resolves at run-time,
+  // so a row whose school isn't imported yet just defers the Teacher binding
+  // until a later seed run.
+  const EXTRA_USERS = [
+    {
+      name: 'นายพงศพัทธ์ โพธิ',
+      email: 'teacher13@57030136.local',
+      password: 'Teacher@123',  // initial password — user is expected to change after first login
+      role: 'TEACHER',
+      schoolCode: '57030136',   // โรงเรียนบ้านห้วยอื้น
+    },
+  ];
+
+  const roleByName = {
+    ADMIN: adminRole,
+    SCHOOL_ADMIN: schoolAdminRole,
+    SCHOOL_LEADER: leaderRole,
+    TEACHER: teacherRole,
+    SUPERVISOR: supervisorRole,
+  };
+
+  for (const extra of EXTRA_USERS) {
+    const email = extra.email.trim().toLowerCase();
+    const roleRow = roleByName[extra.role];
+    if (!roleRow) {
+      console.warn(`  ! skip ${email}: unknown role=${extra.role}`);
+      continue;
+    }
+    const hashed = await bcrypt.hash(extra.password, 10);
+    const u = await prisma.user.upsert({
+      where: { email },
+      // Intentionally don't overwrite password/name on update — preserves any
+      // changes the user made in production.
+      update: {},
+      create: { email, password: hashed, name: extra.name, isActive: true },
+    });
+    await ensureRole(u.id, roleRow.id);
+
+    if (extra.schoolCode) {
+      const school = await prisma.school.findUnique({
+        where: { code: extra.schoolCode },
+        select: { id: true },
+      });
+      if (school) {
+        await prisma.teacher.upsert({
+          where: { userId: u.id },
+          create: { userId: u.id, schoolId: school.id },
+          update: { schoolId: school.id },
+        });
+      } else {
+        console.warn(`  ! ${email}: schoolCode=${extra.schoolCode} not in DB yet — binding deferred`);
+      }
+    }
+  }
+  if (EXTRA_USERS.length > 0) console.log(`✓ Extra named users (${EXTRA_USERS.length})`);
+
   // --- SCHOOL NETWORK ---
   const network1 = await prisma.schoolNetwork.upsert({
     where: { code: 'NET-001' },

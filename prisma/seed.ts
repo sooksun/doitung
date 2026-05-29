@@ -30,7 +30,12 @@ async function main() {
     update: {},
     create: { name: RoleType.TEACHER },
   });
-  await prisma.role.upsert({
+  const schoolAdminRole = await prisma.role.upsert({
+    where: { name: RoleType.SCHOOL_ADMIN },
+    update: {},
+    create: { name: RoleType.SCHOOL_ADMIN },
+  });
+  const supervisorRole = await prisma.role.upsert({
     where: { name: RoleType.SUPERVISOR },
     update: {},
     create: { name: RoleType.SUPERVISOR },
@@ -76,6 +81,68 @@ async function main() {
     },
   });
   console.log('✓ Roles + users');
+
+  // --- EXTRA NAMED USERS ---
+  // Real users with fixed emails (not auto-generated t1-/t2- pattern). Added
+  // here so they survive `npm run db:seed`. Idempotent: existing users get
+  // their role + school binding re-asserted, but the password is NOT
+  // overwritten so manual resets survive.
+  // Keep in sync with the same block in scripts/seed-production.js.
+  const EXTRA_USERS: Array<{
+    name: string;
+    email: string;
+    password: string;
+    role: RoleType;
+    schoolCode?: string;
+  }> = [
+    {
+      name: 'นายพงศพัทธ์ โพธิ',
+      email: 'teacher13@57030136.local',
+      password: 'Teacher@123',
+      role: RoleType.TEACHER,
+      schoolCode: '57030136',
+    },
+  ];
+
+  const roleByName: Record<RoleType, { id: number }> = {
+    [RoleType.ADMIN]: adminRole,
+    [RoleType.SCHOOL_ADMIN]: schoolAdminRole,
+    [RoleType.SCHOOL_LEADER]: leaderRole,
+    [RoleType.TEACHER]: teacherRole,
+    [RoleType.SUPERVISOR]: supervisorRole,
+  };
+
+  for (const extra of EXTRA_USERS) {
+    const email = extra.email.trim().toLowerCase();
+    const hashed = await hashPassword(extra.password);
+    const u = await prisma.user.upsert({
+      where: { email },
+      update: {},
+      create: { email, password: hashed, name: extra.name, isActive: true },
+    });
+    const roleId = roleByName[extra.role].id;
+    await prisma.userRole.upsert({
+      where: { userId_roleId: { userId: u.id, roleId } },
+      create: { userId: u.id, roleId },
+      update: {},
+    });
+    if (extra.schoolCode) {
+      const school = await prisma.school.findUnique({
+        where: { code: extra.schoolCode },
+        select: { id: true },
+      });
+      if (school) {
+        await prisma.teacher.upsert({
+          where: { userId: u.id },
+          create: { userId: u.id, schoolId: school.id },
+          update: { schoolId: school.id },
+        });
+      } else {
+        console.warn(`  ! ${email}: schoolCode=${extra.schoolCode} not in DB yet — binding deferred`);
+      }
+    }
+  }
+  if (EXTRA_USERS.length > 0) console.log(`✓ Extra named users (${EXTRA_USERS.length})`);
 
   // --- NETWORKS ---
   const network1 = await prisma.schoolNetwork.upsert({
