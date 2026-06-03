@@ -399,6 +399,7 @@ model EvaluationSession {
 
   responses EvaluationResponse[]
   evidence  Evidence[]
+  thaiReflections ThaiReflection[]
 
   // AI/SAR add-on
   aiAnalysisRuns AiAnalysisRun[]
@@ -605,6 +606,39 @@ model Evidence {
 
   @@index([evaluationSessionId])
   @@index([okrActionId])
+}
+
+// Thai ป.1–3 structured reflection — one record per (session, section).
+// Stores the teacher's selected indicators (≥3), free-text reflection, and
+// the date/time they entered. File attachments live in ThaiReflectionFile.
+model ThaiReflection {
+  id                  Int               @id @default(autoincrement())
+  evaluationSessionId Int
+  sectionId           Int               // InstrumentSection.id (scalar, no FK relation)
+  indicatorIds        Json              // Int[] — at least 3 required
+  reflectionText      String            @db.LongText
+  recordedAt          DateTime          // date/time entered by the teacher
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  evaluationSession EvaluationSession    @relation(fields: [evaluationSessionId], references: [id], onDelete: Cascade)
+  files             ThaiReflectionFile[]
+
+  @@unique([evaluationSessionId, sectionId])
+  @@index([evaluationSessionId])
+}
+
+model ThaiReflectionFile {
+  id           Int            @id @default(autoincrement())
+  reflectionId Int
+  publicUrl    String         // served URL (uploaded) or external video link
+  fileName     String?        // original filename; null for video URLs
+  fileType     String         // 'pdf' | 'image' | 'video'
+  fileSize     Int?           // bytes; null for video URLs
+  createdAt    DateTime       @default(now())
+
+  reflection ThaiReflection @relation(fields: [reflectionId], references: [id], onDelete: Cascade)
+  @@index([reflectionId])
 }
 
 model DashboardConfig {
