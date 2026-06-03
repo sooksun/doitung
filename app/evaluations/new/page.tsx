@@ -109,10 +109,15 @@ export default function NewEvaluationPage() {
         if (res.ok) {
           const j = await res.json();
           if (!cancelled && j.success) {
-            setTeachers(j.data.teachers || []);
-            setDirectors(j.data.directors || []);
-            // Default the director to the current user if they are one of the school's leaders
-            const selfDir = (j.data.directors || []).find((d: any) => d.userId === currentUserId);
+            const teacherList = j.data.teachers || [];
+            const directorList = j.data.directors || [];
+            setTeachers(teacherList);
+            setDirectors(directorList);
+            // Auto-select current user as the evaluated teacher (for TEACHER role)
+            const selfTeacher = teacherList.find((t: any) => t.userId === currentUserId);
+            setTargetTeacherId(selfTeacher ? String(selfTeacher.teacherId) : '');
+            // Auto-select current user as director (for SCHOOL_LEADER role)
+            const selfDir = directorList.find((d: any) => d.userId === currentUserId);
             setDirectorUserId(selfDir ? String(selfDir.userId) : '');
           }
         }

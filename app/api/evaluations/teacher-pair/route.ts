@@ -49,12 +49,10 @@ export async function POST(request: NextRequest) {
       tmId = parsed;
     }
 
-    // Authorization: ADMIN, or a SCHOOL_LEADER bound (via Teacher record) to this school.
+    // Authorization: ADMIN may create for any school.
+    // SCHOOL_LEADER or TEACHER must be bound (via Teacher record) to the target school.
     const isAdmin = hasRole(me, 'ADMIN');
     if (!isAdmin) {
-      if (!hasRole(me, 'SCHOOL_LEADER')) {
-        return errorResponse('เฉพาะผู้ดูแลระบบหรือผู้อำนวยการเท่านั้นที่สร้างการประเมินคู่ได้', 403);
-      }
       const myTeacher = await prisma.teacher.findUnique({ where: { userId: me.id } });
       if (!myTeacher || myTeacher.schoolId !== sId) {
         return errorResponse('คุณสร้างการประเมินได้เฉพาะโรงเรียนของตนเองเท่านั้น', 403);
