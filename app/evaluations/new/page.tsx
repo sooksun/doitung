@@ -179,11 +179,10 @@ export default function NewEvaluationPage() {
       if (instrumentsRes.ok) {
         const instrumentsData = await instrumentsRes.json();
         if (!stillCurrent()) return;
-        if (instrumentsData.success && instrumentsData.data?.items) {
-          setInstruments(instrumentsData.data.items);
-        } else if (Array.isArray(instrumentsData)) {
-          setInstruments(instrumentsData);
-        }
+        const allItems: Instrument[] = instrumentsData.success && instrumentsData.data?.items
+          ? instrumentsData.data.items
+          : Array.isArray(instrumentsData) ? instrumentsData : [];
+        setInstruments(allItems.filter((i) => i.type !== 'DERS'));
       }
 
       if (schoolsRes.ok) {
