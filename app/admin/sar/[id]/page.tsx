@@ -26,6 +26,32 @@ interface IcebergVal {
   structures: IcebergLayerVal;
   mentalModels: IcebergLayerVal;
 }
+interface ScoreboardRow {
+  dimension: string;
+  labelTh: string;
+  current: number | null;
+  target: number | null;
+  gap: number | null;
+  progress: number | null;
+  status: 'green' | 'yellow' | 'red' | 'none';
+  responseCount: number;
+}
+interface AiSummary {
+  status: 'RUNNING' | 'DONE' | 'FAILED';
+  startedAt?: string;
+  finishedAt?: string;
+  model?: string;
+  promptVersion?: string;
+  error?: string;
+  scoreboard?: ScoreboardRow[];
+  executiveSummary?: string;
+  quantitativeFindings?: string[];
+  qualitativeFindings?: string[];
+  discussion?: string;
+  recommendations?: string[];
+  tokensIn?: number;
+  tokensOut?: number;
+}
 interface SarDetail {
   id: number;
   schoolId: number;
@@ -41,6 +67,7 @@ interface SarDetail {
   hasBodyText: boolean;
   bodyIceberg: IcebergVal | null;
   hasIceberg: boolean;
+  aiSummary: AiSummary | null;
   status: string;
   extractionMethod: string | null;
   textQualityScore: number | null;
@@ -97,6 +124,14 @@ export default function SarDetailPage() {
   useEffect(() => {
     if (!token || !doc) return;
     if (doc.status !== 'EXTRACTING') return;
+    const t = setInterval(() => load(token), 3000);
+    return () => clearInterval(t);
+  }, [token, doc, load]);
+
+  // Auto-refresh while the AI executive summary is generating
+  useEffect(() => {
+    if (!token || !doc) return;
+    if (doc.aiSummary?.status !== 'RUNNING') return;
     const t = setInterval(() => load(token), 3000);
     return () => clearInterval(t);
   }, [token, doc, load]);
@@ -172,6 +207,7 @@ export default function SarDetailPage() {
   }
 
   const statusIndex = STATUS_FLOW.indexOf(doc.status as any);
+  const ai = doc.aiSummary;
 
   return (
     <div style={{ minHeight: '100vh', padding: '2rem', background: '#f5f5f5' }}>
@@ -366,6 +402,115 @@ export default function SarDetailPage() {
             </div>
           )}
 
+          {/* AI Executive Summary — quantitative scores + qualitative brainstorm */}
+          <div style={{ marginBottom: '1.5rem', padding: '1.25rem', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '0.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.4rem' }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#92400e', margin: 0 }}>
+                🤖 บทสรุปสำหรับผู้บริหาร (AI)
+              </h3>
+              <button
+                onClick={() => action(`/api/admin/sar-documents/${doc.id}/exec-summary`)}
+                disabled={busy || ai?.status === 'RUNNING'}
+                style={{ padding: '0.5rem 1rem', background: busy || ai?.status === 'RUNNING' ? '#d1d5db' : '#d97706', color: 'white', border: 'none', borderRadius: '0.4rem', cursor: busy || ai?.status === 'RUNNING' ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: '0.88rem' }}
+              >
+                {ai?.status === 'RUNNING' ? 'กำลังประมวลผล...' : ai?.status === 'DONE' ? '🔄 สร้างใหม่' : '✨ สร้างบทสรุปด้วย AI'}
+              </button>
+            </div>
+            <p style={{ fontSize: '0.82rem', color: '#92400e', margin: '0 0 0.85rem' }}>
+              ผสานคะแนนการประเมิน Q-Model (ข้อมูลเชิงปริมาณ) กับผลการระดมสมอง Iceberg (ข้อมูลเชิงคุณภาพ) แล้วสรุป-อภิปรายผลเป็นบทสรุปสำหรับผู้บริหาร
+            </p>
+
+            {!ai && (
+              <div style={{ fontSize: '0.88rem', color: '#78716c', fontStyle: 'italic' }}>
+                ยังไม่มีบทสรุป — กดปุ่ม “สร้างบทสรุปด้วย AI” เพื่อให้ระบบช่วยจัดทำ (ต้องเปิดใช้งานฟีเจอร์ AI ของโรงเรียน)
+              </div>
+            )}
+
+            {ai?.status === 'RUNNING' && (
+              <div style={{ padding: '1rem', background: 'white', borderRadius: '0.4rem', textAlign: 'center', color: '#92400e', fontSize: '0.9rem' }}>
+                ⏳ AI กำลังวิเคราะห์ (ใช้เวลาประมาณ 30 วินาที)... หน้าจะรีเฟรชเองอัตโนมัติ
+              </div>
+            )}
+
+            {ai?.status === 'FAILED' && (
+              <div style={{ padding: '0.75rem', background: '#fee', color: '#c33', borderRadius: '0.4rem', fontSize: '0.85rem' }}>
+                ⚠️ จัดทำไม่สำเร็จ: {ai.error || 'เกิดข้อผิดพลาด'} — กดปุ่มเพื่อลองใหม่
+              </div>
+            )}
+
+            {ai?.status === 'DONE' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {ai.scoreboard && ai.scoreboard.length > 0 && (
+                  <div style={{ background: 'white', borderRadius: '0.4rem', padding: '0.85rem 1rem', border: '1px solid #fef3c7' }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#92400e', marginBottom: '0.5rem' }}>📊 คะแนนเชิงปริมาณรายมิติ</div>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                      <thead>
+                        <tr style={{ background: '#fffbeb', borderBottom: '1px solid #fde68a' }}>
+                          <th style={{ padding: '0.4rem 0.6rem', textAlign: 'left' }}>มิติ</th>
+                          <th style={{ padding: '0.4rem 0.6rem', textAlign: 'center' }}>เป็นอยู่</th>
+                          <th style={{ padding: '0.4rem 0.6rem', textAlign: 'center' }}>เป้าหมาย</th>
+                          <th style={{ padding: '0.4rem 0.6rem', textAlign: 'center' }}>Gap</th>
+                          <th style={{ padding: '0.4rem 0.6rem', textAlign: 'center' }}>ก้าวหน้า</th>
+                          <th style={{ padding: '0.4rem 0.6rem', textAlign: 'center' }}>สถานะ</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ai.scoreboard.map((r) => (
+                          <tr key={r.dimension} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                            <td style={{ padding: '0.4rem 0.6rem', fontWeight: 600, color: '#7c3aed' }}>{r.labelTh}</td>
+                            <td style={{ padding: '0.4rem 0.6rem', textAlign: 'center' }}>{r.current ?? '—'}{r.current !== null ? '%' : ''}</td>
+                            <td style={{ padding: '0.4rem 0.6rem', textAlign: 'center' }}>{r.target ?? '—'}{r.target !== null ? '%' : ''}</td>
+                            <td style={{ padding: '0.4rem 0.6rem', textAlign: 'center', color: '#ef4444', fontWeight: 600 }}>{r.gap ?? '—'}</td>
+                            <td style={{ padding: '0.4rem 0.6rem', textAlign: 'center' }}>{r.progress ?? '—'}{r.progress !== null ? '%' : ''}</td>
+                            <td style={{ padding: '0.4rem 0.6rem', textAlign: 'center' }}><TrafficLight status={r.status} /></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {ai.executiveSummary && (
+                  <SummaryBlock title="📝 บทสรุปผู้บริหาร">
+                    <p style={{ margin: 0, color: '#1f2937', lineHeight: 1.7, fontSize: '0.92rem', whiteSpace: 'pre-wrap' }}>{ai.executiveSummary}</p>
+                  </SummaryBlock>
+                )}
+
+                {ai.quantitativeFindings && ai.quantitativeFindings.length > 0 && (
+                  <SummaryBlock title="📈 ข้อค้นพบเชิงปริมาณ">
+                    <BulletList items={ai.quantitativeFindings} />
+                  </SummaryBlock>
+                )}
+
+                {ai.qualitativeFindings && ai.qualitativeFindings.length > 0 && (
+                  <SummaryBlock title="💬 ข้อค้นพบเชิงคุณภาพ (จากการระดมสมอง)">
+                    <BulletList items={ai.qualitativeFindings} />
+                  </SummaryBlock>
+                )}
+
+                {ai.discussion && (
+                  <SummaryBlock title="🔎 อภิปรายผล">
+                    <p style={{ margin: 0, color: '#1f2937', lineHeight: 1.7, fontSize: '0.92rem', whiteSpace: 'pre-wrap' }}>{ai.discussion}</p>
+                  </SummaryBlock>
+                )}
+
+                {ai.recommendations && ai.recommendations.length > 0 && (
+                  <SummaryBlock title="✅ ข้อเสนอแนะ">
+                    <BulletList items={ai.recommendations} ordered />
+                  </SummaryBlock>
+                )}
+
+                <div style={{ fontSize: '0.72rem', color: '#a8a29e' }}>
+                  {ai.model && <span>{ai.model}</span>}
+                  {ai.promptVersion && <span> · {ai.promptVersion}</span>}
+                  {typeof ai.tokensIn === 'number' && <span> · in={ai.tokensIn} out={ai.tokensOut}</span>}
+                  {ai.finishedAt && <span> · {new Date(ai.finishedAt).toLocaleString('th-TH')}</span>}
+                  <span style={{ display: 'block', marginTop: '0.2rem', fontStyle: 'italic' }}>บทสรุปนี้สร้างโดย AI เพื่อช่วยพิจารณา — โปรดตรวจทานก่อนนำไปใช้</span>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Versions */}
           <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#333', marginBottom: '0.5rem' }}>ประวัติเวอร์ชัน</h3>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
@@ -418,5 +563,39 @@ function Stat({ label, value }: { label: string; value: string }) {
       <div style={{ fontSize: '0.78rem', color: '#666', marginBottom: '0.2rem' }}>{label}</div>
       <div style={{ fontSize: '1rem', fontWeight: 600, color: '#333' }}>{value}</div>
     </div>
+  );
+}
+
+function TrafficLight({ status }: { status: 'green' | 'yellow' | 'red' | 'none' }) {
+  const map: Record<string, { bg: string; label: string }> = {
+    green: { bg: '#10b981', label: 'เขียว' },
+    yellow: { bg: '#f59e0b', label: 'เหลือง' },
+    red: { bg: '#ef4444', label: 'แดง' },
+    none: { bg: '#d1d5db', label: '—' },
+  };
+  const c = map[status] || map.none;
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+      <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: c.bg, display: 'inline-block' }} />
+      <span style={{ fontSize: '0.75rem', color: '#57534e' }}>{c.label}</span>
+    </span>
+  );
+}
+
+function SummaryBlock({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ background: 'white', borderRadius: '0.4rem', padding: '0.85rem 1rem', border: '1px solid #fef3c7' }}>
+      <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#92400e', marginBottom: '0.5rem' }}>{title}</div>
+      {children}
+    </div>
+  );
+}
+
+function BulletList({ items, ordered }: { items: string[]; ordered?: boolean }) {
+  const style: React.CSSProperties = { margin: 0, paddingLeft: '1.25rem', color: '#1f2937', lineHeight: 1.6, fontSize: '0.88rem' };
+  return ordered ? (
+    <ol style={style}>{items.map((t, i) => <li key={i} style={{ marginBottom: '0.35rem' }}>{t}</li>)}</ol>
+  ) : (
+    <ul style={style}>{items.map((t, i) => <li key={i} style={{ marginBottom: '0.35rem' }}>{t}</li>)}</ul>
   );
 }

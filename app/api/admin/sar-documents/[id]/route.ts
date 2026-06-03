@@ -63,6 +63,7 @@ export async function GET(
       hasBodyText: !!doc.bodyText,
       bodyIceberg: (doc as any).bodyIceberg ?? null,
       hasIceberg: !!(doc as any).bodyIceberg,
+      aiSummary: (doc as any).aiSummary ?? null,
       status: doc.status,
       extractionMethod: doc.extractionMethod,
       textQualityScore: doc.textQualityScore,

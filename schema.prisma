@@ -661,6 +661,12 @@ model SarDocument {
   filePath         String?
   bodyText         String?      @db.LongText
   bodyIceberg      Json?
+  // AI-generated executive summary combining quantitative Q-Model scores with the
+  // qualitative brainstorm (Iceberg) saved on this document. Holds the whole run
+  // envelope: { status, startedAt, finishedAt, model, promptVersion, error,
+  // scoreboard, executiveSummary, quantitativeFindings, qualitativeFindings,
+  // discussion, recommendations, tokensIn, tokensOut }. See lib/jobs/run-exec-summary.ts.
+  aiSummary        Json?
   status           SarDocStatus @default(UPLOADED)
   extractionMethod String? // 'native' | 'gemini_file_api'
   textQualityScore Float?

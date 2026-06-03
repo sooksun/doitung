@@ -71,7 +71,6 @@ export default function NewSarPage() {
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [schoolInput, setSchoolInput] = useState('');
   const [academicYearId, setAcademicYearId] = useState('');
-  const [file, setFile] = useState<File | null>(null);
   const [iceberg, setIceberg] = useState<Iceberg>(EMPTY_ICEBERG);
   const [changeNote, setChangeNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -135,14 +134,14 @@ export default function NewSarPage() {
     setDraftId(ensureDraftId(resolvedSchoolId, academicYearId));
   }, [resolvedSchoolId, academicYearId]);
 
-  // Single submission: one PDF + one Iceberg, level hardcoded to BASIC_EDUCATION.
-  const hasInput = !!file || icebergHasContent(iceberg);
+  // Single submission: one Iceberg matrix, level hardcoded to BASIC_EDUCATION.
+  const hasInput = icebergHasContent(iceberg);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) return;
     if (!hasInput) {
-      toastError('กรุณาส่ง PDF หรือกรอกอย่างน้อย 1 ช่อง Iceberg');
+      toastError('กรุณากรอกอย่างน้อย 1 ช่องของ Iceberg');
       return;
     }
     if (!academicYearId) { toastError('กรุณาเลือกปีการศึกษา'); return; }
@@ -152,7 +151,6 @@ export default function NewSarPage() {
     setError('');
     try {
       const fd = new FormData();
-      if (file) fd.append('file', file);
       if (icebergHasContent(iceberg)) fd.append('bodyIceberg', JSON.stringify(iceberg));
       fd.append('schoolId', String(resolvedSchoolId));
       fd.append('academicYearId', academicYearId);
@@ -197,7 +195,7 @@ export default function NewSarPage() {
             📌 บันทึกข้อมูลการระดมสมอง
           </h1>
           <p style={{ color: '#666', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
-            ระดมสมองด้วย Sticky Notes แล้วบันทึกลงแบบ <strong>Iceberg Model</strong> 4 ชั้น × 2 ด้าน (สิ่งที่เป็นอยู่ ↔ สิ่งที่อยากให้เป็น) · แนบ <strong>ไฟล์ PDF</strong> ได้ · ไม่บังคับครบทุกช่อง · ทุกครั้งที่บันทึกจะเก็บเวอร์ชันใหม่
+            ระดมสมองด้วย Sticky Notes แล้วบันทึกลงแบบ <strong>Iceberg Model</strong> 4 ชั้น × 2 ด้าน (สิ่งที่เป็นอยู่ ↔ สิ่งที่อยากให้เป็น) · ไม่บังคับครบทุกช่อง · ทุกครั้งที่บันทึกจะเก็บเวอร์ชันใหม่
           </p>
 
           {error && <div style={{ padding: '0.75rem', background: '#fee', color: '#c33', borderRadius: '0.4rem', marginBottom: '1rem', fontSize: '0.875rem' }}>{error}</div>}
@@ -241,11 +239,6 @@ export default function NewSarPage() {
             </div>
 
             <fieldset style={{ marginBottom: '1.25rem', padding: '1rem', border: '1px solid #e5e7eb', borderRadius: '0.5rem' }}>
-              <div style={{ marginBottom: '0.75rem' }}>
-                <label style={labelStyle}>📎 ไฟล์ PDF (ถ้ามี)</label>
-                <input type="file" accept="application/pdf" onChange={(e) => setFile(e.target.files?.[0] || null)} style={{ ...inputStyle, padding: '0.5rem', cursor: 'pointer' }} />
-                {file && <div style={{ fontSize: '0.78rem', color: '#666', marginTop: '0.25rem' }}>เลือกแล้ว: {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)</div>}
-              </div>
               <IcebergInput
                 value={iceberg}
                 onChange={setIceberg}
@@ -291,7 +284,7 @@ export default function NewSarPage() {
             </fieldset>
 
             <div style={{ marginBottom: '1.5rem' }}>
-              <label style={labelStyle}>หมายเหตุการเปลี่ยนแปลง (ถ้าอัปโหลดเวอร์ชันใหม่)</label>
+              <label style={labelStyle}>หมายเหตุการเปลี่ยนแปลง (ถ้าบันทึกเวอร์ชันใหม่)</label>
               <input value={changeNote} onChange={(e) => setChangeNote(e.target.value)} style={inputStyle} placeholder="เช่น แก้คำผิดหน้า 12, เพิ่มภาคผนวก" />
             </div>
 
