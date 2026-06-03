@@ -641,6 +641,31 @@ model ThaiReflectionFile {
   @@index([reflectionId])
 }
 
+// AI-generated end-of-year summary for THAI_P1_3 evaluations.
+// One row per (scope, scopeId, academicYearId) — re-running overwrites it.
+//   scope='individual' → scopeId = targetTeacherId (a teacher across both terms)
+//   scope='school'     → scopeId = schoolId
+//   scope='project'    → scopeId = 0 (all schools; 0 sentinel keeps the unique index usable)
+// `result` holds the whole envelope: { scoreboard, reflectionDigest, ai:{...} }.
+model ThaiP13Summary {
+  id             Int       @id @default(autoincrement())
+  scope          String // 'individual' | 'school' | 'project'
+  scopeId        Int       @default(0) // targetTeacherId | schoolId | 0(project)
+  academicYearId Int
+  status         String // 'RUNNING' | 'DONE' | 'FAILED'
+  result         Json?
+  model          String?
+  promptVersion  String?
+  tokensIn       Int?
+  tokensOut      Int?
+  error          String?   @db.Text
+  createdAt      DateTime  @default(now())
+  finishedAt     DateTime?
+
+  @@unique([scope, scopeId, academicYearId])
+  @@index([academicYearId])
+}
+
 model DashboardConfig {
   id       Int  @id @default(autoincrement())
   schoolId Int?

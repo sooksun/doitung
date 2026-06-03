@@ -10,7 +10,8 @@ export type EntityType =
   | 'AiAnalysisRun'
   | 'AiAnalysisOutput'
   | 'FeatureFlag'
-  | 'School';
+  | 'School'
+  | 'ThaiP13Summary';
 
 export interface AuditEvent {
   userId: number;

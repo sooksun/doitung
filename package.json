@@ -20,6 +20,8 @@
   "dependencies": {
     "@prisma/client": "^5.19.0",
     "bcryptjs": "^2.4.3",
+    "docx": "^9.7.1",
+    "exceljs": "^4.4.0",
     "jsonwebtoken": "^9.0.2",
     "next": "^14.2.0",
     "openai": "^6.36.0",
@@ -31,7 +33,12 @@
     "zod": "^4.4.3"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["@prisma/client", "@prisma/engines", "esbuild", "prisma"]
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "prisma"
+    ]
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

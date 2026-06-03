@@ -430,6 +430,20 @@ export default function DashboardPage() {
             🔄 Reset/ยกเลิกการประเมิน
           </Link>
           <Link
+            href="/admin/thai-summary"
+            style={{
+              padding: '1rem',
+              background: 'white',
+              borderRadius: '0.5rem',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              textDecoration: 'none',
+              color: '#333',
+              textAlign: 'center'
+            }}
+          >
+            🤖 สรุปผลภาษาไทย ป.1–3 (AI)
+          </Link>
+          <Link
             href="/live-dashboard"
             style={{
               padding: '1rem',
