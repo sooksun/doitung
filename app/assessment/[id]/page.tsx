@@ -631,6 +631,23 @@ export default function AssessmentPage() {
               ) : null}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
+              {/* Print → PDF */}
+              <a
+                href={`/assessment/${sessionId}/print`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="พิมพ์แบบประเมินเป็น PDF"
+                style={{
+                  background: darkMode ? '#1e3a5f' : '#e0e7ff',
+                  color: darkMode ? '#bfdbfe' : '#3730a3',
+                  border: 'none', borderRadius: '0.5rem',
+                  padding: '0.5rem 0.9rem', cursor: 'pointer',
+                  fontSize: '0.9rem', fontWeight: 600, textDecoration: 'none',
+                  display: 'flex', alignItems: 'center', gap: '0.3rem', whiteSpace: 'nowrap',
+                }}
+              >
+                🖨️ พิมพ์ PDF
+              </a>
               {/* Dark mode toggle */}
               <button
                 onClick={() => setDarkMode(!darkMode)}
