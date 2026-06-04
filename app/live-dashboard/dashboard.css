@@ -686,3 +686,37 @@
   color: var(--de-ink-500);
   font-size: 12px;
 }
+
+/* View tabs (Q-Model live ↔ Thai ป.1–3) */
+.ld-view-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: var(--de-space-5);
+  flex-wrap: wrap;
+}
+.ld-view-tab {
+  padding: 9px 20px;
+  border-radius: var(--de-radius-pill);
+  border: 1px solid color-mix(in oklab, var(--de-ink-500) 35%, transparent);
+  background: transparent;
+  color: var(--de-ink-300);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.ld-view-tab:hover { color: var(--de-ink-100); border-color: var(--de-brand-400); }
+.ld-view-tab.active {
+  background: var(--de-brand-500);
+  border-color: var(--de-brand-500);
+  color: #fff;
+}
+
+/* Light report panel hosting the Thai dashboard inside the dark shell */
+.ld-thai-panel {
+  background: #eef2f6;
+  border-radius: var(--de-radius-xl, 16px);
+  padding: var(--de-space-6, 24px);
+  margin-bottom: var(--de-space-5);
+}

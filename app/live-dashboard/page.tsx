@@ -9,6 +9,7 @@ import Link from 'next/link';
 import LiveSpiderChart from './components/LiveSpiderChart';
 import AnimatedNumber from './components/AnimatedNumber';
 import ScopeSelector from './components/ScopeSelector';
+import ThaiP13DashboardView from '../dashboard/thai-p13/ThaiP13DashboardView';
 import './dashboard.css';
 
 const POLL_INTERVAL = 5000;
@@ -82,6 +83,7 @@ export default function LiveDashboardPage() {
   const [paused, setPaused] = useState(false);
   const [secondsAgo, setSecondsAgo] = useState(0);
   const [activeTab, setActiveTab] = useState<SectionKey>('Q-Leadership');
+  const [view, setView] = useState<'qmodel' | 'thai'>('qmodel');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const lastFetchTime = useRef<number>(Date.now());
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -146,9 +148,9 @@ export default function LiveDashboardPage() {
     }
   }, [scope, schoolId, networkId, academicYearId, termId, router]);
 
-  // Polling
+  // Polling (only for the Q-Model live view; the THAI tab is a static summary)
   useEffect(() => {
-    if (!token) return;
+    if (!token || view !== 'qmodel') return;
     fetchLiveData(token);
     if (!paused) {
       intervalRef.current = setInterval(() => fetchLiveData(token), POLL_INTERVAL);
@@ -156,7 +158,7 @@ export default function LiveDashboardPage() {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [token, paused, fetchLiveData]);
+  }, [token, paused, view, fetchLiveData]);
 
   // "seconds ago" ticker
   useEffect(() => {
@@ -311,13 +313,30 @@ export default function LiveDashboardPage() {
         {/* ===== PAGE HEAD ===== */}
         <div className="ld-page-head">
           <span className="ld-page-eyebrow">Live Dashboard</span>
-          <h1 className="ld-page-title">ภาพรวมคุณภาพโรงเรียน</h1>
+          <h1 className="ld-page-title">{view === 'thai' ? 'แบบประเมินภาษาไทย ป.1–3' : 'ภาพรวมคุณภาพโรงเรียน'}</h1>
           <p className="ld-page-sub">
-            อัปเดต {paused ? '(หยุดชั่วคราว)' : `${secondsAgo}s ที่แล้ว`} · ขอบเขต{' '}
-            <strong>{liveData?.scopeLabel || '—'}</strong>
+            {view === 'thai'
+              ? 'สรุปผลแบบประเมินตนเองการจัดการเรียนการสอน · เจาะลึกจากภาพรวมสู่รายบุคคล'
+              : <>อัปเดต {paused ? '(หยุดชั่วคราว)' : `${secondsAgo}s ที่แล้ว`} · ขอบเขต <strong>{liveData?.scopeLabel || '—'}</strong></>}
           </p>
         </div>
 
+        {/* ===== VIEW TABS ===== */}
+        <div className="ld-view-tabs" role="tablist" aria-label="เลือกแบบประเมิน">
+          <button role="tab" aria-selected={view === 'qmodel'} className={`ld-view-tab${view === 'qmodel' ? ' active' : ''}`} onClick={() => setView('qmodel')}>
+            Q-Model (เรียลไทม์)
+          </button>
+          <button role="tab" aria-selected={view === 'thai'} className={`ld-view-tab${view === 'thai' ? ' active' : ''}`} onClick={() => setView('thai')}>
+            ภาษาไทย ป.1–3
+          </button>
+        </div>
+
+        {view === 'thai' ? (
+          <div className="ld-thai-panel">
+            <ThaiP13DashboardView />
+          </div>
+        ) : (
+        <>
         {/* ===== FILTER BAR ===== */}
         <div className="ld-filterbar" role="toolbar" aria-label="ตัวกรอง">
           <ScopeSelector
@@ -533,9 +552,13 @@ export default function LiveDashboardPage() {
             </aside>
           </div>
         )}
+        </>
+        )}
 
         <footer className="ld-footer">
-          DE Live Dashboard · Q-Model 4 มิติ · ปรับข้อมูลทุก {POLL_INTERVAL / 1000} วินาที
+          {view === 'thai'
+            ? 'DE Dashboard · แบบประเมินภาษาไทย ป.1–3 · ครู (self) · ผอ. (director) · ค่าเป้าหมาย'
+            : `DE Live Dashboard · Q-Model 4 มิติ · ปรับข้อมูลทุก ${POLL_INTERVAL / 1000} วินาที`}
         </footer>
       </main>
     </div>
