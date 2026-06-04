@@ -31,11 +31,9 @@ export interface LogoProps {
   sub?: boolean;
 }
 
-export function Logo({ size = 36, markSize, light = false, showWord = true, sub = true }: LogoProps) {
-  const ms = markSize || size;
+export function Logo({ size = 36, light = false, showWord = true, sub = true }: LogoProps) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-      <LogoMark size={ms} />
       {showWord ? (
         <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.05 }}>
           <span

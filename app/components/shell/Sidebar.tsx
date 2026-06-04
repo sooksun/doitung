@@ -4,7 +4,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Avatar, DeIcon, LogoMark } from '@/app/components/de';
+import { Avatar, DeIcon } from '@/app/components/de';
 import { NAV_MAIN, NAV_ADMIN, filterNavByRoles, type NavItemDef } from './nav-config';
 import type { Theme } from '@/app/components/ui/ThemeProvider';
 
@@ -86,12 +86,9 @@ export function Sidebar({ activeId, collapsed, setCollapsed, mobileOpen, setMobi
         {/* Logo zone */}
         <div style={{ height: 'var(--header-h)', display: 'flex', alignItems: 'center', justifyContent: showCollapsed ? 'center' : 'space-between', padding: showCollapsed ? 0 : '0 18px', borderBottom: '1px solid rgba(255,255,255,0.12)', flexShrink: 0 }}>
           {showCollapsed ? (
-            <LogoMark size={60} />
+            <span style={{ fontSize: 15, fontWeight: 700, color: '#fff', letterSpacing: '0.02em' }}>TSQMn</span>
           ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-              <LogoMark size={64} />
-              <span style={{ fontSize: 19, fontWeight: 700, color: '#fff', letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>TSQMn แม่ฟ้าหลวง</span>
-            </div>
+            <span style={{ fontSize: 19, fontWeight: 700, color: '#fff', letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>TSQMn แม่ฟ้าหลวง</span>
           )}
           {!showCollapsed ? (
             <button
