@@ -51,11 +51,17 @@ export async function POST(request: NextRequest) {
 
     // Authorization: ADMIN may create for any school.
     // SCHOOL_LEADER or TEACHER must be bound (via Teacher record) to the target school.
+    // A plain TEACHER (not a SCHOOL_LEADER) may only create their OWN self-assessment
+    // — they cannot target another teacher (enforces the locked picker server-side).
     const isAdmin = hasRole(me, 'ADMIN');
+    const isLeader = hasRole(me, 'SCHOOL_LEADER');
     if (!isAdmin) {
       const myTeacher = await prisma.teacher.findUnique({ where: { userId: me.id } });
       if (!myTeacher || myTeacher.schoolId !== sId) {
         return errorResponse('คุณสร้างการประเมินได้เฉพาะโรงเรียนของตนเองเท่านั้น', 403);
+      }
+      if (!isLeader && myTeacher.id !== tId) {
+        return errorResponse('ครูสามารถสร้างแบบประเมินได้เฉพาะของตนเองเท่านั้น', 403);
       }
     }
 

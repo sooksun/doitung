@@ -51,6 +51,7 @@ export default function NewEvaluationPage() {
   const [terms, setTerms] = useState<Term[]>([]);
   const [boundSchool, setBoundSchool] = useState<{ id: number; code: string | null; nameTh: string } | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isLeader, setIsLeader] = useState(false);
 
   const [formData, setFormData] = useState({
     instrumentId: '',
@@ -69,6 +70,12 @@ export default function NewEvaluationPage() {
 
   const selectedInstrument = instruments.find((i) => String(i.id) === formData.instrumentId);
   const isThaiPair = selectedInstrument?.type === 'THAI_P1_3';
+
+  // A plain teacher (not ADMIN / SCHOOL_LEADER) may only create their OWN
+  // self-assessment, so the "ครูที่ถูกประเมิน" picker is locked to themselves.
+  // ADMIN and SCHOOL_LEADER (the director) still pick any teacher in the school.
+  const lockTeacher = isThaiPair && !isAdmin && !isLeader && currentUserId != null;
+  const myTeacher = teachers.find((t) => t.userId === currentUserId);
 
   // Tracks the most recent fetchInitialData run + terms-fetch tag so unmount
   // or rapid academic-year switching can drop stale responses.
@@ -172,6 +179,7 @@ export default function NewEvaluationPage() {
           setCurrentUserId(meData.data.id);
           const roles = Array.isArray(meData.data.roles) ? meData.data.roles : [];
           setIsAdmin(roles.includes('ADMIN'));
+          setIsLeader(roles.includes('SCHOOL_LEADER'));
           if (meData.data.school) {
             setBoundSchool(meData.data.school);
             // Auto-bind schoolId for users who have a Teacher record
@@ -432,20 +440,37 @@ export default function NewEvaluationPage() {
                   <label style={{ display: 'block', marginBottom: '0.5rem', color: '#333', fontWeight: 500 }}>
                     ครูที่ถูกประเมิน *
                   </label>
-                  <select
-                    value={targetTeacherId}
-                    onChange={(e) => setTargetTeacherId(e.target.value)}
-                    required
-                    disabled={loadingPickers || teachers.length === 0}
-                    style={{ width: '100%', padding: '0.75rem', border: '1px solid #ddd', borderRadius: '0.5rem', fontSize: '1rem', boxSizing: 'border-box' }}
-                  >
-                    <option value="">
-                      {loadingPickers ? 'กำลังโหลด...' : teachers.length === 0 ? 'ไม่พบครูในโรงเรียนนี้' : 'เลือกครูที่ถูกประเมิน'}
-                    </option>
-                    {teachers.map((t) => (
-                      <option key={t.teacherId} value={t.teacherId}>{t.name}</option>
-                    ))}
-                  </select>
+                  {lockTeacher ? (
+                    <div
+                      style={{
+                        width: '100%', padding: '0.75rem', background: '#f5f3ff',
+                        border: '1px solid #c4b5fd', borderRadius: '0.5rem', color: '#4c1d95',
+                        fontSize: '1rem', fontWeight: 500, boxSizing: 'border-box',
+                        display: 'flex', alignItems: 'center', gap: '0.5rem',
+                      }}
+                    >
+                      <span>🔒</span>
+                      <span>{loadingPickers && !myTeacher ? 'กำลังโหลด...' : (myTeacher?.name || 'ไม่พบข้อมูลครูของคุณ')}</span>
+                      <span style={{ marginLeft: 'auto', fontSize: '0.8rem', color: '#7c3aed', fontWeight: 400 }}>
+                        ตัวคุณเอง
+                      </span>
+                    </div>
+                  ) : (
+                    <select
+                      value={targetTeacherId}
+                      onChange={(e) => setTargetTeacherId(e.target.value)}
+                      required
+                      disabled={loadingPickers || teachers.length === 0}
+                      style={{ width: '100%', padding: '0.75rem', border: '1px solid #ddd', borderRadius: '0.5rem', fontSize: '1rem', boxSizing: 'border-box' }}
+                    >
+                      <option value="">
+                        {loadingPickers ? 'กำลังโหลด...' : teachers.length === 0 ? 'ไม่พบครูในโรงเรียนนี้' : 'เลือกครูที่ถูกประเมิน'}
+                      </option>
+                      {teachers.map((t) => (
+                        <option key={t.teacherId} value={t.teacherId}>{t.name}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 <div>
