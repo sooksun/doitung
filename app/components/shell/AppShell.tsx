@@ -53,6 +53,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     roleLabel: roleLabel(roles),
     initials: initialsFrom(raw?.name, raw?.email),
     isAdmin: isAdminRoles(roles),
+    roles,
   };
   const headerUser = {
     name: raw?.name || 'ผู้ใช้งาน',

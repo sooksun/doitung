@@ -10,6 +10,8 @@ export interface NavItemDef {
   label: string;
   icon: DeIconName;
   href: string;
+  /** If set, the item is shown only to users holding one of these roles. Undefined = everyone. */
+  roles?: string[];
 }
 
 export const NAV_MAIN: NavItemDef[] = [
@@ -17,7 +19,9 @@ export const NAV_MAIN: NavItemDef[] = [
   { id: 'live-dashboard', label: 'Live Dashboard', icon: 'activity', href: '/live-dashboard' },
   { id: 'evaluations', label: 'รายการประเมิน', icon: 'clipboard', href: '/evaluations' },
   { id: 'reports', label: 'รายงาน', icon: 'fileText', href: '/reports' },
-  { id: 'instruments', label: 'เครื่องมือประเมิน', icon: 'tool', href: '/instruments' },
+  // สรุปผล/นิเทศ ป.1–3 ด้วย AI (3 ระดับ + บทนิเทศทีมหนุนเสริม). Access: ADMIN (ทั้งหมด) +
+  // SCHOOL_LEADER (เฉพาะโรงเรียนตน) — ตรงกับ lib/thai-summary-access.ts.
+  { id: 'thai-summary', label: 'สรุปผล/นิเทศ (AI)', icon: 'sparkles', href: '/admin/thai-summary', roles: ['ADMIN', 'SCHOOL_LEADER'] },
 ];
 
 export const NAV_ADMIN: NavItemDef[] = [
@@ -30,6 +34,11 @@ export const NAV_ADMIN: NavItemDef[] = [
 ];
 
 const ALL_NAV = [...NAV_MAIN, ...NAV_ADMIN];
+
+/** Filter nav items by the caller's roles: items with no `roles` are shown to everyone. */
+export function filterNavByRoles(items: NavItemDef[], roles: string[]): NavItemDef[] {
+  return items.filter((it) => !it.roles || it.roles.some((r) => roles.includes(r)));
+}
 
 /** Longest-prefix match: /admin/sar/123 → admin-sar, /evaluations/new → evaluations. */
 export function getActiveNavId(pathname: string): string | null {

@@ -5,7 +5,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Avatar, DeIcon, LogoMark } from '@/app/components/de';
-import { NAV_MAIN, NAV_ADMIN, type NavItemDef } from './nav-config';
+import { NAV_MAIN, NAV_ADMIN, filterNavByRoles, type NavItemDef } from './nav-config';
 import type { Theme } from '@/app/components/ui/ThemeProvider';
 
 interface SidebarUser {
@@ -13,6 +13,7 @@ interface SidebarUser {
   roleLabel: string;
   initials: string;
   isAdmin: boolean;
+  roles: string[];
 }
 
 interface SidebarProps {
@@ -115,7 +116,7 @@ export function Sidebar({ activeId, collapsed, setCollapsed, mobileOpen, setMobi
               <DeIcon name="menu" size={20} />
             </button>
           ) : null}
-          {NAV_MAIN.map((it) => (
+          {filterNavByRoles(NAV_MAIN, user.roles).map((it) => (
             <NavItem key={it.id} item={it} active={activeId === it.id} collapsed={showCollapsed} onClick={() => go(it.href)} />
           ))}
           {user.isAdmin ? (
