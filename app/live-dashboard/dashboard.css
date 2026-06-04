@@ -713,10 +713,7 @@
   color: #fff;
 }
 
-/* Light report panel hosting the Thai dashboard inside the dark shell */
+/* Thai dashboard host — transparent so its dark-themed cards sit on the shell */
 .ld-thai-panel {
-  background: #eef2f6;
-  border-radius: var(--de-radius-xl, 16px);
-  padding: var(--de-space-6, 24px);
   margin-bottom: var(--de-space-5);
 }

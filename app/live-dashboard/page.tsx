@@ -333,7 +333,7 @@ export default function LiveDashboardPage() {
 
         {view === 'thai' ? (
           <div className="ld-thai-panel">
-            <ThaiP13DashboardView />
+            <ThaiP13DashboardView dark />
           </div>
         ) : (
         <>
