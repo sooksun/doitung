@@ -1,12 +1,16 @@
 // app/dashboard/page.tsx
-// Dashboard page - Overview and statistics with real-time polling (5s)
+// Dashboard page - Overview and statistics with real-time polling (5s).
+// UI redesigned to the TSQMn DE kit; data fetching / polling / auth unchanged.
 
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import SpiderChart, { SpiderChartDataPoint } from './components/SpiderChart';
+import { type SpiderChartDataPoint } from './components/SpiderChart';
+import {
+  PageHeader, StatCard, Card, SpiderChart, Donut, ProgressBar, Button, DeIcon,
+  trafficColor, type DeIconName, type SpiderDatum,
+} from '@/app/components/de';
 
 const POLL_INTERVAL = 5000;
 
@@ -31,6 +35,12 @@ interface QModelProgress {
     status: 'green' | 'yellow' | 'red';
   }>;
 }
+
+const KPI_ICONS: DeIconName[] = ['school', 'checkCircle', 'clock', 'alert', 'target', 'chart'];
+const statusAccent = (s?: string): 'purple' | 'blue' | 'success' | 'warning' =>
+  s === 'green' ? 'success' : s === 'yellow' ? 'warning' : s === 'red' ? 'warning' : 'purple';
+const barTone = (s: string): 'success' | 'warning' | 'danger' | 'brand' =>
+  s === 'green' ? 'success' : s === 'yellow' ? 'warning' : s === 'red' ? 'danger' : 'brand';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -115,373 +125,112 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div style={{ padding: '2rem', textAlign: 'center' }}>
-        <p>กำลังโหลดข้อมูล...</p>
+      <div style={{ display: 'grid', placeItems: 'center', minHeight: '60vh', gap: 16 }}>
+        <span style={{ width: 34, height: 34, border: '3px solid var(--de-border-strong)', borderTopColor: 'var(--de-primary)', borderRadius: '50%', animation: 'de-spin 0.7s linear infinite' }} />
+        <p style={{ color: 'var(--de-text-secondary)' }}>กำลังโหลดข้อมูล…</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div style={{ padding: '2rem', textAlign: 'center', color: 'red' }}>
-        <p>{error}</p>
-      </div>
+      <Card style={{ padding: 32, textAlign: 'center', maxWidth: 460, margin: '40px auto' }}>
+        <div style={{ display: 'grid', placeItems: 'center', color: 'var(--de-danger)', marginBottom: 12 }}>
+          <DeIcon name="alert" size={36} />
+        </div>
+        <p style={{ color: 'var(--de-text-secondary)' }}>{error}</p>
+        <div style={{ marginTop: 18 }}>
+          <Button variant="primary" icon="refresh" onClick={() => token && fetchDashboardData(token, true)}>ลองอีกครั้ง</Button>
+        </div>
+      </Card>
     );
   }
 
+  const dims = qModel?.dimensionProgress ?? [];
+  const spider: SpiderDatum[] = spiderData.map((p) => ({ axis: p.groupName, current: p.currentState || 0, target: p.targetDesiredState || 0 }));
+  const cnt = (s: string) => dims.filter((d) => d.status === s).length;
+  const breakdown: [string, string, number][] = [
+    ['ดีเยี่ยม', 'green', cnt('green')],
+    ['พอใช้', 'yellow', cnt('yellow')],
+    ['ต้องปรับปรุง', 'red', cnt('red')],
+  ];
+
   return (
-    <div style={{ minHeight: '100vh', padding: '2rem', background: '#f5f5f5' }}>
-      <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-        {/* Header */}
-        <div style={{ marginBottom: '2rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-            <div>
-              <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#333', marginBottom: '0.5rem' }}>
-                📊 Dashboard
-              </h1>
-              <p style={{ color: '#666' }}>ภาพรวมและสถิติระบบ — อัปเดตแบบเรียลไทม์</p>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-              {/* LIVE indicator */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <span
-                  style={{
-                    width: '10px',
-                    height: '10px',
-                    borderRadius: '50%',
-                    background: paused ? '#fbbf24' : '#ef4444',
-                    boxShadow: paused ? 'none' : '0 0 8px #ef4444',
-                    display: 'inline-block',
-                    animation: paused ? 'none' : 'pulse 1.5s infinite',
-                  }}
-                />
-                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: paused ? '#fbbf24' : '#ef4444' }}>
-                  {paused ? 'PAUSED' : 'LIVE'}
-                </span>
-              </div>
-              <span style={{ fontSize: '0.8rem', color: '#666' }}>
-                อัปเดต {secondsAgo}s ที่แล้ว
-              </span>
-              <button
-                onClick={() => setPaused((p) => !p)}
-                style={{
-                  padding: '0.4rem 0.75rem',
-                  background: '#f3f4f6',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '0.4rem',
-                  color: '#333',
-                  cursor: 'pointer',
-                  fontSize: '0.85rem',
-                }}
-              >
-                {paused ? '▶ Resume' : '⏸ Pause'}
-              </button>
-              <Link
-                href="/"
-                style={{
-                  padding: '0.5rem 1rem',
-                  background: '#667eea',
-                  color: 'white',
-                  borderRadius: '0.5rem',
-                  textDecoration: 'none',
-                }}
-              >
-                หน้าหลัก
-              </Link>
-              <button
-                onClick={() => {
-                  localStorage.removeItem('token');
-                  router.push('/login');
-                }}
-                style={{
-                  padding: '0.5rem 1rem',
-                  background: '#ef4444',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '0.5rem',
-                  cursor: 'pointer',
-                }}
-              >
-                ออกจากระบบ
-              </button>
-            </div>
-          </div>
+    <div>
+      <PageHeader
+        title="ภาพรวมคุณภาพการศึกษา"
+        subtitle="สรุปผลการประเมินคุณภาพการศึกษาแบบเรียลไทม์"
+        actions={
+          <>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 500, color: paused ? 'var(--de-text-tertiary)' : 'var(--de-success)', background: paused ? 'var(--de-bg-subtle)' : 'var(--de-success-soft)', padding: '6px 12px', borderRadius: 999 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: paused ? 'var(--de-text-tertiary)' : 'var(--de-success)', animation: paused ? 'none' : 'de-pulse 1.5s infinite' }} />
+              {paused ? 'หยุดชั่วคราว' : 'กำลังถ่ายทอดสด'}
+            </span>
+            <span style={{ fontSize: 13, color: 'var(--de-text-tertiary)' }}>อัปเดต {secondsAgo}s ที่แล้ว</span>
+            <Button variant={paused ? 'primary' : 'outline'} icon={paused ? 'play' : 'pause'} onClick={() => setPaused((p) => !p)}>
+              {paused ? 'เล่นต่อ' : 'หยุดชั่วคราว'}
+            </Button>
+          </>
+        }
+      />
+
+      {summary && summary.kpiCards?.length ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 18, marginBottom: 24 }}>
+          {summary.kpiCards.map((k, i) => (
+            <StatCard key={i} icon={KPI_ICONS[i % KPI_ICONS.length]} value={`${k.value}${k.unit || ''}`} label={k.label} accent={statusAccent(k.status)} delay={i * 60} />
+          ))}
         </div>
+      ) : null}
 
-        {/* KPI Cards */}
-        {summary && (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-            gap: '1.5rem',
-            marginBottom: '2rem'
-          }}>
-            {summary.kpiCards.map((kpi, idx) => (
-              <div
-                key={idx}
-                style={{
-                  background: 'white',
-                  padding: '1.5rem',
-                  borderRadius: '0.5rem',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                }}
-              >
-                <div style={{ fontSize: '0.9rem', color: '#666', marginBottom: '0.5rem' }}>
-                  {kpi.label}
-                </div>
-                <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#333' }}>
-                  {kpi.value}{kpi.unit || ''}
-                </div>
-                {kpi.status && (
-                  <div style={{
-                    marginTop: '0.5rem',
-                    width: '100%',
-                    height: '4px',
-                    background: kpi.status === 'green' ? '#10b981' : kpi.status === 'yellow' ? '#f59e0b' : '#ef4444',
-                    borderRadius: '2px'
-                  }} />
-                )}
-              </div>
-            ))}
+      <div className="de-dash-2col" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.5fr) minmax(0,1fr)', gap: 18, marginBottom: 24 }}>
+        <Card style={{ padding: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
+            <h2 style={{ fontSize: 18, fontWeight: 600 }}>คุณภาพรายมิติ (Q-Model)</h2>
+            <div style={{ display: 'flex', gap: 14, fontSize: 13 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 12, height: 12, borderRadius: 3, background: 'var(--de-purple-400)' }} />สภาพที่เป็นอยู่</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 12, height: 3, background: 'var(--de-blue-400)' }} />เป้าหมาย</span>
+            </div>
           </div>
-        )}
-
-        {/* Spider Graph */}
-        {spiderData.length > 0 && (
-          <div style={{ marginBottom: '2rem' }}>
-            <SpiderChart data={spiderData} height={450} />
-          </div>
-        )}
-
-        {/* Q-Model Progress */}
-        {qModel && (
-          <div style={{
-            background: 'white',
-            padding: '2rem',
-            borderRadius: '0.5rem',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-            marginBottom: '2rem'
-          }}>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1.5rem', color: '#333' }}>
-              📈 Q-Model Progress
-            </h2>
-            <div style={{ display: 'grid', gap: '1rem' }}>
-              {qModel.dimensionProgress.map((dim, idx) => (
-                <div key={idx}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                    <span style={{ fontWeight: '500', color: '#333' }}>{dim.labelTh}</span>
-                    <span style={{ color: '#666' }}>
-                      {dim.current} / {dim.target} ({dim.progress}%)
-                    </span>
+          <div className="de-spider-row" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,320px) 1fr', gap: 24, alignItems: 'center' }}>
+            <div style={{ display: 'grid', placeItems: 'center' }}>
+              {spider.length ? (
+                <SpiderChart data={spider} size={320} max={5} />
+              ) : (
+                <div style={{ color: 'var(--de-text-tertiary)', fontSize: 14, padding: 40 }}>ยังไม่มีข้อมูลกราฟ</div>
+              )}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {dims.map((d, i) => (
+                <div key={i}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5, marginBottom: 5, gap: 8 }}>
+                    <span style={{ color: 'var(--de-text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{d.labelTh}</span>
+                    <span style={{ fontWeight: 600, flexShrink: 0 }}>{d.current.toFixed(1)}<span style={{ color: 'var(--de-text-tertiary)', fontWeight: 400 }}> / {d.target.toFixed(1)}</span></span>
                   </div>
-                  <div style={{
-                    width: '100%',
-                    height: '24px',
-                    background: '#e5e7eb',
-                    borderRadius: '12px',
-                    overflow: 'hidden',
-                    position: 'relative'
-                  }}>
-                    <div
-                      style={{
-                        width: `${Math.min(dim.progress, 100)}%`,
-                        height: '100%',
-                        background: dim.status === 'green' ? '#10b981' : dim.status === 'yellow' ? '#f59e0b' : '#ef4444',
-                        transition: 'width 0.3s'
-                      }}
-                    />
-                  </div>
+                  <ProgressBar value={d.progress} tone={barTone(d.status)} height={7} />
                 </div>
               ))}
             </div>
           </div>
-        )}
+        </Card>
 
-        {/* Quick Actions */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: '1rem'
-        }}>
-          <Link
-            href="/instruments"
-            style={{
-              padding: '1rem',
-              background: 'white',
-              borderRadius: '0.5rem',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-              textDecoration: 'none',
-              color: '#333',
-              textAlign: 'center'
-            }}
-          >
-            📋 เครื่องมือประเมิน
-          </Link>
-          <Link
-            href="/evaluations"
-            style={{
-              padding: '1rem',
-              background: 'white',
-              borderRadius: '0.5rem',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-              textDecoration: 'none',
-              color: '#333',
-              textAlign: 'center'
-            }}
-          >
-            ✅ การประเมิน
-          </Link>
-          <Link
-            href="/reports"
-            style={{
-              padding: '1rem',
-              background: 'white',
-              borderRadius: '0.5rem',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-              textDecoration: 'none',
-              color: '#333',
-              textAlign: 'center'
-            }}
-          >
-            📈 รายงาน
-          </Link>
-          <Link
-            href="/users"
-            style={{
-              padding: '1rem',
-              background: 'white',
-              borderRadius: '0.5rem',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-              textDecoration: 'none',
-              color: '#333',
-              textAlign: 'center'
-            }}
-          >
-            👥 จัดการผู้ใช้
-          </Link>
-          <Link
-            href="/admin/sar"
-            style={{
-              padding: '1rem',
-              background: 'white',
-              borderRadius: '0.5rem',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-              textDecoration: 'none',
-              color: '#333',
-              textAlign: 'center'
-            }}
-          >
-            📚 คลังข้อมูลการระดมสมอง
-          </Link>
-          <Link
-            href="/admin/settings/feature-flags"
-            style={{
-              padding: '1rem',
-              background: 'white',
-              borderRadius: '0.5rem',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-              textDecoration: 'none',
-              color: '#333',
-              textAlign: 'center'
-            }}
-          >
-            🚦 Feature Flags
-          </Link>
-          <Link
-            href="/admin/schools"
-            style={{
-              padding: '1rem',
-              background: 'white',
-              borderRadius: '0.5rem',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-              textDecoration: 'none',
-              color: '#333',
-              textAlign: 'center'
-            }}
-          >
-            🏫 ตั้งค่าโรงเรียน
-          </Link>
-          <Link
-            href="/admin/networks"
-            style={{
-              padding: '1rem',
-              background: 'white',
-              borderRadius: '0.5rem',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-              textDecoration: 'none',
-              color: '#333',
-              textAlign: 'center'
-            }}
-          >
-            🌐 จัดการกลุ่มโรงเรียน
-          </Link>
-          <Link
-            href="/admin/evaluations"
-            style={{
-              padding: '1rem',
-              background: 'white',
-              borderRadius: '0.5rem',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-              textDecoration: 'none',
-              color: '#333',
-              textAlign: 'center'
-            }}
-          >
-            🔄 Reset/ยกเลิกการประเมิน
-          </Link>
-          <Link
-            href="/admin/thai-summary"
-            style={{
-              padding: '1rem',
-              background: 'white',
-              borderRadius: '0.5rem',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-              textDecoration: 'none',
-              color: '#333',
-              textAlign: 'center'
-            }}
-          >
-            🤖 สรุปผลภาษาไทย ป.1–3 (AI)
-          </Link>
-          <Link
-            href="/dashboard/thai-p13"
-            style={{
-              padding: '1rem',
-              background: 'white',
-              borderRadius: '0.5rem',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-              textDecoration: 'none',
-              color: '#333',
-              textAlign: 'center'
-            }}
-          >
-            📊 แดชบอร์ดภาษาไทย ป.1–3
-          </Link>
-          <Link
-            href="/live-dashboard"
-            style={{
-              padding: '1rem',
-              background: 'linear-gradient(135deg, #1e1b4b, #312e81)',
-              borderRadius: '0.5rem',
-              boxShadow: '0 2px 8px rgba(129,140,248,0.4)',
-              textDecoration: 'none',
-              color: 'white',
-              textAlign: 'center',
-              fontWeight: 600,
-              border: '1px solid rgba(129,140,248,0.5)',
-            }}
-          >
-            📡 Live Dashboard
-          </Link>
-        </div>
+        <Card style={{ padding: 24, display: 'flex', flexDirection: 'column' }}>
+          <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>ดัชนีคุณภาพรวม</h2>
+          <div style={{ display: 'grid', placeItems: 'center', padding: '8px 0 16px' }}>
+            <Donut value={Math.round(summary?.overallQualityIndex ?? 0)} label={`ประเมินครบ ${Math.round(summary?.completionRate ?? 0)}%`} size={168} stroke={16} color="var(--de-purple-500)" />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginTop: 'auto' }}>
+            {breakdown.map(([l, s, n]) => (
+              <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--de-bg-subtle)', borderRadius: 'var(--r-md)' }}>
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: trafficColor(s) }} />
+                <div>
+                  <div style={{ fontSize: 19, fontWeight: 700 }}>{n}</div>
+                  <div style={{ fontSize: 12, color: 'var(--de-text-secondary)' }}>{l}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
       </div>
-
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.5; transform: scale(1.2); }
-        }
-      `}</style>
     </div>
   );
 }

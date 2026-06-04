@@ -180,3 +180,259 @@ a {
   }
 }
 
+/* =====================================================================
+   TSQMn แม่ฟ้าหลวง — Redesign Tokens (Purple / Blue / White)
+   Source of truth: TSQMn prototype (PRD v1.0). Light + Dark.
+   These are ADDITIVE — the legacy --de-brand/ink/score tokens above are
+   kept so un-migrated pages keep working. New components reference these.
+   ===================================================================== */
+:root {
+  /* Primary — Purple */
+  --de-purple-50:  #F5F3FF;
+  --de-purple-100: #EDE9FE;
+  --de-purple-200: #DDD6FE;
+  --de-purple-300: #C4B5FD;
+  --de-purple-400: #A78BFA;
+  --de-purple-500: #8B5CF6;
+  --de-purple-600: #7C3AED;
+  --de-purple-700: #6D28D9;
+  --de-purple-800: #5B21B6;
+  --de-purple-900: #4C1D95;
+
+  /* Secondary — Blue */
+  --de-blue-50:  #EFF6FF;
+  --de-blue-100: #DBEAFE;
+  --de-blue-200: #BFDBFE;
+  --de-blue-300: #93C5FD;
+  --de-blue-400: #60A5FA;
+  --de-blue-500: #3B82F6;
+  --de-blue-600: #2563EB;
+  --de-blue-700: #1D4ED8;
+  --de-blue-800: #1E40AF;
+  --de-blue-900: #1E3A8A;
+
+  /* Neutral — Slate */
+  --de-slate-0:   #FFFFFF;
+  --de-slate-50:  #F8FAFC;
+  --de-slate-100: #F1F5F9;
+  --de-slate-200: #E2E8F0;
+  --de-slate-300: #CBD5E1;
+  --de-slate-400: #94A3B8;
+  --de-slate-500: #64748B;
+  --de-slate-600: #475569;
+  --de-slate-700: #334155;
+  --de-slate-800: #1E293B;
+  --de-slate-900: #0F172A;
+  --de-slate-950: #020617;
+
+  /* Semantic */
+  --de-success: #10B981;
+  --de-warning: #F59E0B;
+  --de-danger:  #EF4444;
+  --de-info:    #3B82F6;
+  --de-success-soft: #ECFDF5;
+  --de-warning-soft: #FFFBEB;
+  --de-danger-soft:  #FEF2F2;
+
+  /* Semantic aliases — LIGHT */
+  --de-bg-canvas:   #F8FAFC;
+  --de-bg-surface:  #FFFFFF;
+  --de-bg-elevated: #FFFFFF;
+  --de-bg-subtle:   #F1F5F9;
+  --de-bg-sidebar-active:  rgba(255,255,255,0.18);
+  --de-bg-sidebar-hover:   rgba(255,255,255,0.10);
+  --de-text-primary:   #0F172A;
+  --de-text-secondary: #64748B;
+  --de-text-tertiary:  #94A3B8;
+  --de-text-sidebar:        rgba(255,255,255,0.78);
+  --de-text-sidebar-active: #FFFFFF;
+  --de-border:       #E2E8F0;
+  --de-border-strong:#CBD5E1;
+  --de-border-focus: #8B5CF6;
+  --de-ring:         rgba(139,92,246,0.20);
+
+  /* Brand tokens that respond to theme */
+  --de-primary:        #7C3AED;
+  --de-primary-hover:  #6D28D9;
+  --de-primary-soft:   #F5F3FF;
+  --de-accent:         #3B82F6;
+  --de-accent-soft:    #EFF6FF;
+  --de-on-primary:     #FFFFFF;
+
+  /* Gradients (overrides legacy --de-gradient-brand with the new brand ramp) */
+  --de-gradient-brand:   linear-gradient(135deg, #7C3AED 0%, #3B82F6 100%);
+  --de-gradient-hero:    linear-gradient(135deg, #4C1D95 0%, #1E3A8A 60%, #1D4ED8 100%);
+  --de-gradient-card:    linear-gradient(135deg, rgba(139,92,246,0.08) 0%, rgba(59,130,246,0.08) 100%);
+  --de-gradient-sidebar: linear-gradient(180deg, #4C1D95 0%, #1E3A8A 100%);
+
+  /* Typography — bound to next/font CSS variables (loaded in layout.tsx) */
+  --de-font-sans: var(--font-kanit), 'Kanit', 'Noto Sans Thai', system-ui, -apple-system, sans-serif;
+  --de-font-mono: var(--font-jetbrains), 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Type scale */
+  --t-display-2xl: 72px;
+  --t-display-xl:  48px;
+  --t-display-lg:  36px;
+  --t-h1: 30px;
+  --t-h2: 24px;
+  --t-h3: 20px;
+  --t-body-lg: 18px;
+  --t-body:    16px;
+  --t-body-sm: 14px;
+  --t-label:   14px;
+  --t-caption: 12px;
+
+  /* Spacing (short scale used by new components) */
+  --sp-xs: 4px; --sp-sm: 8px; --sp-md: 16px; --sp-lg: 24px;
+  --sp-xl: 32px; --sp-2xl: 48px; --sp-3xl: 64px; --sp-4xl: 96px;
+
+  /* Radius */
+  --r-sm: 4px; --r-md: 8px; --r-lg: 12px; --r-xl: 16px; --r-full: 9999px;
+
+  /* Shadow */
+  --sh-xs: 0 1px 2px rgba(15,23,42,0.05);
+  --sh-sm: 0 1px 3px rgba(15,23,42,0.10), 0 1px 2px rgba(15,23,42,0.06);
+  --sh-md: 0 4px 6px rgba(15,23,42,0.07), 0 2px 4px rgba(15,23,42,0.06);
+  --sh-lg: 0 10px 15px rgba(15,23,42,0.10), 0 4px 6px rgba(15,23,42,0.05);
+  --sh-xl: 0 20px 25px rgba(15,23,42,0.10), 0 8px 10px rgba(15,23,42,0.04);
+  --sh-2xl: 0 32px 64px rgba(15,23,42,0.18);
+
+  /* Motion */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast: 150ms; --dur-normal: 200ms; --dur-slow: 300ms;
+
+  /* Sidebar / header dims */
+  --sidebar-w: 252px;
+  --sidebar-w-collapsed: 88px;
+  --header-h: 96px;
+}
+
+/* ---------------- DARK MODE (correct [data-theme] selector) ---------------- */
+:root[data-theme="dark"] {
+  --de-bg-canvas:   #020617;
+  --de-bg-surface:  #0F172A;
+  --de-bg-elevated: #1E293B;
+  --de-bg-subtle:   #1E293B;
+  --de-text-primary:   #F8FAFC;
+  --de-text-secondary: #94A3B8;
+  --de-text-tertiary:  #64748B;
+  --de-border:       #334155;
+  --de-border-strong:#475569;
+  --de-border-focus: #A78BFA;
+  --de-ring:         rgba(167,139,250,0.25);
+
+  --de-primary:       #A78BFA;
+  --de-primary-hover: #C4B5FD;
+  --de-primary-soft:  rgba(139,92,246,0.14);
+  --de-accent:        #60A5FA;
+  --de-accent-soft:   rgba(59,130,246,0.14);
+  --de-on-primary:    #1E1338;
+
+  --de-success-soft: rgba(16,185,129,0.14);
+  --de-warning-soft: rgba(245,158,11,0.14);
+  --de-danger-soft:  rgba(239,68,68,0.14);
+
+  /* Sidebar: near-black with purple anchor */
+  --de-gradient-sidebar: linear-gradient(180deg, #0B1020 0%, #020617 100%);
+
+  --sh-xs: 0 1px 2px rgba(0,0,0,0.4);
+  --sh-sm: 0 1px 3px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);
+  --sh-md: 0 4px 6px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.4);
+  --sh-lg: 0 10px 15px rgba(0,0,0,0.55), 0 4px 6px rgba(0,0,0,0.4);
+  --sh-xl: 0 20px 25px rgba(0,0,0,0.6), 0 8px 10px rgba(0,0,0,0.4);
+  --sh-2xl: 0 32px 64px rgba(0,0,0,0.7);
+}
+
+/* ---------------- Base typography / surface for redesigned pages ---------------- */
+body {
+  font-family: var(--de-font-sans);
+  background: var(--de-bg-canvas);
+  color: var(--de-text-primary);
+  font-size: var(--t-body);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  transition: background var(--dur-normal) var(--ease), color var(--dur-normal) var(--ease);
+}
+button { font-family: inherit; cursor: pointer; }
+input, textarea, select { font-family: inherit; }
+::selection { background: var(--de-purple-200); color: var(--de-purple-900); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--de-border-strong); border-radius: 9999px; border: 2px solid var(--de-bg-canvas); }
+::-webkit-scrollbar-thumb:hover { background: var(--de-text-tertiary); }
+
+/* Focus ring */
+:focus-visible {
+  outline: 3px solid var(--de-purple-400);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Utility animations */
+@keyframes de-fade-in { from { opacity: 0.001; } to { opacity: 1; } }
+@keyframes de-slide-up { from { transform: translateY(14px); opacity: 0.001; } to { transform: translateY(0); opacity: 1; } }
+@keyframes de-scale-in { from { transform: scale(0.97); } to { transform: scale(1); } }
+@keyframes de-spin { to { transform: rotate(360deg); } }
+@keyframes de-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+@keyframes de-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+
+.de-page-enter { animation: de-slide-up var(--dur-normal) var(--ease); }
+.de-slide-up { animation: de-slide-up var(--dur-slow) var(--ease) both; }
+
+/* Interaction polish */
+.de-table-row:hover { background: var(--de-primary-soft); }
+.de-navlink { position: relative; transition: color var(--dur-fast) var(--ease); }
+.de-navlink:hover { color: var(--de-primary) !important; }
+.de-collapse-btn:hover { background: rgba(255,255,255,0.12) !important; }
+select option { background: var(--de-bg-surface); color: var(--de-text-primary); }
+
+/* ===== Responsive (shell → drawer, page grids collapse) ===== */
+.de-mobile-only { display: none; }
+
+@media (max-width: 1023px) {
+  .de-sidebar { transform: translateX(-100%); box-shadow: var(--sh-2xl); }
+  .de-sidebar.de-sidebar-open { transform: translateX(0); }
+  .de-mobile-only { display: block; }
+  .de-content { margin-left: 0 !important; }
+  .de-topheader { padding-left: 20px !important; }
+  .de-hamburger { display: grid !important; }
+  .de-collapse-btn { display: none !important; }
+}
+
+@media (max-width: 980px) {
+  .de-dash-2col, .de-detail-2col { grid-template-columns: 1fr !important; }
+  .de-spider-row { grid-template-columns: 1fr !important; }
+  .de-hero-grid { grid-template-columns: 1fr !important; }
+  .de-hero-preview { display: none; }
+  .de-hero-person { display: none; }
+  .de-hiw-person { display: none; }
+  .de-login-left { display: none !important; }
+  .de-login-grid { grid-template-columns: 1fr !important; }
+  .de-soar-grid { grid-template-columns: 1fr !important; }
+}
+
+@media (max-width: 720px) {
+  .de-global-search { display: none !important; }
+  .de-hide-sm { display: none !important; }
+  .de-form-2col { grid-template-columns: 1fr !important; }
+  .de-footer-grid { grid-template-columns: 1fr 1fr !important; gap: 28px !important; }
+  .de-content { padding: 20px !important; }
+  .de-breadcrumb > *:not(:last-child) { display: none; }
+}
+
+@media (max-width: 560px) {
+  .de-cta-person { display: none; }
+}
+
+@media (max-width: 460px) {
+  .de-footer-grid { grid-template-columns: 1fr !important; }
+}
+
+/* New tokens honor reduced-motion too */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+

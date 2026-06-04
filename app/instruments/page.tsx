@@ -1,11 +1,12 @@
 // app/instruments/page.tsx
-// Instruments CRUD page
+// Instruments page. UI redesigned to the TSQMn DE kit (card grid);
+// data fetching / auth unchanged.
 
 'use client';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { PageHeader, Card, Badge, DeIcon, type DeIconName } from '@/app/components/de';
 
 interface Instrument {
   id: number;
@@ -17,6 +18,15 @@ interface Instrument {
   sectionsCount?: number;
   indicatorsCount?: number;
 }
+
+const TYPE_LABEL: Record<string, string> = {
+  DERS: 'DERS',
+  THAI_P1_3: 'ภาษาไทย ป.1-3',
+  Q_MODEL: 'Q-Model',
+};
+const getTypeLabel = (type: string) => TYPE_LABEL[type] || type;
+const typeIcon = (type: string): DeIconName =>
+  type === 'Q_MODEL' ? 'target' : type === 'THAI_P1_3' ? 'book' : type === 'DERS' ? 'clipboard' : 'tool';
 
 export default function InstrumentsPage() {
   const router = useRouter();
@@ -63,139 +73,66 @@ export default function InstrumentsPage() {
     }
   };
 
-  const getTypeLabel = (type: string) => {
-    const labels: Record<string, string> = {
-      'DERS': 'DERS',
-      'THAI_P1_3': 'ภาษาไทย ป.1-3',
-      'Q_MODEL': 'Q-Model',
-    };
-    return labels[type] || type;
-  };
-
   if (loading) {
     return (
-      <div style={{ padding: '2rem', textAlign: 'center' }}>
-        <p>กำลังโหลดข้อมูล...</p>
+      <div style={{ display: 'grid', placeItems: 'center', minHeight: '60vh', gap: 16 }}>
+        <span style={{ width: 34, height: 34, border: '3px solid var(--de-border-strong)', borderTopColor: 'var(--de-primary)', borderRadius: '50%', animation: 'de-spin 0.7s linear infinite' }} />
+        <p style={{ color: 'var(--de-text-secondary)' }}>กำลังโหลดข้อมูล…</p>
       </div>
     );
   }
 
   return (
-    <div style={{ minHeight: '100vh', padding: '2rem', background: '#f5f5f5' }}>
-      <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-        {/* Header */}
-        <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#333', marginBottom: '0.5rem' }}>
-              📋 เครื่องมือประเมิน
-            </h1>
-            <p style={{ color: '#666' }}>จัดการ Instruments (DERS, Thai P.1-3, Q-Model)</p>
-          </div>
-          <div>
-            <Link
-              href="/dashboard"
-              style={{
-                padding: '0.5rem 1rem',
-                background: '#667eea',
-                color: 'white',
-                borderRadius: '0.5rem',
-                textDecoration: 'none',
-                marginRight: '0.5rem'
-              }}
-            >
-              ← Dashboard
-            </Link>
-          </div>
+    <div>
+      <PageHeader title="เครื่องมือประเมิน" subtitle="เครื่องมือมาตรฐานสำหรับการประเมินคุณภาพการศึกษา" />
+
+      {error ? (
+        <div style={{ padding: '12px 16px', borderRadius: 'var(--r-md)', background: 'var(--de-danger-soft)', color: 'var(--de-danger)', fontSize: 14, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <DeIcon name="alert" size={16} /> {error}
         </div>
+      ) : null}
 
-        {error && (
-          <div style={{
-            padding: '1rem',
-            background: '#fee',
-            color: '#c33',
-            borderRadius: '0.5rem',
-            marginBottom: '1rem'
-          }}>
-            {error}
-          </div>
-        )}
-
-        {/* Instruments Table */}
-        <div style={{
-          background: 'white',
-          borderRadius: '0.5rem',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-          overflow: 'hidden'
-        }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-                <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>รหัส</th>
-                <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>ชื่อ (ไทย)</th>
-                <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>ประเภท</th>
-                <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>Sections</th>
-                <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>Indicators</th>
-                <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>สถานะ</th>
-                <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>จัดการ</th>
-              </tr>
-            </thead>
-            <tbody>
-              {instruments.map((inst) => (
-                <tr key={inst.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                  <td style={{ padding: '1rem', color: '#666' }}>{inst.code || '-'}</td>
-                  <td style={{ padding: '1rem', color: '#333', fontWeight: '500' }}>{inst.nameTh}</td>
-                  <td style={{ padding: '1rem', color: '#666' }}>
-                    <span style={{
-                      padding: '0.25rem 0.5rem',
-                      background: '#e0e7ff',
-                      color: '#4338ca',
-                      borderRadius: '0.25rem',
-                      fontSize: '0.875rem'
-                    }}>
-                      {getTypeLabel(inst.type)}
-                    </span>
-                  </td>
-                  <td style={{ padding: '1rem', color: '#666' }}>{inst.sectionsCount || 0}</td>
-                  <td style={{ padding: '1rem', color: '#666' }}>{inst.indicatorsCount || 0}</td>
-                  <td style={{ padding: '1rem' }}>
-                    <span style={{
-                      padding: '0.25rem 0.5rem',
-                      background: inst.isActive ? '#d1fae5' : '#fee2e2',
-                      color: inst.isActive ? '#065f46' : '#991b1b',
-                      borderRadius: '0.25rem',
-                      fontSize: '0.875rem'
-                    }}>
-                      {inst.isActive ? 'ใช้งาน' : 'ปิดใช้งาน'}
-                    </span>
-                  </td>
-                  <td style={{ padding: '1rem' }}>
-                    <Link
-                      href={`/instruments/${inst.id}`}
-                      style={{
-                        padding: '0.25rem 0.75rem',
-                        background: '#667eea',
-                        color: 'white',
-                        borderRadius: '0.25rem',
-                        textDecoration: 'none',
-                        fontSize: '0.875rem'
-                      }}
-                    >
-                      ดูรายละเอียด
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {instruments.length === 0 && (
-            <div style={{ padding: '3rem', textAlign: 'center', color: '#666' }}>
-              ไม่พบข้อมูล Instruments
-            </div>
-          )}
+      {instruments.length === 0 ? (
+        <Card style={{ padding: 48, textAlign: 'center', color: 'var(--de-text-tertiary)' }}>ไม่พบข้อมูลเครื่องมือ</Card>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 20 }}>
+          {instruments.map((ins) => {
+            const accent = ins.type === 'Q_MODEL';
+            return (
+              <Card
+                key={ins.id}
+                hover
+                onClick={() => router.push(`/instruments/${ins.id}`)}
+                style={{ padding: 26, display: 'flex', flexDirection: 'column', gap: 18, cursor: 'pointer' }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <span style={{ width: 52, height: 52, borderRadius: 'var(--r-lg)', background: accent ? 'linear-gradient(135deg,var(--de-purple-100),var(--de-blue-100))' : 'var(--de-accent-soft)', color: accent ? 'var(--de-purple-600)' : 'var(--de-accent)', display: 'grid', placeItems: 'center' }}>
+                    <DeIcon name={typeIcon(ins.type)} size={26} />
+                  </span>
+                  <Badge tone={ins.isActive ? 'success' : 'neutral'} dot>{ins.isActive ? 'เปิดใช้งาน' : 'ปิด'}</Badge>
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 19, fontWeight: 600 }}>{ins.nameTh}</h3>
+                  <p style={{ fontSize: 13.5, color: 'var(--de-text-secondary)', marginTop: 4 }}>
+                    {getTypeLabel(ins.type)}{ins.code ? ` · ${ins.code}` : ''}
+                  </p>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, borderTop: '1px solid var(--de-border)', paddingTop: 16 }}>
+                  {([[ins.indicatorsCount ?? 0, 'ตัวชี้วัด'], [ins.sectionsCount ?? 0, 'หมวด']] as const).map(([v, l]) => (
+                    <div key={l} style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--de-primary)' }}>{v}</div>
+                      <div style={{ fontSize: 12, color: 'var(--de-text-secondary)' }}>{l}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, color: 'var(--de-primary)', fontSize: 14, fontWeight: 500 }}>
+                  ดูรายละเอียด <DeIcon name="arrowRight" size={16} />
+                </div>
+              </Card>
+            );
+          })}
         </div>
-      </div>
+      )}
     </div>
   );
 }
-

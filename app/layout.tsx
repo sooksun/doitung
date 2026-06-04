@@ -6,6 +6,7 @@ import { Kanit, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import ToastProvider from './components/ToastProvider';
 import { ThemeProvider } from './components/ui';
+import { ConditionalShell } from './components/shell/ConditionalShell';
 
 const kanit = Kanit({
   weight: ['300', '400', '500', '600', '700'],
@@ -22,7 +23,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Doitung School Quality Dashboard',
+  title: 'TSQMn แม่ฟ้าหลวง — Doitung Development Evaluation',
   description: 'ระบบประเมินและพัฒนาคุณภาพโรงเรียนด้วยเครื่องมือ DERS, Thai P.1-3, และ Q-Model',
 };
 
@@ -39,7 +40,7 @@ export default function RootLayout({
       <body className={kanit.className}>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <ThemeProvider>
-          {children}
+          <ConditionalShell>{children}</ConditionalShell>
           <ToastProvider />
         </ThemeProvider>
       </body>

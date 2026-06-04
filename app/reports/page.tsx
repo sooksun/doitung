@@ -1,12 +1,16 @@
 // app/reports/page.tsx
-// Reports page
+// Reports page. UI redesigned to the TSQMn DE kit; data fetching / auth and the
+// export placeholders are unchanged. Only renders metrics the API actually returns.
 
 'use client';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { toastInfo } from '@/lib/toast';
+import {
+  PageHeader, StatCard, Card, Donut, ProgressBar, Button, DeIcon,
+  trafficColor, type DeIconName,
+} from '@/app/components/de';
 
 interface DashboardSummary {
   completionRate: number;
@@ -29,6 +33,12 @@ interface QModelProgress {
     status: 'green' | 'yellow' | 'red';
   }>;
 }
+
+const KPI_ICONS: DeIconName[] = ['chart', 'checkCircle', 'target', 'fileText', 'barChart', 'school'];
+const statusAccent = (s?: string): 'purple' | 'blue' | 'success' | 'warning' =>
+  s === 'green' ? 'success' : s === 'yellow' ? 'warning' : s === 'red' ? 'warning' : 'blue';
+const barTone = (s: string): 'success' | 'warning' | 'danger' | 'brand' =>
+  s === 'green' ? 'success' : s === 'yellow' ? 'warning' : s === 'red' ? 'danger' : 'brand';
 
 export default function ReportsPage() {
   const router = useRouter();
@@ -82,178 +92,86 @@ export default function ReportsPage() {
 
   if (loading) {
     return (
-      <div style={{ padding: '2rem', textAlign: 'center' }}>
-        <p>กำลังโหลดข้อมูล...</p>
+      <div style={{ display: 'grid', placeItems: 'center', minHeight: '60vh', gap: 16 }}>
+        <span style={{ width: 34, height: 34, border: '3px solid var(--de-border-strong)', borderTopColor: 'var(--de-primary)', borderRadius: '50%', animation: 'de-spin 0.7s linear infinite' }} />
+        <p style={{ color: 'var(--de-text-secondary)' }}>กำลังโหลดข้อมูล…</p>
       </div>
     );
   }
 
+  const dims = qModel?.dimensionProgress ?? [];
+  const cnt = (s: string) => dims.filter((d) => d.status === s).length;
+  const breakdown: [string, string, number][] = [
+    ['ดีเยี่ยม', 'green', cnt('green')],
+    ['พอใช้', 'yellow', cnt('yellow')],
+    ['ต้องปรับปรุง', 'red', cnt('red')],
+  ];
+
   return (
-    <div style={{ minHeight: '100vh', padding: '2rem', background: '#f5f5f5' }}>
-      <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-        {/* Header */}
-        <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#333', marginBottom: '0.5rem' }}>
-              📈 รายงาน
-            </h1>
-            <p style={{ color: '#666' }}>รายงานและสถิติระบบ</p>
-          </div>
-          <div>
-            <Link
-              href="/dashboard"
-              style={{
-                padding: '0.5rem 1rem',
-                background: '#667eea',
-                color: 'white',
-                borderRadius: '0.5rem',
-                textDecoration: 'none'
-              }}
-            >
-              ← Dashboard
-            </Link>
-          </div>
+    <div>
+      <PageHeader
+        title="รายงานสรุป"
+        subtitle="รายงานคุณภาพการศึกษาในระบบ"
+        actions={
+          <>
+            <Button variant="outline" icon="download" onClick={() => toastInfo('Export PDF — กำลังพัฒนา')}>Export PDF</Button>
+            <Button variant="primary" icon="download" onClick={() => toastInfo('Export Excel — กำลังพัฒนา')}>Export Excel</Button>
+          </>
+        }
+      />
+
+      {error ? (
+        <div style={{ padding: '12px 16px', borderRadius: 'var(--r-md)', background: 'var(--de-danger-soft)', color: 'var(--de-danger)', fontSize: 14, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <DeIcon name="alert" size={16} /> {error}
         </div>
+      ) : null}
 
-        {error && (
-          <div style={{
-            padding: '1rem',
-            background: '#fee',
-            color: '#c33',
-            borderRadius: '0.5rem',
-            marginBottom: '1rem'
-          }}>
-            {error}
-          </div>
-        )}
+      {summary && summary.kpiCards?.length ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 18, marginBottom: 24 }}>
+          {summary.kpiCards.map((k, i) => (
+            <StatCard key={i} icon={KPI_ICONS[i % KPI_ICONS.length]} value={`${k.value}${k.unit || ''}`} label={k.label} accent={statusAccent(k.status)} delay={i * 60} />
+          ))}
+        </div>
+      ) : null}
 
-        {/* Summary Cards */}
-        {summary && (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-            gap: '1.5rem',
-            marginBottom: '2rem'
-          }}>
-            {summary.kpiCards.map((kpi, idx) => (
-              <div
-                key={idx}
-                style={{
-                  background: 'white',
-                  padding: '1.5rem',
-                  borderRadius: '0.5rem',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                }}
-              >
-                <div style={{ fontSize: '0.9rem', color: '#666', marginBottom: '0.5rem' }}>
-                  {kpi.label}
-                </div>
-                <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#333' }}>
-                  {kpi.value}{kpi.unit || ''}
-                </div>
-                {kpi.status && (
-                  <div style={{
-                    marginTop: '0.5rem',
-                    width: '100%',
-                    height: '4px',
-                    background: kpi.status === 'green' ? '#10b981' : kpi.status === 'yellow' ? '#f59e0b' : '#ef4444',
-                    borderRadius: '2px'
-                  }} />
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Q-Model Report */}
-        {qModel && (
-          <div style={{
-            background: 'white',
-            padding: '2rem',
-            borderRadius: '0.5rem',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-            marginBottom: '2rem'
-          }}>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1.5rem', color: '#333' }}>
-              📊 Q-Model Progress Report
-            </h2>
-            <div style={{ display: 'grid', gap: '1rem' }}>
-              {qModel.dimensionProgress.map((dim, idx) => (
-                <div key={idx}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                    <span style={{ fontWeight: '500', color: '#333' }}>{dim.labelTh}</span>
-                    <span style={{ color: '#666' }}>
-                      {dim.current} / {dim.target} ({dim.progress}%)
-                    </span>
+      <div className="de-dash-2col" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.5fr) minmax(0,1fr)', gap: 18 }}>
+        <Card style={{ padding: 24 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>รายงานคุณภาพรายมิติ (Q-Model)</h2>
+          {dims.length ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              {dims.map((d, i) => (
+                <div key={i}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 6, gap: 8 }}>
+                    <span style={{ fontWeight: 500 }}>{d.labelTh}</span>
+                    <span style={{ fontWeight: 600 }}>{d.current.toFixed(1)}<span style={{ color: 'var(--de-text-tertiary)', fontWeight: 400 }}> / {d.target.toFixed(1)} ({d.progress}%)</span></span>
                   </div>
-                  <div style={{
-                    width: '100%',
-                    height: '24px',
-                    background: '#e5e7eb',
-                    borderRadius: '12px',
-                    overflow: 'hidden',
-                    position: 'relative'
-                  }}>
-                    <div
-                      style={{
-                        width: `${Math.min(dim.progress, 100)}%`,
-                        height: '100%',
-                        background: dim.status === 'green' ? '#10b981' : dim.status === 'yellow' ? '#f59e0b' : '#ef4444',
-                        transition: 'width 0.3s'
-                      }}
-                    />
-                  </div>
+                  <ProgressBar value={d.progress} tone={barTone(d.status)} />
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <div style={{ color: 'var(--de-text-tertiary)', fontSize: 14, padding: 24 }}>ยังไม่มีข้อมูลรายมิติ</div>
+          )}
+        </Card>
 
-        {/* Export Options */}
-        <div style={{
-          background: 'white',
-          padding: '2rem',
-          borderRadius: '0.5rem',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-        }}>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1rem', color: '#333' }}>
-            📥 Export Reports
-          </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
-            <button
-              style={{
-                padding: '1rem',
-                background: '#10b981',
-                color: 'white',
-                border: 'none',
-                borderRadius: '0.5rem',
-                cursor: 'pointer',
-                fontSize: '1rem',
-                fontWeight: '500'
-              }}
-              onClick={() => toastInfo('Export PDF — กำลังพัฒนา')}
-            >
-              📄 Export PDF
-            </button>
-            <button
-              style={{
-                padding: '1rem',
-                background: '#3b82f6',
-                color: 'white',
-                border: 'none',
-                borderRadius: '0.5rem',
-                cursor: 'pointer',
-                fontSize: '1rem',
-                fontWeight: '500'
-              }}
-              onClick={() => toastInfo('Export Excel — กำลังพัฒนา')}
-            >
-              📊 Export Excel
-            </button>
+        <Card style={{ padding: 24, display: 'flex', flexDirection: 'column' }}>
+          <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>ดัชนีคุณภาพรวม</h2>
+          <div style={{ display: 'grid', placeItems: 'center', padding: '8px 0 16px' }}>
+            <Donut value={Math.round(summary?.overallQualityIndex ?? 0)} label={`ประเมินครบ ${Math.round(summary?.completionRate ?? 0)}%`} size={168} stroke={16} color="var(--de-purple-500)" />
           </div>
-        </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginTop: 'auto' }}>
+            {breakdown.map(([l, s, n]) => (
+              <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--de-bg-subtle)', borderRadius: 'var(--r-md)' }}>
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: trafficColor(s) }} />
+                <div>
+                  <div style={{ fontSize: 19, fontWeight: 700 }}>{n}</div>
+                  <div style={{ fontSize: 12, color: 'var(--de-text-secondary)' }}>{l}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
       </div>
     </div>
   );
 }
-
