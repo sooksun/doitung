@@ -444,6 +444,20 @@ export default function DashboardPage() {
             🤖 สรุปผลภาษาไทย ป.1–3 (AI)
           </Link>
           <Link
+            href="/dashboard/thai-p13"
+            style={{
+              padding: '1rem',
+              background: 'white',
+              borderRadius: '0.5rem',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              textDecoration: 'none',
+              color: '#333',
+              textAlign: 'center'
+            }}
+          >
+            📊 แดชบอร์ดภาษาไทย ป.1–3
+          </Link>
+          <Link
             href="/live-dashboard"
             style={{
               padding: '1rem',
