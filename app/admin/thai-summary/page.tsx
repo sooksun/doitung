@@ -1,7 +1,9 @@
 // app/admin/thai-summary/page.tsx
-// Admin: generate the THAI_P1_3 end-of-year AI summary at three scopes
-// (รายบุคคล / รายโรงเรียน / ภาพรวมโครงการ), view the result, and export to
-// Excel / Word (direct download) or PDF (print page → Save as PDF).
+// Admin: generate THAI_P1_3 AI summaries. Two families:
+//   leadership — รายบุคคล / รายโรงเรียน / ภาพรวมโครงการ
+//   supervision — ทีมหนุนเสริม ครั้งที่ 1 / 2 (per teacher, per round; HARD-gated:
+//     the school must finish + submit that round before a brief can be generated)
+// View result + export Excel / Word (download) or PDF (print page → Save as PDF).
 
 'use client';
 
@@ -9,27 +11,22 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toastSuccess, toastError } from '@/lib/toast';
+import { summarySections } from '@/lib/thai-summary-sections';
 
-type Scope = 'individual' | 'school' | 'project';
 interface Year { id: number; year: number }
 interface School { id: number; code: string | null; nameTh: string | null }
 interface Teacher { teacherId: number; userId: number | null; name: string }
 interface Dim { sectionName: string; selfAvg: number | null; directorAvg: number | null; targetAvg: number | null; responseCount: number }
-interface SummaryRow {
-  id: number; status: string; error: string | null;
-  result: {
-    scope: string; subjectLabel: string; academicYearLabel: string; teacherCount: number; schoolCount?: number;
-    scoreboard: Dim[];
-    ai: { executiveSummary: string; strengths: string[]; improvements: string[]; reflectionInsights: string[]; recommendations: string[] };
-    generatedAt: string;
-  } | null;
-}
+interface SummaryRow { id: number; status: string; error: string | null; result: any | null }
+interface RoundStatus { ok: boolean; message: string; termLabel: string; selfDone: boolean; directorDone: boolean }
 
 const num = (v: number | null) => (v == null ? '—' : v.toFixed(2));
-const SCOPE_TABS: { key: Scope; label: string }[] = [
+const SCOPE_TABS = [
   { key: 'individual', label: 'รายบุคคล' },
   { key: 'school', label: 'รายโรงเรียน' },
   { key: 'project', label: 'ภาพรวมโครงการ' },
+  { key: 'supervision-t1', label: 'ทีมหนุนเสริม · นิเทศครั้งที่ 1' },
+  { key: 'supervision-t2', label: 'ทีมหนุนเสริม · นิเทศครั้งที่ 2' },
 ];
 
 export default function ThaiSummaryPage() {
@@ -37,7 +34,7 @@ export default function ThaiSummaryPage() {
   const [token, setToken] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
-  const [scope, setScope] = useState<Scope>('individual');
+  const [scope, setScope] = useState('individual');
   const [years, setYears] = useState<Year[]>([]);
   const [schools, setSchools] = useState<School[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -48,8 +45,14 @@ export default function ThaiSummaryPage() {
   const [summary, setSummary] = useState<SummaryRow | null>(null);
   const [generating, setGenerating] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [roundStatus, setRoundStatus] = useState<RoundStatus | null>(null);
+  const [checkingRound, setCheckingRound] = useState(false);
 
-  // Auth + reference data
+  const isSupervision = scope.startsWith('supervision');
+  const round = scope === 'supervision-t2' ? 2 : 1;
+  const needsSchool = scope !== 'project';
+  const needsTeacher = scope === 'individual' || isSupervision;
+
   useEffect(() => {
     const stored = localStorage.getItem('token');
     if (!stored) { router.push('/login'); return; }
@@ -72,9 +75,9 @@ export default function ThaiSummaryPage() {
     })();
   }, [router]);
 
-  // Teachers for the selected school (individual scope)
+  // Teachers for the selected school (individual + supervision scopes)
   useEffect(() => {
-    if (scope !== 'individual' || !schoolId || !token) { setTeachers([]); setTeacherId(''); return; }
+    if (!needsTeacher || !schoolId || !token) { setTeachers([]); setTeacherId(''); return; }
     let cancelled = false;
     (async () => {
       try {
@@ -84,10 +87,26 @@ export default function ThaiSummaryPage() {
       } catch { /* empty picker */ }
     })();
     return () => { cancelled = true; };
-  }, [scope, schoolId, token]);
+  }, [needsTeacher, schoolId, token]);
 
-  const scopeId = scope === 'project' ? 0 : scope === 'school' ? Number(schoolId) : Number(teacherId);
-  const canRun = !!academicYearId && (scope === 'project' || (scope === 'school' && !!schoolId) || (scope === 'individual' && !!teacherId));
+  const scopeId = scope === 'project' ? 0 : needsTeacher ? Number(teacherId) : Number(schoolId);
+  const selectionReady = !!academicYearId && (scope === 'project' || (needsTeacher ? !!teacherId : !!schoolId));
+
+  // Supervision gate: check whether the round is complete (UI feedback before generate)
+  useEffect(() => {
+    if (!isSupervision || !teacherId || !academicYearId || !token) { setRoundStatus(null); return; }
+    let cancelled = false;
+    setCheckingRound(true);
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/thai-p13-summary/round-status?teacherId=${teacherId}&academicYearId=${academicYearId}&round=${round}`, { headers: { Authorization: `Bearer ${token}` } });
+        const j = await res.json();
+        if (!cancelled && j.success) setRoundStatus(j.data);
+      } catch { /* ignore */ }
+      finally { if (!cancelled) setCheckingRound(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [isSupervision, teacherId, academicYearId, round, token]);
 
   const buildQuery = useCallback(() => {
     const p = new URLSearchParams({ scope, academicYearId });
@@ -95,9 +114,8 @@ export default function ThaiSummaryPage() {
     return p.toString();
   }, [scope, academicYearId, scopeId]);
 
-  // Load existing summary when the selection becomes valid
   useEffect(() => {
-    if (!ready || !token || !canRun) { setSummary(null); return; }
+    if (!ready || !token || !selectionReady) { setSummary(null); return; }
     let cancelled = false;
     (async () => {
       try {
@@ -107,7 +125,7 @@ export default function ThaiSummaryPage() {
       } catch { /* ignore */ }
     })();
     return () => { cancelled = true; };
-  }, [ready, token, canRun, buildQuery]);
+  }, [ready, token, selectionReady, buildQuery]);
 
   const pollUntilDone = useCallback(async (id: number) => {
     for (let i = 0; i < 40; i++) {
@@ -128,6 +146,8 @@ export default function ThaiSummaryPage() {
     toastError('หมดเวลารอผล — ลองโหลดหน้าใหม่อีกครั้ง');
   }, [token]);
 
+  const canRun = selectionReady && (!isSupervision || roundStatus?.ok === true);
+
   const generate = async () => {
     if (!token || !canRun || generating) return;
     setGenerating(true);
@@ -135,9 +155,7 @@ export default function ThaiSummaryPage() {
     try {
       const body: any = { scope, academicYearId: Number(academicYearId) };
       if (scope !== 'project') body.scopeId = scopeId;
-      const res = await fetch('/api/admin/thai-p13-summary', {
-        method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-      });
+      const res = await fetch('/api/admin/thai-p13-summary', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const j = await res.json();
       if (!res.ok || !j.success) { toastError(j.error || 'เริ่มสร้างไม่สำเร็จ'); setGenerating(false); return; }
       await pollUntilDone(j.data.id);
@@ -154,8 +172,7 @@ export default function ThaiSummaryPage() {
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
-      a.download = `thai-p13-summary-${scope}-${summary.id}.${format}`;
+      a.href = url; a.download = `thai-p13-${scope}-${summary.id}.${format}`;
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
     } catch { toastError('เกิดข้อผิดพลาดในการดาวน์โหลด'); }
@@ -167,7 +184,6 @@ export default function ThaiSummaryPage() {
   const card: React.CSSProperties = { background: 'white', padding: '1.5rem', borderRadius: '0.75rem', boxShadow: '0 2px 4px rgba(0,0,0,0.08)', marginBottom: '1.25rem' };
 
   if (!ready) return <div style={{ padding: '2rem', textAlign: 'center' }}>กำลังโหลด...</div>;
-
   const result = summary?.result;
 
   return (
@@ -175,19 +191,17 @@ export default function ThaiSummaryPage() {
       <div style={{ maxWidth: '960px', margin: '0 auto' }}>
         <Link href="/dashboard" style={{ color: '#7c3aed', textDecoration: 'none', fontSize: '0.9rem' }}>← กลับแดชบอร์ด</Link>
         <h1 style={{ fontSize: '1.6rem', fontWeight: 700, color: '#111827', margin: '0.5rem 0 0.25rem' }}>🤖 สรุปผลภาษาไทย ป.1–3 ด้วย AI</h1>
-        <p style={{ color: '#6b7280', margin: '0 0 1.25rem' }}>สรุปผลปลายปี รายบุคคล / รายโรงเรียน / ภาพรวมโครงการ — ส่งออก Excel · Word · PDF</p>
+        <p style={{ color: '#6b7280', margin: '0 0 1.25rem' }}>สรุปผู้บริหาร (รายบุคคล/โรงเรียน/โครงการ) และบทนิเทศสำหรับทีมหนุนเสริม — ส่งออก Excel · Word · PDF</p>
 
-        {/* Scope tabs */}
         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
           {SCOPE_TABS.map((t) => (
             <button key={t.key} onClick={() => setScope(t.key)} style={{
-              padding: '0.55rem 1.25rem', borderRadius: '999px', border: '1px solid', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 600,
+              padding: '0.55rem 1.1rem', borderRadius: '999px', border: '1px solid', cursor: 'pointer', fontSize: '0.88rem', fontWeight: 600,
               borderColor: scope === t.key ? '#4f46e5' : '#d1d5db', background: scope === t.key ? '#4f46e5' : 'white', color: scope === t.key ? 'white' : '#374151',
             }}>{t.label}</button>
           ))}
         </div>
 
-        {/* Pickers */}
         <div style={card}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
             <div>
@@ -197,7 +211,7 @@ export default function ThaiSummaryPage() {
                 {years.map((y) => <option key={y.id} value={y.id}>{y.year}</option>)}
               </select>
             </div>
-            {scope !== 'project' && (
+            {needsSchool && (
               <div>
                 <label style={labelStyle}>โรงเรียน *</label>
                 <select value={schoolId} onChange={(e) => setSchoolId(e.target.value)} style={inputStyle}>
@@ -206,7 +220,7 @@ export default function ThaiSummaryPage() {
                 </select>
               </div>
             )}
-            {scope === 'individual' && (
+            {needsTeacher && (
               <div>
                 <label style={labelStyle}>ครู *</label>
                 <select value={teacherId} onChange={(e) => setTeacherId(e.target.value)} disabled={!schoolId || teachers.length === 0} style={inputStyle}>
@@ -216,52 +230,64 @@ export default function ThaiSummaryPage() {
               </div>
             )}
           </div>
+
+          {/* Supervision gate banner */}
+          {isSupervision && teacherId && (
+            <div style={{
+              margin: '0 0 1rem', padding: '0.7rem 1rem', borderRadius: '0.5rem', fontSize: '0.88rem',
+              background: checkingRound ? '#f3f4f6' : roundStatus?.ok ? '#f0fdf4' : '#fef2f2',
+              border: `1px solid ${roundStatus?.ok ? '#bbf7d0' : '#fecaca'}`,
+              color: roundStatus?.ok ? '#166534' : '#991b1b',
+            }}>
+              {checkingRound ? 'กำลังตรวจสอบสถานะการประเมิน...' : roundStatus ? (roundStatus.ok ? `✓ ${roundStatus.message}` : `⚠️ ${roundStatus.message}`) : ''}
+              {roundStatus && !roundStatus.ok && (
+                <div style={{ marginTop: '0.35rem', fontSize: '0.82rem' }}>
+                  สถานะ: ครูประเมินตนเอง {roundStatus.selfDone ? '✓ เสร็จ' : '✗ ยังไม่เสร็จ'} · ผอ.ประเมิน {roundStatus.directorDone ? '✓ เสร็จ' : '✗ ยังไม่เสร็จ'}
+                </div>
+              )}
+            </div>
+          )}
+
           <button onClick={generate} disabled={!canRun || generating} style={{
             padding: '0.65rem 1.5rem', background: !canRun || generating ? '#9ca3af' : '#10b981', color: 'white', border: 'none', borderRadius: '0.5rem',
             fontSize: '0.95rem', fontWeight: 700, cursor: !canRun || generating ? 'not-allowed' : 'pointer',
           }}>
-            {generating || summary?.status === 'RUNNING' ? '⏳ กำลังสร้างด้วย AI...' : summary?.status === 'DONE' ? '🔄 สร้างใหม่อีกครั้ง' : '🚀 สร้างบทสรุปด้วย AI'}
+            {generating || summary?.status === 'RUNNING' ? '⏳ กำลังสร้างด้วย AI...' : summary?.status === 'DONE' ? '🔄 สร้างใหม่อีกครั้ง' : isSupervision ? '🚀 สร้างบทนิเทศด้วย AI' : '🚀 สร้างบทสรุปด้วย AI'}
           </button>
           {scope === 'project' && <p style={{ margin: '0.6rem 0 0', fontSize: '0.82rem', color: '#6b7280' }}>รวมข้อมูลทุกโรงเรียนในปีการศึกษาที่เลือก</p>}
+          {isSupervision && <p style={{ margin: '0.6rem 0 0', fontSize: '0.82rem', color: '#6b7280' }}>บทสรุปรายบุคคลสำหรับทีมหนุนเสริมก่อนเข้านิเทศ — ต้องประเมินครั้งที่ {round} เสร็จก่อนจึงสร้างได้</p>}
         </div>
 
-        {/* Status */}
-        {summary?.status === 'RUNNING' && (
-          <div style={{ ...card, background: '#eef2ff', color: '#3730a3' }}>⏳ AI กำลังประมวลผล — โดยปกติใช้เวลาประมาณ 30 วินาที กรุณารอสักครู่...</div>
-        )}
-        {summary?.status === 'FAILED' && (
-          <div style={{ ...card, background: '#fef2f2', color: '#991b1b' }}>❌ {summary.error || 'สร้างบทสรุปไม่สำเร็จ'}</div>
-        )}
+        {summary?.status === 'RUNNING' && <div style={{ ...card, background: '#eef2ff', color: '#3730a3' }}>⏳ AI กำลังประมวลผล — ประมาณ 30 วินาที กรุณารอสักครู่...</div>}
+        {summary?.status === 'FAILED' && <div style={{ ...card, background: '#fef2f2', color: '#991b1b' }}>❌ {summary.error || 'สร้างบทสรุปไม่สำเร็จ'}</div>}
 
-        {/* Result */}
         {summary?.status === 'DONE' && result && (
           <>
-            {/* Export bar */}
             <div style={{ ...card, display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{ fontWeight: 600, color: '#374151' }}>ส่งออก:</span>
-              <button onClick={() => download('xlsx')} disabled={downloading === 'xlsx'} style={{ padding: '0.5rem 1rem', background: '#16a34a', color: 'white', border: 'none', borderRadius: '0.45rem', fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer' }}>
-                {downloading === 'xlsx' ? '...' : '📊 Excel'}
-              </button>
-              <button onClick={() => download('docx')} disabled={downloading === 'docx'} style={{ padding: '0.5rem 1rem', background: '#2563eb', color: 'white', border: 'none', borderRadius: '0.45rem', fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer' }}>
-                {downloading === 'docx' ? '...' : '📝 Word'}
-              </button>
-              <a href={`/admin/thai-summary/${summary.id}/print`} target="_blank" rel="noopener noreferrer" style={{ padding: '0.5rem 1rem', background: '#dc2626', color: 'white', borderRadius: '0.45rem', fontWeight: 600, fontSize: '0.88rem', textDecoration: 'none' }}>
-                🖨️ PDF (พิมพ์)
-              </a>
+              <button onClick={() => download('xlsx')} disabled={downloading === 'xlsx'} style={{ padding: '0.5rem 1rem', background: '#16a34a', color: 'white', border: 'none', borderRadius: '0.45rem', fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer' }}>{downloading === 'xlsx' ? '...' : '📊 Excel'}</button>
+              <button onClick={() => download('docx')} disabled={downloading === 'docx'} style={{ padding: '0.5rem 1rem', background: '#2563eb', color: 'white', border: 'none', borderRadius: '0.45rem', fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer' }}>{downloading === 'docx' ? '...' : '📝 Word'}</button>
+              <a href={`/admin/thai-summary/${summary.id}/print`} target="_blank" rel="noopener noreferrer" style={{ padding: '0.5rem 1rem', background: '#dc2626', color: 'white', borderRadius: '0.45rem', fontWeight: 600, fontSize: '0.88rem', textDecoration: 'none' }}>🖨️ PDF (พิมพ์)</a>
               <span style={{ marginLeft: 'auto', fontSize: '0.78rem', color: '#9ca3af' }}>{result.generatedAt ? new Date(result.generatedAt).toLocaleString('th-TH') : ''}</span>
             </div>
 
             <div style={card}>
               <div style={{ marginBottom: '1rem', paddingBottom: '0.75rem', borderBottom: '1px solid #e5e7eb' }}>
-                <div style={{ fontWeight: 700, fontSize: '1.1rem', color: '#111827' }}>{result.subjectLabel}</div>
-                <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>ปีการศึกษา {result.academicYearLabel} · ครู {result.teacherCount} คน{result.schoolCount != null ? ` · ${result.schoolCount} โรงเรียน` : ''}</div>
+                <div style={{ fontWeight: 700, fontSize: '1.1rem', color: '#111827' }}>{result.subjectLabel}{result.schoolName ? ` · ${result.schoolName}` : ''}</div>
+                <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>
+                  ปีการศึกษา {result.academicYearLabel}
+                  {result.termLabel ? ` · ภาคเรียน ${result.termLabel}` : ''}
+                  {result.kind !== 'supervision' && result.teacherCount != null ? ` · ครู ${result.teacherCount} คน` : ''}
+                  {result.schoolCount != null ? ` · ${result.schoolCount} โรงเรียน` : ''}
+                  {result.kind === 'supervision' ? ` · นิเทศครั้งที่ ${result.round}` : ''}
+                </div>
               </div>
 
-              <Section title="บทสรุปผู้บริหาร"><p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.8, margin: 0, color: '#374151' }}>{result.ai.executiveSummary}</p></Section>
-              <Section title="จุดแข็ง"><Bullets items={result.ai.strengths} color="#166534" /></Section>
-              <Section title="จุดที่ควรพัฒนา"><Bullets items={result.ai.improvements} color="#b45309" /></Section>
-              {result.ai.reflectionInsights.length > 0 && <Section title="ประเด็นจากการสะท้อนคิด"><Bullets items={result.ai.reflectionInsights} color="#6d28d9" /></Section>}
-              <Section title="ข้อเสนอแนะ"><Bullets items={result.ai.recommendations} color="#1d4ed8" /></Section>
+              {summarySections(result).map((sec: any, i: number) => (
+                <Section key={i} title={sec.title}>
+                  {sec.text ? <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.8, margin: 0, color: '#374151' }}>{sec.text}</p> : sec.items ? <Bullets items={sec.items} /> : null}
+                </Section>
+              ))}
 
               <Section title="คะแนนเฉลี่ยรายด้าน (มาตรา 1–4)">
                 <div style={{ overflowX: 'auto' }}>
@@ -274,7 +300,7 @@ export default function ThaiSummaryPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {result.scoreboard.map((d, i) => (
+                      {(result.scoreboard || []).map((d: Dim, i: number) => (
                         <tr key={i}>
                           <td style={{ border: '1px solid #cbd5e1', padding: '0.5rem' }}>{d.sectionName}</td>
                           <td style={{ border: '1px solid #cbd5e1', padding: '0.5rem', textAlign: 'center' }}>{num(d.selfAvg)}</td>
@@ -291,8 +317,8 @@ export default function ThaiSummaryPage() {
           </>
         )}
 
-        {!summary && canRun && (
-          <div style={{ ...card, color: '#6b7280', textAlign: 'center' }}>ยังไม่มีบทสรุปสำหรับช่วงที่เลือก — กด &quot;สร้างบทสรุปด้วย AI&quot;</div>
+        {!summary && selectionReady && (!isSupervision || roundStatus?.ok) && (
+          <div style={{ ...card, color: '#6b7280', textAlign: 'center' }}>ยังไม่มีบทสรุปสำหรับช่วงที่เลือก — กดปุ่มสร้างด้านบน</div>
         )}
       </div>
     </div>
@@ -308,10 +334,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Bullets({ items, color }: { items: string[]; color: string }) {
+function Bullets({ items }: { items: string[] }) {
   return (
     <ul style={{ margin: 0, paddingLeft: '0.5rem', lineHeight: 1.7, listStyle: 'none' }}>
-      {items.map((t, i) => <li key={i} style={{ marginBottom: '0.3rem', color: '#374151', display: 'flex', gap: '0.5rem' }}><span style={{ color, flexShrink: 0 }}>•</span><span>{t}</span></li>)}
+      {items.map((t, i) => <li key={i} style={{ marginBottom: '0.3rem', color: '#374151', display: 'flex', gap: '0.5rem' }}><span style={{ color: '#16a34a', flexShrink: 0 }}>•</span><span>{t}</span></li>)}
     </ul>
   );
 }
