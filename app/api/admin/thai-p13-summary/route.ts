@@ -9,7 +9,8 @@
 
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { successResponse, errorResponse, requireRole } from '@/lib/api-utils';
+import { successResponse, errorResponse, requireAuth } from '@/lib/api-utils';
+import { resolveThaiAccess, checkThaiScopeAccess } from '@/lib/thai-summary-access';
 import { runThaiP13Summary } from '@/lib/jobs/run-thai-p13-summary';
 import { runThaiP13Supervision, checkRoundComplete, type Round } from '@/lib/jobs/run-thai-p13-supervision';
 import { THAI_P13_SUMMARY_PROMPT_VERSION, type ThaiSummaryScope } from '@/lib/ai/prompts/thai-p13-summary';
@@ -27,7 +28,9 @@ const roundOf = (s: string): Round => (s.endsWith('t2') ? 2 : 1);
 
 export async function POST(request: NextRequest) {
   try {
-    const me = await requireRole(request, 'ADMIN');
+    const me = await requireAuth(request);
+    const acc = await resolveThaiAccess(me);
+    if (!acc) return errorResponse('เฉพาะผู้ดูแลระบบหรือผู้อำนวยการเท่านั้น', 403);
     const body = await request.json();
     const scope = validScope(body.scope);
     const academicYearId = Number(body.academicYearId);
@@ -42,6 +45,9 @@ export async function POST(request: NextRequest) {
       const teacherId = Number(body.scopeId);
       if (!Number.isFinite(teacherId) || teacherId <= 0) return errorResponse('กรุณาเลือกครู', 400);
       const round = roundOf(scope);
+
+      const accErr = await checkThaiScopeAccess(acc, scope, teacherId);
+      if (accErr) return errorResponse(accErr, 403);
 
       // HARD GATE — the school must finish + submit this round before the team can get a brief.
       const gate = await checkRoundComplete(teacherId, academicYearId, round);
@@ -67,6 +73,9 @@ export async function POST(request: NextRequest) {
       if (!Number.isFinite(scopeId) || scopeId <= 0) return errorResponse(scope === 'individual' ? 'กรุณาเลือกครู' : 'กรุณาเลือกโรงเรียน', 400);
     }
 
+    const accErr = await checkThaiScopeAccess(acc, scope, scopeId);
+    if (accErr) return errorResponse(accErr, 403);
+
     const row = await prisma.thaiP13Summary.upsert({
       where: { scope_scopeId_academicYearId: { scope, scopeId, academicYearId } },
       create: { scope, scopeId, academicYearId, status: 'RUNNING', model: OPENROUTER_MODEL, promptVersion: THAI_P13_SUMMARY_PROMPT_VERSION },
@@ -87,7 +96,9 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    await requireRole(request, 'ADMIN');
+    const me = await requireAuth(request);
+    const acc = await resolveThaiAccess(me);
+    if (!acc) return errorResponse('เฉพาะผู้ดูแลระบบหรือผู้อำนวยการเท่านั้น', 403);
     const sp = request.nextUrl.searchParams;
     const scope = validScope(sp.get('scope'));
     const academicYearId = Number(sp.get('academicYearId'));
@@ -95,6 +106,9 @@ export async function GET(request: NextRequest) {
     if (!Number.isFinite(academicYearId) || academicYearId <= 0) return errorResponse('academicYearId ไม่ถูกต้อง', 400);
     const scopeId = scope === 'project' ? 0 : Number(sp.get('scopeId'));
     if (scope !== 'project' && (!Number.isFinite(scopeId) || scopeId <= 0)) return errorResponse('scopeId ไม่ถูกต้อง', 400);
+
+    const accErr = await checkThaiScopeAccess(acc, scope, scopeId);
+    if (accErr) return errorResponse(accErr, 403);
 
     const row = await prisma.thaiP13Summary.findUnique({
       where: { scope_scopeId_academicYearId: { scope, scopeId, academicYearId } },

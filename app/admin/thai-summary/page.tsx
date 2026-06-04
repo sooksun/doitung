@@ -48,6 +48,12 @@ export default function ThaiSummaryPage() {
   const [roundStatus, setRoundStatus] = useState<RoundStatus | null>(null);
   const [checkingRound, setCheckingRound] = useState(false);
 
+  // Access: ADMIN sees everything; SCHOOL_LEADER is locked to their own school
+  // (no project scope). Anyone else is denied with a clear message (no silent bounce).
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [mySchool, setMySchool] = useState<{ id: number; nameTh: string } | null>(null);
+  const [denied, setDenied] = useState(false);
+
   const isSupervision = scope.startsWith('supervision');
   const round = scope === 'supervision-t2' ? 2 : 1;
   const needsSchool = scope !== 'project';
@@ -63,7 +69,18 @@ export default function ThaiSummaryPage() {
         const meRes = await fetch('/api/auth/me', auth);
         if (meRes.status === 401) { localStorage.removeItem('token'); router.push('/login'); return; }
         const me = (await meRes.json())?.data;
-        if (!me || !Array.isArray(me.roles) || !me.roles.includes('ADMIN')) { router.replace('/dashboard'); return; }
+        const roles: string[] = Array.isArray(me?.roles) ? me.roles : [];
+        const admin = roles.includes('ADMIN');
+        const leader = roles.includes('SCHOOL_LEADER');
+        if (!me || (!admin && !leader)) { setDenied(true); setReady(true); return; }
+        setIsAdmin(admin);
+        if (!admin) {
+          // SCHOOL_LEADER → locked to their bound school
+          if (!me.school?.id) { setDenied(true); setReady(true); return; }
+          setMySchool({ id: me.school.id, nameTh: me.school.nameTh || me.school.code || `โรงเรียน #${me.school.id}` });
+          setSchoolId(String(me.school.id));
+          setScope('individual'); // leaders can't use the project scope
+        }
         const [yRes, sRes] = await Promise.all([fetch('/api/academic-years', auth), fetch('/api/schools?isActive=true', auth)]);
         const yJson = await yRes.json(); const sJson = await sRes.json();
         const ys: Year[] = yJson.success ? yJson.data : Array.isArray(yJson) ? yJson : [];
@@ -184,17 +201,37 @@ export default function ThaiSummaryPage() {
   const card: React.CSSProperties = { background: 'white', padding: '1.5rem', borderRadius: '0.75rem', boxShadow: '0 2px 4px rgba(0,0,0,0.08)', marginBottom: '1.25rem' };
 
   if (!ready) return <div style={{ padding: '2rem', textAlign: 'center' }}>กำลังโหลด...</div>;
+
+  if (denied) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#f5f5f5', padding: '2rem' }}>
+        <div style={{ maxWidth: '640px', margin: '0 auto' }}>
+          <Link href="/dashboard" style={{ color: '#7c3aed', textDecoration: 'none', fontSize: '0.9rem' }}>← กลับแดชบอร์ด</Link>
+          <div style={{ ...card, marginTop: '1rem', textAlign: 'center', color: '#991b1b', background: '#fef2f2', border: '1px solid #fecaca' }}>
+            🔒 หน้านี้สำหรับ <strong>ผู้ดูแลระบบ (ADMIN)</strong> และ <strong>ผู้อำนวยการ (ผอ.)</strong> ที่ผูกกับโรงเรียนเท่านั้น
+            <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: '#7f1d1d' }}>หากท่านเป็น ผอ. แต่เข้าไม่ได้ โปรดตรวจสอบว่าบัญชีของท่านผูกกับโรงเรียนแล้ว</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const result = summary?.result;
+  const visibleTabs = isAdmin ? SCOPE_TABS : SCOPE_TABS.filter((t) => t.key !== 'project');
 
   return (
     <div style={{ minHeight: '100vh', background: '#f5f5f5', padding: '2rem' }}>
       <div style={{ maxWidth: '960px', margin: '0 auto' }}>
         <Link href="/dashboard" style={{ color: '#7c3aed', textDecoration: 'none', fontSize: '0.9rem' }}>← กลับแดชบอร์ด</Link>
         <h1 style={{ fontSize: '1.6rem', fontWeight: 700, color: '#111827', margin: '0.5rem 0 0.25rem' }}>🤖 สรุปผลภาษาไทย ป.1–3 ด้วย AI</h1>
-        <p style={{ color: '#6b7280', margin: '0 0 1.25rem' }}>สรุปผู้บริหาร (รายบุคคล/โรงเรียน/โครงการ) และบทนิเทศสำหรับทีมหนุนเสริม — ส่งออก Excel · Word · PDF</p>
+        <p style={{ color: '#6b7280', margin: '0 0 1.25rem' }}>
+          {isAdmin
+            ? 'สรุปผู้บริหาร (รายบุคคล/โรงเรียน/โครงการ) และบทนิเทศสำหรับทีมหนุนเสริม — ส่งออก Excel · Word · PDF'
+            : `โรงเรียน: ${mySchool?.nameTh || '—'} · สรุปรายบุคคล/โรงเรียน และบทนิเทศ — ส่งออก Excel · Word · PDF`}
+        </p>
 
         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
-          {SCOPE_TABS.map((t) => (
+          {visibleTabs.map((t) => (
             <button key={t.key} onClick={() => setScope(t.key)} style={{
               padding: '0.55rem 1.1rem', borderRadius: '999px', border: '1px solid', cursor: 'pointer', fontSize: '0.88rem', fontWeight: 600,
               borderColor: scope === t.key ? '#4f46e5' : '#d1d5db', background: scope === t.key ? '#4f46e5' : 'white', color: scope === t.key ? 'white' : '#374151',
@@ -214,10 +251,16 @@ export default function ThaiSummaryPage() {
             {needsSchool && (
               <div>
                 <label style={labelStyle}>โรงเรียน *</label>
-                <select value={schoolId} onChange={(e) => setSchoolId(e.target.value)} style={inputStyle}>
-                  <option value="">เลือกโรงเรียน</option>
-                  {schools.map((s) => <option key={s.id} value={s.id}>{s.code ? `${s.code} ` : ''}{s.nameTh || s.code}</option>)}
-                </select>
+                {isAdmin ? (
+                  <select value={schoolId} onChange={(e) => setSchoolId(e.target.value)} style={inputStyle}>
+                    <option value="">เลือกโรงเรียน</option>
+                    {schools.map((s) => <option key={s.id} value={s.id}>{s.code ? `${s.code} ` : ''}{s.nameTh || s.code}</option>)}
+                  </select>
+                ) : (
+                  <div style={{ ...inputStyle, background: '#f5f3ff', border: '1px solid #c4b5fd', color: '#4c1d95', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    🔒 {mySchool?.nameTh || '—'}
+                  </div>
+                )}
               </div>
             )}
             {needsTeacher && (

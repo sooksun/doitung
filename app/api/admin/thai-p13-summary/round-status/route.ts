@@ -5,18 +5,24 @@
 // (Static segment "round-status" takes precedence over the sibling [id] route.)
 
 import { NextRequest } from 'next/server';
-import { errorResponse, successResponse, requireRole } from '@/lib/api-utils';
+import { errorResponse, successResponse, requireAuth } from '@/lib/api-utils';
+import { resolveThaiAccess, checkThaiScopeAccess } from '@/lib/thai-summary-access';
 import { checkRoundComplete, type Round } from '@/lib/jobs/run-thai-p13-supervision';
 
 export async function GET(request: NextRequest) {
   try {
-    await requireRole(request, 'ADMIN');
+    const me = await requireAuth(request);
+    const acc = await resolveThaiAccess(me);
+    if (!acc) return errorResponse('เฉพาะผู้ดูแลระบบหรือผู้อำนวยการเท่านั้น', 403);
     const sp = request.nextUrl.searchParams;
     const teacherId = Number(sp.get('teacherId'));
     const academicYearId = Number(sp.get('academicYearId'));
     const round = Number(sp.get('round')) === 2 ? 2 : 1;
     if (!Number.isFinite(teacherId) || teacherId <= 0) return errorResponse('teacherId ไม่ถูกต้อง', 400);
     if (!Number.isFinite(academicYearId) || academicYearId <= 0) return errorResponse('academicYearId ไม่ถูกต้อง', 400);
+
+    const accErr = await checkThaiScopeAccess(acc, 'individual', teacherId);
+    if (accErr) return errorResponse(accErr, 403);
 
     const status = await checkRoundComplete(teacherId, academicYearId, round as Round);
     return successResponse(status);

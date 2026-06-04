@@ -6,7 +6,8 @@
 
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { errorResponse, requireRole } from '@/lib/api-utils';
+import { errorResponse, requireAuth } from '@/lib/api-utils';
+import { resolveThaiAccess, checkThaiScopeAccess } from '@/lib/thai-summary-access';
 import { summarySections, summaryDocTitle } from '@/lib/thai-summary-sections';
 
 export const runtime = 'nodejs';
@@ -130,7 +131,9 @@ async function buildDocx(r: any): Promise<Buffer> {
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    await requireRole(request, 'ADMIN');
+    const me = await requireAuth(request);
+    const acc = await resolveThaiAccess(me);
+    if (!acc) return errorResponse('เฉพาะผู้ดูแลระบบหรือผู้อำนวยการเท่านั้น', 403);
     const id = parseInt(params.id, 10);
     if (isNaN(id)) return errorResponse('Invalid id', 400);
     const format = (request.nextUrl.searchParams.get('format') || 'xlsx').toLowerCase();
@@ -138,6 +141,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
     const row = await prisma.thaiP13Summary.findUnique({ where: { id } });
     if (!row) return errorResponse('ไม่พบบทสรุป', 404);
+    const accErr = await checkThaiScopeAccess(acc, row.scope, row.scopeId);
+    if (accErr) return errorResponse(accErr, 403);
     if (row.status !== 'DONE' || !row.result) return errorResponse('บทสรุปยังไม่เสร็จ — กรุณารอให้ AI ประมวลผลก่อน', 409);
 
     const r = row.result as any;
