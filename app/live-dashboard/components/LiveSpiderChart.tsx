@@ -23,16 +23,18 @@ interface SpiderPoint {
 interface LiveSpiderChartProps {
   data: SpiderPoint[];
   height?: number;
+  dark?: boolean;
 }
 
 // Mirror of tokens — recharts wants concrete colors, not CSS variables.
 const COLOR_BLUE = '#3b82f6';     // --de-score-blue (target / พึงประสงค์)
 const COLOR_VIOLET = '#a855f7';   // --de-score-violet (current / เป็นอยู่)
-const COLOR_GRID = 'rgba(148, 163, 184, 0.25)';
-const COLOR_AXIS_TICK = 'rgba(226, 232, 240, 0.85)';
-const COLOR_RADIUS_TICK = 'rgba(148, 163, 184, 0.7)';
 
-export default function LiveSpiderChart({ data, height = 420 }: LiveSpiderChartProps) {
+export default function LiveSpiderChart({ data, height = 420, dark = true }: LiveSpiderChartProps) {
+  // recharts wants concrete colors; tick/grid must adapt to light vs dark.
+  const tickAngle = dark ? 'rgba(226, 232, 240, 0.85)' : '#334155';
+  const tickRadius = dark ? 'rgba(148, 163, 184, 0.7)' : '#64748b';
+  const gridStroke = dark ? 'rgba(148, 163, 184, 0.25)' : 'rgba(100, 116, 139, 0.3)';
   const chartData = data.map((p) => ({
     group: p.labelTh,
     'พึงประสงค์': p.target || 0,
@@ -60,11 +62,11 @@ export default function LiveSpiderChart({ data, height = 420 }: LiveSpiderChartP
     <div style={{ width: '100%' }}>
       <ResponsiveContainer width="100%" height={height}>
         <RadarChart data={chartData} margin={{ top: 24, right: 40, bottom: 16, left: 40 }}>
-          <PolarGrid stroke={COLOR_GRID} />
+          <PolarGrid stroke={gridStroke} />
           <PolarAngleAxis
             dataKey="group"
             tick={{
-              fill: COLOR_AXIS_TICK,
+              fill: tickAngle,
               fontSize: 13,
               fontFamily: 'Kanit, sans-serif',
               fontWeight: 500,
@@ -73,7 +75,7 @@ export default function LiveSpiderChart({ data, height = 420 }: LiveSpiderChartP
           <PolarRadiusAxis
             angle={90}
             domain={[0, 5]}
-            tick={{ fill: COLOR_RADIUS_TICK, fontSize: 11 }}
+            tick={{ fill: tickRadius, fontSize: 11 }}
             tickCount={6}
             stroke="transparent"
           />

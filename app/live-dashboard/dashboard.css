@@ -163,7 +163,32 @@
   display: flex;
   flex-direction: column;
   gap: var(--de-space-2);
-  padding: var(--de-space-8) 0 var(--de-space-2);
+  padding: 0;
+  min-width: 0;
+}
+
+/* Embedded inside the AppShell (sidebar + header). `data-de-theme={theme}` on
+   .ld-embed binds the legacy --de-surface/--de-ink scale to the GLOBAL theme,
+   so this dashboard now follows light/dark like every other page. The brand
+   ramp is re-pointed to the system purple to keep one tone across the app. */
+.ld-embed {
+  --de-brand-300: var(--de-purple-300);
+  --de-brand-400: var(--de-purple-400);
+  --de-brand-500: var(--de-purple-500);
+}
+.ld-head-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--de-space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--de-space-5);
+}
+.ld-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--de-space-3);
+  flex-wrap: wrap;
 }
 .ld-page-eyebrow {
   font-size: 12px;
@@ -699,14 +724,14 @@
   border-radius: var(--de-radius-pill);
   border: 1px solid color-mix(in oklab, var(--de-ink-500) 35%, transparent);
   background: transparent;
-  color: var(--de-ink-300);
+  color: var(--de-ink-600);
   font: inherit;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-.ld-view-tab:hover { color: var(--de-ink-100); border-color: var(--de-brand-400); }
+.ld-view-tab:hover { color: var(--de-ink-900); border-color: var(--de-brand-400); }
 .ld-view-tab.active {
   background: var(--de-brand-500);
   border-color: var(--de-brand-500);

@@ -1,7 +1,7 @@
 // app/components/shell/ConditionalShell.tsx
 // Decides per-route whether to wrap the page in the AppShell.
-// Standalone (no shell): landing, login, the fullscreen live-dashboard
-// projector view, and any print view. Everything else gets the shell.
+// Standalone (no shell): landing, login, and any print view. Everything else —
+// including /live-dashboard — gets the shell (sidebar + header + theme toggle).
 'use client';
 
 import React from 'react';
@@ -10,7 +10,6 @@ import { AppShell } from './AppShell';
 
 function isStandalone(pathname: string): boolean {
   if (pathname === '/' || pathname === '/login') return true;
-  if (pathname.startsWith('/live-dashboard')) return true; // fullscreen projector view
   if (pathname.endsWith('/print')) return true;
   return false;
 }

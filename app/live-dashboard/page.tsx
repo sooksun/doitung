@@ -5,7 +5,7 @@
 
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useTheme } from '@/app/components/ui';
 import LiveSpiderChart from './components/LiveSpiderChart';
 import AnimatedNumber from './components/AnimatedNumber';
 import ScopeSelector from './components/ScopeSelector';
@@ -65,6 +65,7 @@ function score5ToPct(v: number): number {
 
 export default function LiveDashboardPage() {
   const router = useRouter();
+  const { theme } = useTheme();
   const [token, setToken] = useState<string | null>(null);
 
   const [scope, setScope] = useState<'school' | 'network' | 'district'>('district');
@@ -244,49 +245,45 @@ export default function LiveDashboardPage() {
   }, [liveData]);
 
   return (
-    <div className="ld-shell" data-de-theme="dark" data-paused={paused ? 'true' : 'false'}>
-      {/* ===== TOPBAR ===== */}
-      <header className="ld-topbar">
-        <Link href="/" className="ld-brand" aria-label="DE — Development Evaluation">
-          <div className="ld-brand-mark" aria-hidden="true">DE</div>
-          <div className="ld-brand-text">
-            <span className="ld-brand-name">Development Evaluation</span>
-            <span className="ld-brand-sub">Q-Model 47 ตัวชี้วัด · 4 มิติ</span>
-          </div>
-        </Link>
-
-        <div className="ld-status-cluster">
-          <span className="ld-live-pill">
-            <span className="ld-dot" aria-hidden="true" />
-            <span>Live · ปรับทุก 5 วินาที</span>
-          </span>
-          <span className="ld-paused-banner">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <rect x="6" y="5" width="4" height="14" rx="1" />
-              <rect x="14" y="5" width="4" height="14" rx="1" />
-            </svg>
-            Paused
-          </span>
+    <div className="ld-embed" data-de-theme={theme} data-paused={paused ? 'true' : 'false'}>
+      {/* ===== PAGE HEAD + LIVE CONTROLS ===== */}
+      <div className="ld-head-row">
+        <div className="ld-page-head">
+          <span className="ld-page-eyebrow">Live Dashboard</span>
+          <h1 className="ld-page-title">{view === 'thai' ? 'แบบประเมินภาษาไทย ป.1–3' : 'ภาพรวมคุณภาพโรงเรียน'}</h1>
+          <p className="ld-page-sub">
+            {view === 'thai'
+              ? 'สรุปผลแบบประเมินตนเองการจัดการเรียนการสอน · เจาะลึกจากภาพรวมสู่รายบุคคล'
+              : <>อัปเดต {paused ? '(หยุดชั่วคราว)' : `${secondsAgo}s ที่แล้ว`} · ขอบเขต <strong>{liveData?.scopeLabel || '—'}</strong></>}
+          </p>
         </div>
 
-        <div className="ld-topbar-actions">
-          <button
-            className="ld-icon-btn"
-            onClick={() => setPaused((p) => !p)}
-            aria-label={paused ? 'เล่น polling' : 'หยุด polling'}
-            title={paused ? 'Resume' : 'Pause'}
-          >
-            {paused ? (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <polygon points="6,4 20,12 6,20" />
-              </svg>
-            ) : (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <rect x="6" y="5" width="4" height="14" rx="1" />
-                <rect x="14" y="5" width="4" height="14" rx="1" />
-              </svg>
-            )}
-          </button>
+        <div className="ld-controls">
+          {view === 'qmodel' ? (
+            <>
+              <span className="ld-live-pill">
+                <span className="ld-dot" aria-hidden="true" />
+                <span>Live · ปรับทุก 5 วินาที</span>
+              </span>
+              <button
+                className="ld-icon-btn"
+                onClick={() => setPaused((p) => !p)}
+                aria-label={paused ? 'เล่น polling' : 'หยุด polling'}
+                title={paused ? 'Resume' : 'Pause'}
+              >
+                {paused ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <polygon points="6,4 20,12 6,20" />
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <rect x="6" y="5" width="4" height="14" rx="1" />
+                    <rect x="14" y="5" width="4" height="14" rx="1" />
+                  </svg>
+                )}
+              </button>
+            </>
+          ) : null}
           <button
             className="ld-icon-btn"
             onClick={toggleFullscreen}
@@ -300,26 +297,8 @@ export default function LiveDashboardPage() {
               <path d="M20 15v5h-5" />
             </svg>
           </button>
-          <Link href="/" className="ld-icon-btn" aria-label="กลับหน้าหลัก" title="หน้าหลัก">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M3 12l9-9 9 9" />
-              <path d="M5 10v10h14V10" />
-            </svg>
-          </Link>
         </div>
-      </header>
-
-      <main className="ld-container">
-        {/* ===== PAGE HEAD ===== */}
-        <div className="ld-page-head">
-          <span className="ld-page-eyebrow">Live Dashboard</span>
-          <h1 className="ld-page-title">{view === 'thai' ? 'แบบประเมินภาษาไทย ป.1–3' : 'ภาพรวมคุณภาพโรงเรียน'}</h1>
-          <p className="ld-page-sub">
-            {view === 'thai'
-              ? 'สรุปผลแบบประเมินตนเองการจัดการเรียนการสอน · เจาะลึกจากภาพรวมสู่รายบุคคล'
-              : <>อัปเดต {paused ? '(หยุดชั่วคราว)' : `${secondsAgo}s ที่แล้ว`} · ขอบเขต <strong>{liveData?.scopeLabel || '—'}</strong></>}
-          </p>
-        </div>
+      </div>
 
         {/* ===== VIEW TABS ===== */}
         <div className="ld-view-tabs" role="tablist" aria-label="เลือกแบบประเมิน">
@@ -333,7 +312,7 @@ export default function LiveDashboardPage() {
 
         {view === 'thai' ? (
           <div className="ld-thai-panel">
-            <ThaiP13DashboardView dark />
+            <ThaiP13DashboardView dark={theme === 'dark'} />
           </div>
         ) : (
         <>
@@ -463,7 +442,7 @@ export default function LiveDashboardPage() {
                 </h2>
                 <div className="ld-spider-card">
                   <div className="ld-spider-host">
-                    <LiveSpiderChart data={liveData?.spiderData ?? []} height={420} />
+                    <LiveSpiderChart data={liveData?.spiderData ?? []} height={420} dark={theme === 'dark'} />
                   </div>
                   <div className="ld-legend" aria-label="คำอธิบายสี">
                     <div className="ld-legend-item">
@@ -560,7 +539,6 @@ export default function LiveDashboardPage() {
             ? 'DE Dashboard · แบบประเมินภาษาไทย ป.1–3 · ครู (self) · ผอ. (director) · ค่าเป้าหมาย'
             : `DE Live Dashboard · Q-Model 4 มิติ · ปรับข้อมูลทุก ${POLL_INTERVAL / 1000} วินาที`}
         </footer>
-      </main>
     </div>
   );
 }

@@ -238,7 +238,7 @@ Reskin ของ 21 หน้าให้ใช้ design system เดียว
 | `/` | Home with navigation cards |
 | `/login` | JWT authentication — **reskin แล้ว (Design System v2)**: 2-column brand/form, show/hide password, theme toggle, responsive ≤860px |
 | `/dashboard` | Main dashboard (KPIs, Spider chart, Q-Model) |
-| `/live-dashboard` | **[ใหม่]** Real-time display screen for projector/TV |
+| `/live-dashboard` | Real-time display screen. **อยู่ใน AppShell แล้ว** (sidebar + header + breadcrumb เหมือนหน้าอื่น) และ **รองรับ light/dark ตาม global theme** — `.ld-embed` bind `data-de-theme={theme}` เพื่อให้ legacy `--de-*` token พลิกตามธีม, accent ใช้ purple ของระบบ. ปุ่ม Pause/Fullscreen ย้ายมาอยู่หัวหน้า. (เดิมเป็น standalone projector ที่บังคับ dark) |
 | `/evaluations` | List evaluation sessions |
 | `/evaluations/new` | Create new evaluation session |
 | `/evaluations/:id` | **เพิ่มหลักฐาน (รูป/เอกสาร/ลิงก์วิดีโอ) + บันทึกการสะท้อนคิด** ของครูเจ้าของ ตอนปลายภาคเรียน (ปีละ 2 ครั้ง). คะแนนกรอกที่ /assessment/:id |
