@@ -206,15 +206,15 @@ export default function AdminNetworksPage() {
   }), [rows]);
 
   return (
-    <div style={{ minHeight: '100vh', padding: '2rem', background: '#f5f5f5' }}>
+    <div style={{ minHeight: '100vh', padding: '2rem', background: 'var(--de-bg-canvas)' }}>
       <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
         {/* Header */}
         <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
-            <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#333', marginBottom: '0.5rem' }}>
+            <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--de-text-primary)', marginBottom: '0.5rem' }}>
               🌐 จัดการกลุ่มโรงเรียน
             </h1>
-            <p style={{ color: '#666' }}>
+            <p style={{ color: 'var(--de-text-secondary)' }}>
               สร้าง / แก้ไข / จัดสมาชิก เครือข่ายโรงเรียน ที่ใช้กรอง scope ใน dashboard และ live view
             </p>
           </div>
@@ -223,7 +223,7 @@ export default function AdminNetworksPage() {
               onClick={() => setEditing({ kind: 'create' })}
               style={{
                 padding: '0.55rem 1.1rem',
-                background: '#10b981',
+                background: 'var(--de-success)',
                 color: 'white',
                 border: 'none',
                 borderRadius: '0.5rem',
@@ -233,7 +233,7 @@ export default function AdminNetworksPage() {
             >
               + เพิ่มกลุ่มใหม่
             </button>
-            <Link href="/dashboard" style={{ padding: '0.55rem 1rem', background: '#667eea', color: 'white', borderRadius: '0.5rem', textDecoration: 'none' }}>
+            <Link href="/dashboard" style={{ padding: '0.55rem 1rem', background: 'var(--de-primary)', color: 'var(--de-on-primary)', borderRadius: '0.5rem', textDecoration: 'none' }}>
               ← Dashboard
             </Link>
           </div>
@@ -241,14 +241,14 @@ export default function AdminNetworksPage() {
 
         {/* Summary cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.85rem', marginBottom: '1rem' }}>
-          <SummaryCard label="กลุ่มทั้งหมด" value={counts.total} color="#667eea" />
-          <SummaryCard label="ใช้งานอยู่" value={counts.active} color="#10b981" />
-          <SummaryCard label="ปิดใช้งาน" value={counts.inactive} color="#9ca3af" />
+          <SummaryCard label="กลุ่มทั้งหมด" value={counts.total} color="var(--de-primary)" />
+          <SummaryCard label="ใช้งานอยู่" value={counts.active} color="var(--de-success)" />
+          <SummaryCard label="ปิดใช้งาน" value={counts.inactive} color="var(--de-text-tertiary)" />
         </div>
 
         {/* Filters */}
         <div style={{
-          background: 'white',
+          background: 'var(--de-bg-surface)',
           padding: '1rem 1.5rem',
           borderRadius: '0.5rem',
           boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
@@ -262,7 +262,7 @@ export default function AdminNetworksPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="ค้นหา (รหัส / ชื่อ / คำอธิบาย)"
-            style={{ flex: '1 1 280px', padding: '0.6rem 0.85rem', border: '1px solid #ddd', borderRadius: '0.4rem', fontSize: '0.95rem' }}
+            style={{ flex: '1 1 280px', padding: '0.6rem 0.85rem', border: '1px solid var(--de-border)', borderRadius: '0.4rem', fontSize: '0.95rem' }}
           />
           <div style={{ display: 'inline-flex', gap: '0.4rem' }}>
             {(['all', 'active', 'inactive'] as const).map((key) => {
@@ -276,10 +276,10 @@ export default function AdminNetworksPage() {
                   onClick={() => setStatusFilter(key)}
                   style={{
                     padding: '0.45rem 0.85rem',
-                    background: isOn ? '#667eea' : 'white',
-                    color: isOn ? 'white' : '#374151',
+                    background: isOn ? 'var(--de-primary)' : 'var(--de-bg-subtle)',
+                    color: isOn ? 'var(--de-on-primary)' : 'var(--de-text-primary)',
                     border: '1px solid',
-                    borderColor: isOn ? '#667eea' : '#d1d5db',
+                    borderColor: isOn ? 'var(--de-primary)' : 'var(--de-border-strong)',
                     borderRadius: '0.4rem',
                     fontSize: '0.85rem',
                     fontWeight: 600,
@@ -294,17 +294,17 @@ export default function AdminNetworksPage() {
         </div>
 
         {error && (
-          <div style={{ padding: '1rem', background: '#fee', color: '#c33', borderRadius: '0.5rem', marginBottom: '1rem' }}>
+          <div style={{ padding: '1rem', background: 'var(--de-danger-soft)', color: 'var(--de-danger)', borderRadius: '0.5rem', marginBottom: '1rem' }}>
             {error}
           </div>
         )}
 
         {/* Table */}
-        <div style={{ background: 'white', borderRadius: '0.5rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+        <div style={{ background: 'var(--de-bg-surface)', borderRadius: '0.5rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
               <thead>
-                <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+                <tr style={{ background: 'var(--de-bg-canvas)', borderBottom: '2px solid var(--de-border)' }}>
                   <th style={th}>รหัส</th>
                   <th style={th}>ชื่อกลุ่ม</th>
                   <th style={th}>คำอธิบาย</th>
@@ -315,31 +315,31 @@ export default function AdminNetworksPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: '#666' }}>กำลังโหลด...</td></tr>
+                  <tr><td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: 'var(--de-text-secondary)' }}>กำลังโหลด...</td></tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: '#666' }}>
+                  <tr><td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: 'var(--de-text-secondary)' }}>
                     {rows.length === 0 ? 'ยังไม่มีกลุ่มโรงเรียน — กด "+ เพิ่มกลุ่มใหม่" เพื่อเริ่มต้น' : 'ไม่พบกลุ่มที่ตรงกับตัวกรอง'}
                   </td></tr>
                 ) : filtered.map((r) => {
                   const dimmed = !r.isActive;
                   return (
-                    <tr key={r.id} style={{ borderBottom: '1px solid #e5e7eb', background: dimmed ? '#fafafa' : 'white' }}>
-                      <td style={{ ...td, color: '#666', fontFamily: 'ui-monospace, monospace', fontSize: '0.85rem' }}>
+                    <tr key={r.id} style={{ borderBottom: '1px solid var(--de-border)', background: dimmed ? 'var(--de-bg-canvas)' : 'var(--de-bg-surface)' }}>
+                      <td style={{ ...td, color: 'var(--de-text-secondary)', fontFamily: 'ui-monospace, monospace', fontSize: '0.85rem' }}>
                         {r.code || '-'}
                       </td>
-                      <td style={{ ...td, color: dimmed ? '#9ca3af' : '#1f2937', fontWeight: 500 }}>
+                      <td style={{ ...td, color: dimmed ? 'var(--de-text-tertiary)' : 'var(--de-text-primary)', fontWeight: 500 }}>
                         {r.nameTh || r.name}
                         {r.nameTh && r.name && r.nameTh !== r.name && (
-                          <div style={{ fontSize: '0.78rem', color: '#9ca3af', fontWeight: 400 }}>{r.name}</div>
+                          <div style={{ fontSize: '0.78rem', color: 'var(--de-text-tertiary)', fontWeight: 400 }}>{r.name}</div>
                         )}
                       </td>
-                      <td style={{ ...td, color: dimmed ? '#9ca3af' : '#374151', fontSize: '0.85rem', maxWidth: '320px' }}>
-                        {r.description || <span style={{ color: '#cbd5e1' }}>—</span>}
+                      <td style={{ ...td, color: dimmed ? 'var(--de-text-tertiary)' : 'var(--de-text-primary)', fontSize: '0.85rem', maxWidth: '320px' }}>
+                        {r.description || <span style={{ color: 'var(--de-border-strong)' }}>—</span>}
                       </td>
-                      <td style={{ ...td, textAlign: 'center', color: r.activeMembersCount > 0 ? '#374151' : '#9ca3af' }}>
+                      <td style={{ ...td, textAlign: 'center', color: r.activeMembersCount > 0 ? 'var(--de-text-primary)' : 'var(--de-text-tertiary)' }}>
                         {r.activeMembersCount}
                         {r.totalMembersCount > r.activeMembersCount && (
-                          <span style={{ marginLeft: '0.25rem', color: '#9ca3af', fontSize: '0.78rem' }}>
+                          <span style={{ marginLeft: '0.25rem', color: 'var(--de-text-tertiary)', fontSize: '0.78rem' }}>
                             / {r.totalMembersCount}
                           </span>
                         )}
@@ -351,7 +351,7 @@ export default function AdminNetworksPage() {
                             disabled={busy === r.id}
                             onChange={(v) => toggle(r, v)}
                           />
-                          <span style={{ fontSize: '0.78rem', color: r.isActive ? '#10b981' : '#9ca3af', fontWeight: 600, minWidth: '52px', textAlign: 'left' }}>
+                          <span style={{ fontSize: '0.78rem', color: r.isActive ? 'var(--de-success)' : 'var(--de-text-tertiary)', fontWeight: 600, minWidth: '52px', textAlign: 'left' }}>
                             {r.isActive ? 'ใช้งาน' : 'ปิด'}
                           </span>
                         </div>
@@ -360,20 +360,20 @@ export default function AdminNetworksPage() {
                         <div style={{ display: 'inline-flex', gap: '0.4rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                           <button
                             onClick={() => setMemberSheet(r)}
-                            style={miniBtn('#3b82f6')}
+                            style={miniBtn('var(--de-accent)')}
                           >
                             สมาชิก
                           </button>
                           <button
                             onClick={() => setEditing({ kind: 'edit', row: r })}
-                            style={miniBtn('#6b7280')}
+                            style={miniBtn('var(--de-text-secondary)')}
                           >
                             แก้ไข
                           </button>
                           <button
                             onClick={() => handleDelete(r)}
                             disabled={busy === r.id}
-                            style={{ ...miniBtn('#ef4444'), opacity: busy === r.id ? 0.5 : 1 }}
+                            style={{ ...miniBtn('var(--de-danger)'), opacity: busy === r.id ? 0.5 : 1 }}
                           >
                             ลบ
                           </button>
@@ -387,7 +387,7 @@ export default function AdminNetworksPage() {
           </div>
         </div>
 
-        <p style={{ marginTop: '1rem', fontSize: '0.82rem', color: '#6b7280', lineHeight: 1.6 }}>
+        <p style={{ marginTop: '1rem', fontSize: '0.82rem', color: 'var(--de-text-secondary)', lineHeight: 1.6 }}>
           <strong>หมายเหตุ:</strong> &quot;ปิดใช้งาน&quot; จะซ่อนกลุ่มจาก dropdown และ scope filter โดยข้อมูลสมาชิกยังอยู่ครบ —
           เปิดกลับเมื่อใดก็แสดงผลทันที. การลบถาวรทำได้เมื่อไม่มีสมาชิกในกลุ่มเท่านั้น
         </p>
@@ -419,7 +419,7 @@ const th: React.CSSProperties = {
   padding: '0.75rem 1rem',
   textAlign: 'left',
   fontWeight: 600,
-  color: '#374151',
+  color: 'var(--de-text-primary)',
   fontSize: '0.85rem',
 };
 
@@ -431,7 +431,7 @@ const td: React.CSSProperties = {
 function miniBtn(color: string): React.CSSProperties {
   return {
     padding: '0.35rem 0.75rem',
-    background: 'white',
+    background: 'var(--de-bg-surface)',
     color,
     border: `1px solid ${color}`,
     borderRadius: '0.35rem',
@@ -444,13 +444,13 @@ function miniBtn(color: string): React.CSSProperties {
 function SummaryCard({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <div style={{
-      background: 'white',
+      background: 'var(--de-bg-surface)',
       borderRadius: '0.5rem',
       borderLeft: `4px solid ${color}`,
       padding: '0.85rem 1rem',
       boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
     }}>
-      <div style={{ fontSize: '0.78rem', color: '#6b7280', marginBottom: '0.2rem' }}>{label}</div>
+      <div style={{ fontSize: '0.78rem', color: 'var(--de-text-secondary)', marginBottom: '0.2rem' }}>{label}</div>
       <div style={{ fontSize: '1.6rem', fontWeight: 700, color }}>{value.toLocaleString('th-TH')}</div>
     </div>
   );
@@ -468,7 +468,7 @@ function Toggle({ checked, onChange, disabled = false }: { checked: boolean; onC
       />
       <span style={{
         width: '40px', height: '22px', borderRadius: '11px',
-        background: checked ? '#10b981' : '#d1d5db',
+        background: checked ? 'var(--de-success)' : 'var(--de-border-strong)',
         position: 'relative', transition: 'background 0.2s',
         display: 'inline-block',
       }}>
@@ -477,7 +477,7 @@ function Toggle({ checked, onChange, disabled = false }: { checked: boolean; onC
           top: '2px',
           left: checked ? '20px' : '2px',
           width: '18px', height: '18px',
-          borderRadius: '50%', background: 'white',
+          borderRadius: '50%', background: 'var(--de-bg-surface)',
           transition: 'left 0.2s',
           boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
         }} />
@@ -567,11 +567,11 @@ function NetworkFormModal({
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
           <button type="button" onClick={onClose} style={{
-            padding: '0.55rem 1.1rem', background: 'white', color: '#374151',
-            border: '1px solid #d1d5db', borderRadius: '0.4rem', cursor: 'pointer', fontWeight: 600,
+            padding: '0.55rem 1.1rem', background: 'var(--de-bg-surface)', color: 'var(--de-text-primary)',
+            border: '1px solid var(--de-border-strong)', borderRadius: '0.4rem', cursor: 'pointer', fontWeight: 600,
           }}>ยกเลิก</button>
           <button type="submit" disabled={saving} style={{
-            padding: '0.55rem 1.3rem', background: '#10b981', color: 'white',
+            padding: '0.55rem 1.3rem', background: 'var(--de-success)', color: 'white',
             border: 'none', borderRadius: '0.4rem', cursor: saving ? 'not-allowed' : 'pointer',
             fontWeight: 600, opacity: saving ? 0.6 : 1,
           }}>{saving ? 'กำลังบันทึก...' : (initial ? 'บันทึก' : 'สร้าง')}</button>
@@ -707,18 +707,18 @@ function MembersDrawer({
             <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>
               สมาชิก: {network.nameTh || network.name}
             </h2>
-            <p style={{ margin: '0.25rem 0 0', color: '#6b7280', fontSize: '0.85rem' }}>
+            <p style={{ margin: '0.25rem 0 0', color: 'var(--de-text-secondary)', fontSize: '0.85rem' }}>
               {network.code ? `รหัส ${network.code} · ` : ''}สมาชิกที่ใช้งาน {activeMembers.length} แห่ง
             </p>
           </div>
           <button onClick={() => onClose(touched)} style={{
-            padding: '0.35rem 0.75rem', background: 'white', color: '#374151',
-            border: '1px solid #d1d5db', borderRadius: '0.35rem', cursor: 'pointer', fontWeight: 600,
+            padding: '0.35rem 0.75rem', background: 'var(--de-bg-surface)', color: 'var(--de-text-primary)',
+            border: '1px solid var(--de-border-strong)', borderRadius: '0.35rem', cursor: 'pointer', fontWeight: 600,
           }}>ปิด</button>
         </div>
 
         {loading ? (
-          <div style={{ padding: '2rem', textAlign: 'center', color: '#6b7280' }}>กำลังโหลด...</div>
+          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--de-text-secondary)' }}>กำลังโหลด...</div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', flex: 1, minHeight: 0, marginTop: '1rem' }}>
             {/* Active members */}
@@ -730,17 +730,17 @@ function MembersDrawer({
                   {activeMembers.map((m) => (
                     <li key={m.memberId} style={memberItemStyle}>
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ fontWeight: 600, color: '#1f2937', fontSize: '0.9rem' }}>
+                        <div style={{ fontWeight: 600, color: 'var(--de-text-primary)', fontSize: '0.9rem' }}>
                           {m.school.nameTh || m.school.name}
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--de-text-tertiary)' }}>
                           {[m.school.code, m.school.province, m.school.district].filter(Boolean).join(' · ') || '—'}
                         </div>
                       </div>
                       <button
                         onClick={() => removeMember(m.school.id, m.school.nameTh || m.school.name)}
                         disabled={removing === m.school.id}
-                        style={{ ...miniBtn('#ef4444'), opacity: removing === m.school.id ? 0.5 : 1 }}
+                        style={{ ...miniBtn('var(--de-danger)'), opacity: removing === m.school.id ? 0.5 : 1 }}
                       >
                         เอาออก
                       </button>
@@ -765,22 +765,22 @@ function MembersDrawer({
                   {candidates.map((s) => (
                     <li key={s.id} style={{ ...memberItemStyle, opacity: s.isActive ? 1 : 0.6 }}>
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ fontWeight: 600, color: '#1f2937', fontSize: '0.9rem' }}>
+                        <div style={{ fontWeight: 600, color: 'var(--de-text-primary)', fontSize: '0.9rem' }}>
                           {s.nameTh || s.name}
                           {!s.isActive && (
-                            <span style={{ marginLeft: '0.4rem', color: '#9ca3af', fontWeight: 400, fontSize: '0.75rem' }}>
+                            <span style={{ marginLeft: '0.4rem', color: 'var(--de-text-tertiary)', fontWeight: 400, fontSize: '0.75rem' }}>
                               (ปิดใช้งาน)
                             </span>
                           )}
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--de-text-tertiary)' }}>
                           {[s.code, s.province, s.district].filter(Boolean).join(' · ') || '—'}
                         </div>
                       </div>
                       <button
                         onClick={() => addMember(s.id)}
                         disabled={adding === s.id}
-                        style={{ ...miniBtn('#10b981'), opacity: adding === s.id ? 0.5 : 1 }}
+                        style={{ ...miniBtn('var(--de-success)'), opacity: adding === s.id ? 0.5 : 1 }}
                       >
                         + เพิ่ม
                       </button>
@@ -819,7 +819,7 @@ function Backdrop({ children, onClose }: { children: React.ReactNode; onClose: (
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label style={{ display: 'block', marginTop: '0.6rem' }}>
-      <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: '0.3rem' }}>{label}</div>
+      <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--de-text-primary)', marginBottom: '0.3rem' }}>{label}</div>
       {children}
     </label>
   );
@@ -829,10 +829,10 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   return (
     <div style={{
       display: 'flex', flexDirection: 'column',
-      background: '#f9fafb', borderRadius: '0.5rem', padding: '0.85rem',
-      border: '1px solid #e5e7eb', minHeight: 0,
+      background: 'var(--de-bg-canvas)', borderRadius: '0.5rem', padding: '0.85rem',
+      border: '1px solid var(--de-border)', minHeight: 0,
     }}>
-      <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#374151', marginBottom: '0.5rem' }}>{title}</div>
+      <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--de-text-primary)', marginBottom: '0.5rem' }}>{title}</div>
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         {children}
       </div>
@@ -842,7 +842,7 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 
 function EmptyHint({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ padding: '1.2rem', textAlign: 'center', color: '#9ca3af', fontSize: '0.85rem' }}>
+    <div style={{ padding: '1.2rem', textAlign: 'center', color: 'var(--de-text-tertiary)', fontSize: '0.85rem' }}>
       {children}
     </div>
   );
@@ -851,7 +851,7 @@ function EmptyHint({ children }: { children: React.ReactNode }) {
 const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '0.55rem 0.75rem',
-  border: '1px solid #d1d5db',
+  border: '1px solid var(--de-border-strong)',
   borderRadius: '0.4rem',
   fontSize: '0.92rem',
   fontFamily: 'inherit',
@@ -859,7 +859,7 @@ const inputStyle: React.CSSProperties = {
 };
 
 const modalCard: React.CSSProperties = {
-  background: 'white',
+  background: 'var(--de-bg-surface)',
   borderRadius: '0.75rem',
   padding: '1.5rem',
   width: '100%',
@@ -875,5 +875,5 @@ const listStyle: React.CSSProperties = {
 const memberItemStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: '0.6rem',
   padding: '0.55rem 0.7rem',
-  background: 'white', border: '1px solid #e5e7eb', borderRadius: '0.4rem',
+  background: 'var(--de-bg-surface)', border: '1px solid var(--de-border)', borderRadius: '0.4rem',
 };

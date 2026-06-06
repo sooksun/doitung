@@ -34,11 +34,11 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
-  ADMIN: { bg: '#fee2e2', text: '#991b1b' },
-  SCHOOL_ADMIN: { bg: '#fed7aa', text: '#9a3412' },
-  SCHOOL_LEADER: { bg: '#dbeafe', text: '#1e40af' },
-  TEACHER: { bg: '#ede9fe', text: '#5b21b6' },
-  SUPERVISOR: { bg: '#d1fae5', text: '#065f46' },
+  ADMIN: { bg: 'var(--de-danger-soft)', text: 'var(--de-danger)' },
+  SCHOOL_ADMIN: { bg: 'var(--de-warning-soft)', text: 'var(--de-warning)' },
+  SCHOOL_LEADER: { bg: 'var(--de-accent-soft)', text: 'var(--de-accent)' },
+  TEACHER: { bg: 'var(--de-primary-soft)', text: 'var(--de-primary)' },
+  SUPERVISOR: { bg: 'var(--de-success-soft)', text: 'var(--de-success)' },
 };
 
 const PAGE_SIZE = 20;
@@ -138,21 +138,21 @@ export default function UsersPage() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <div style={{ minHeight: '100vh', padding: '2rem', background: '#f5f5f5' }}>
+    <div style={{ minHeight: '100vh', padding: '2rem', background: 'var(--de-bg-canvas)' }}>
       <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
         <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
-            <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#333', marginBottom: '0.5rem' }}>
+            <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--de-text-primary)', marginBottom: '0.5rem' }}>
               👥 จัดการผู้ใช้
             </h1>
-            <p style={{ color: '#666' }}>ทั้งหมด {total.toLocaleString('th-TH')} คน</p>
+            <p style={{ color: 'var(--de-text-secondary)' }}>ทั้งหมด {total.toLocaleString('th-TH')} คน</p>
           </div>
           <Link
             href="/dashboard"
             style={{
               padding: '0.5rem 1rem',
-              background: '#667eea',
-              color: 'white',
+              background: 'var(--de-primary)',
+              color: 'var(--de-on-primary)',
               borderRadius: '0.5rem',
               textDecoration: 'none',
             }}
@@ -163,7 +163,7 @@ export default function UsersPage() {
 
         {/* Filters */}
         <div style={{
-          background: 'white',
+          background: 'var(--de-bg-surface)',
           padding: '1rem 1.5rem',
           borderRadius: '0.5rem',
           boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
@@ -174,21 +174,21 @@ export default function UsersPage() {
           alignItems: 'end',
         }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            <span style={{ fontSize: '0.85rem', color: '#666' }}>ค้นหา (อีเมล/ชื่อ)</span>
+            <span style={{ fontSize: '0.85rem', color: 'var(--de-text-secondary)' }}>ค้นหา (อีเมล/ชื่อ)</span>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') applyFilters(); }}
               placeholder="เช่น admin@local"
-              style={{ padding: '0.5rem 0.75rem', border: '1px solid #ddd', borderRadius: '0.4rem', fontSize: '0.9rem' }}
+              style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--de-border)', borderRadius: '0.4rem', fontSize: '0.9rem' }}
             />
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            <span style={{ fontSize: '0.85rem', color: '#666' }}>บทบาท</span>
+            <span style={{ fontSize: '0.85rem', color: 'var(--de-text-secondary)' }}>บทบาท</span>
             <select
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
-              style={{ padding: '0.5rem 0.75rem', border: '1px solid #ddd', borderRadius: '0.4rem', fontSize: '0.9rem' }}
+              style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--de-border)', borderRadius: '0.4rem', fontSize: '0.9rem' }}
             >
               <option value="">ทั้งหมด</option>
               <option value="ADMIN">ผู้ดูแลระบบ</option>
@@ -199,9 +199,9 @@ export default function UsersPage() {
             </select>
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            <span style={{ fontSize: '0.85rem', color: '#666' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--de-text-secondary)' }}>
               โรงเรียน {schoolInput.trim() && !resolvedSchoolId && (
-                <span style={{ color: '#ef4444', fontSize: '0.75rem' }}>(ไม่พบ)</span>
+                <span style={{ color: 'var(--de-danger)', fontSize: '0.75rem' }}>(ไม่พบ)</span>
               )}
             </span>
             <input
@@ -210,7 +210,7 @@ export default function UsersPage() {
               onChange={(e) => setSchoolInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') applyFilters(); }}
               placeholder="พิมพ์รหัสหรือชื่อโรงเรียน"
-              style={{ padding: '0.5rem 0.75rem', border: '1px solid #ddd', borderRadius: '0.4rem', fontSize: '0.9rem' }}
+              style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--de-border)', borderRadius: '0.4rem', fontSize: '0.9rem' }}
             />
             <datalist id="schools-datalist">
               {schools.map((s) => (
@@ -219,11 +219,11 @@ export default function UsersPage() {
             </datalist>
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            <span style={{ fontSize: '0.85rem', color: '#666' }}>สถานะ</span>
+            <span style={{ fontSize: '0.85rem', color: 'var(--de-text-secondary)' }}>สถานะ</span>
             <select
               value={activeFilter}
               onChange={(e) => setActiveFilter(e.target.value)}
-              style={{ padding: '0.5rem 0.75rem', border: '1px solid #ddd', borderRadius: '0.4rem', fontSize: '0.9rem' }}
+              style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--de-border)', borderRadius: '0.4rem', fontSize: '0.9rem' }}
             >
               <option value="">ทั้งหมด</option>
               <option value="true">ใช้งาน</option>
@@ -234,8 +234,8 @@ export default function UsersPage() {
             onClick={applyFilters}
             style={{
               padding: '0.55rem 1rem',
-              background: '#667eea',
-              color: 'white',
+              background: 'var(--de-primary)',
+              color: 'var(--de-on-primary)',
               border: 'none',
               borderRadius: '0.4rem',
               fontSize: '0.9rem',
@@ -249,14 +249,14 @@ export default function UsersPage() {
         </div>
 
         {error && (
-          <div style={{ padding: '1rem', background: '#fee', color: '#c33', borderRadius: '0.5rem', marginBottom: '1rem' }}>
+          <div style={{ padding: '1rem', background: 'var(--de-danger-soft)', color: 'var(--de-danger)', borderRadius: '0.5rem', marginBottom: '1rem' }}>
             {error}
           </div>
         )}
 
         {/* Users table */}
         <div style={{
-          background: 'white',
+          background: 'var(--de-bg-surface)',
           borderRadius: '0.5rem',
           boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
           overflow: 'hidden',
@@ -264,33 +264,33 @@ export default function UsersPage() {
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
               <thead>
-                <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>ID</th>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>อีเมล</th>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>ชื่อ</th>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>เบอร์โทร</th>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>บทบาท</th>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>โรงเรียน</th>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>สถานะ</th>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 'bold', color: '#333' }}>จัดการ</th>
+                <tr style={{ background: 'var(--de-bg-canvas)', borderBottom: '2px solid var(--de-border)' }}>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 'bold', color: 'var(--de-text-primary)' }}>ID</th>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 'bold', color: 'var(--de-text-primary)' }}>อีเมล</th>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 'bold', color: 'var(--de-text-primary)' }}>ชื่อ</th>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 'bold', color: 'var(--de-text-primary)' }}>เบอร์โทร</th>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 'bold', color: 'var(--de-text-primary)' }}>บทบาท</th>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 'bold', color: 'var(--de-text-primary)' }}>โรงเรียน</th>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 'bold', color: 'var(--de-text-primary)' }}>สถานะ</th>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 'bold', color: 'var(--de-text-primary)' }}>จัดการ</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={8} style={{ padding: '2rem', textAlign: 'center', color: '#666' }}>กำลังโหลด...</td></tr>
+                  <tr><td colSpan={8} style={{ padding: '2rem', textAlign: 'center', color: 'var(--de-text-secondary)' }}>กำลังโหลด...</td></tr>
                 ) : users.length === 0 ? (
-                  <tr><td colSpan={8} style={{ padding: '2rem', textAlign: 'center', color: '#666' }}>ไม่พบผู้ใช้</td></tr>
+                  <tr><td colSpan={8} style={{ padding: '2rem', textAlign: 'center', color: 'var(--de-text-secondary)' }}>ไม่พบผู้ใช้</td></tr>
                 ) : (
                   users.map((u) => (
-                    <tr key={u.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ padding: '0.6rem 1rem', color: '#666' }}>#{u.id}</td>
-                      <td style={{ padding: '0.6rem 1rem', color: '#333', fontFamily: 'ui-monospace, monospace', fontSize: '0.8rem' }}>{u.email}</td>
-                      <td style={{ padding: '0.6rem 1rem', color: '#333' }}>{u.name}</td>
-                      <td style={{ padding: '0.6rem 1rem', color: '#666' }}>{u.phone || '—'}</td>
+                    <tr key={u.id} style={{ borderBottom: '1px solid var(--de-border)' }}>
+                      <td style={{ padding: '0.6rem 1rem', color: 'var(--de-text-secondary)' }}>#{u.id}</td>
+                      <td style={{ padding: '0.6rem 1rem', color: 'var(--de-text-primary)', fontFamily: 'ui-monospace, monospace', fontSize: '0.8rem' }}>{u.email}</td>
+                      <td style={{ padding: '0.6rem 1rem', color: 'var(--de-text-primary)' }}>{u.name}</td>
+                      <td style={{ padding: '0.6rem 1rem', color: 'var(--de-text-secondary)' }}>{u.phone || '—'}</td>
                       <td style={{ padding: '0.6rem 1rem' }}>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
                           {u.roles.map((r) => {
-                            const c = ROLE_COLORS[r] || { bg: '#f3f4f6', text: '#374151' };
+                            const c = ROLE_COLORS[r] || { bg: 'var(--de-bg-subtle)', text: 'var(--de-text-primary)' };
                             return (
                               <span key={r} style={{
                                 padding: '0.15rem 0.5rem',
@@ -306,14 +306,14 @@ export default function UsersPage() {
                           })}
                         </div>
                       </td>
-                      <td style={{ padding: '0.6rem 1rem', color: '#666', fontSize: '0.8rem' }}>
+                      <td style={{ padding: '0.6rem 1rem', color: 'var(--de-text-secondary)', fontSize: '0.8rem' }}>
                         {u.school ? `${u.school.code || ''} ${u.school.nameTh}`.trim() : '—'}
                       </td>
                       <td style={{ padding: '0.6rem 1rem' }}>
                         <span style={{
                           padding: '0.15rem 0.5rem',
-                          background: u.isActive ? '#d1fae5' : '#fee2e2',
-                          color: u.isActive ? '#065f46' : '#991b1b',
+                          background: u.isActive ? 'var(--de-success-soft)' : 'var(--de-danger-soft)',
+                          color: u.isActive ? 'var(--de-success)' : 'var(--de-danger)',
                           borderRadius: '0.25rem',
                           fontSize: '0.75rem',
                           fontWeight: 600,
@@ -326,8 +326,8 @@ export default function UsersPage() {
                           href={`/users/${u.id}/edit`}
                           style={{
                             padding: '0.25rem 0.7rem',
-                            background: '#667eea',
-                            color: 'white',
+                            background: 'var(--de-primary)',
+                            color: 'var(--de-on-primary)',
                             borderRadius: '0.3rem',
                             textDecoration: 'none',
                             fontSize: '0.8rem',
@@ -359,8 +359,8 @@ export default function UsersPage() {
               disabled={page <= 1}
               style={{
                 padding: '0.4rem 0.75rem',
-                background: page <= 1 ? '#e5e7eb' : '#667eea',
-                color: page <= 1 ? '#9ca3af' : 'white',
+                background: page <= 1 ? 'var(--de-border)' : 'var(--de-primary)',
+                color: page <= 1 ? 'var(--de-text-tertiary)' : 'var(--de-on-primary)',
                 border: 'none',
                 borderRadius: '0.3rem',
                 cursor: page <= 1 ? 'not-allowed' : 'pointer',
@@ -369,7 +369,7 @@ export default function UsersPage() {
             >
               ← ก่อนหน้า
             </button>
-            <span style={{ padding: '0 0.6rem', fontSize: '0.85rem', color: '#666' }}>
+            <span style={{ padding: '0 0.6rem', fontSize: '0.85rem', color: 'var(--de-text-secondary)' }}>
               หน้า <strong>{page}</strong> / {totalPages}
             </span>
             <button
@@ -377,8 +377,8 @@ export default function UsersPage() {
               disabled={page >= totalPages}
               style={{
                 padding: '0.4rem 0.75rem',
-                background: page >= totalPages ? '#e5e7eb' : '#667eea',
-                color: page >= totalPages ? '#9ca3af' : 'white',
+                background: page >= totalPages ? 'var(--de-border)' : 'var(--de-primary)',
+                color: page >= totalPages ? 'var(--de-text-tertiary)' : 'var(--de-on-primary)',
                 border: 'none',
                 borderRadius: '0.3rem',
                 cursor: page >= totalPages ? 'not-allowed' : 'pointer',

@@ -39,11 +39,11 @@ const LEVEL_LABEL: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  UPLOADED: { bg: '#fef3c7', text: '#92400e', label: 'รออัปโหลด/รอประมวลผล' },
-  EXTRACTING: { bg: '#dbeafe', text: '#1e40af', label: 'กำลังประมวลผล' },
-  NEEDS_REVIEW: { bg: '#fde68a', text: '#92400e', label: 'รอตรวจทาน' },
-  APPROVED: { bg: '#d1fae5', text: '#065f46', label: 'ยืนยันแล้ว' },
-  ARCHIVED: { bg: '#e5e7eb', text: '#374151', label: 'เก็บถาวร' },
+  UPLOADED: { bg: 'var(--de-warning-soft)', text: 'var(--de-warning)', label: 'รออัปโหลด/รอประมวลผล' },
+  EXTRACTING: { bg: 'var(--de-accent-soft)', text: 'var(--de-accent)', label: 'กำลังประมวลผล' },
+  NEEDS_REVIEW: { bg: 'var(--de-warning-soft)', text: 'var(--de-warning)', label: 'รอตรวจทาน' },
+  APPROVED: { bg: 'var(--de-success-soft)', text: 'var(--de-success)', label: 'ยืนยันแล้ว' },
+  ARCHIVED: { bg: 'var(--de-border)', text: 'var(--de-text-primary)', label: 'เก็บถาวร' },
 };
 
 export default function SarListPage() {
@@ -151,36 +151,36 @@ export default function SarListPage() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', padding: '2rem', background: '#f5f5f5' }}>
+    <div style={{ minHeight: '100vh', padding: '2rem', background: 'var(--de-bg-canvas)' }}>
       <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
         <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
-            <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#333', marginBottom: '0.5rem' }}>
+            <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--de-text-primary)', marginBottom: '0.5rem' }}>
               📚 คลังข้อมูลการระดมสมอง
             </h1>
-            <p style={{ color: '#666' }}>
+            <p style={{ color: 'var(--de-text-secondary)' }}>
               ดูประวัติการระดมสมองของแต่ละโรงเรียน ปีการศึกษา · บันทึกใหม่ด้วย Iceberg Model 4 ชั้น × 2 ด้าน + Sticky Notes ระดมสมอง · แนบไฟล์ PDF ได้ · เก็บเวอร์ชันทุกครั้งที่บันทึก
             </p>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <Link href="/admin/sar/new" style={{ padding: '0.55rem 1rem', background: '#10b981', color: 'white', borderRadius: '0.5rem', textDecoration: 'none', fontWeight: 600 }}>
+            <Link href="/admin/sar/new" style={{ padding: '0.55rem 1rem', background: 'var(--de-success)', color: 'white', borderRadius: '0.5rem', textDecoration: 'none', fontWeight: 600 }}>
               + บันทึกการระดมสมองใหม่
             </Link>
-            <Link href="/dashboard" style={{ padding: '0.55rem 1rem', background: '#667eea', color: 'white', borderRadius: '0.5rem', textDecoration: 'none' }}>
+            <Link href="/dashboard" style={{ padding: '0.55rem 1rem', background: 'var(--de-primary)', color: 'var(--de-on-primary)', borderRadius: '0.5rem', textDecoration: 'none' }}>
               ← Dashboard
             </Link>
           </div>
         </div>
 
         {error && (
-          <div style={{ padding: '1rem', background: '#fee', color: '#c33', borderRadius: '0.5rem', marginBottom: '1rem' }}>{error}</div>
+          <div style={{ padding: '1rem', background: 'var(--de-danger-soft)', color: 'var(--de-danger)', borderRadius: '0.5rem', marginBottom: '1rem' }}>{error}</div>
         )}
 
-        <div style={{ background: 'white', borderRadius: '0.5rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+        <div style={{ background: 'var(--de-bg-surface)', borderRadius: '0.5rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
               <thead>
-                <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+                <tr style={{ background: 'var(--de-bg-canvas)', borderBottom: '2px solid var(--de-border)' }}>
                   <th style={{ padding: '0.75rem 1rem', textAlign: 'left' }}>ID</th>
                   <th style={{ padding: '0.75rem 1rem', textAlign: 'left' }}>โรงเรียน</th>
                   <th style={{ padding: '0.75rem 1rem', textAlign: 'left' }}>ปี</th>
@@ -195,26 +195,26 @@ export default function SarListPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={10} style={{ padding: '2rem', textAlign: 'center', color: '#666' }}>กำลังโหลด...</td></tr>
+                  <tr><td colSpan={10} style={{ padding: '2rem', textAlign: 'center', color: 'var(--de-text-secondary)' }}>กำลังโหลด...</td></tr>
                 ) : rows.length === 0 ? (
-                  <tr><td colSpan={10} style={{ padding: '2rem', textAlign: 'center', color: '#666' }}>ยังไม่มีข้อมูลการระดมสมอง — กดปุ่ม &quot;+ บันทึกการระดมสมองใหม่&quot; เพื่อเริ่ม</td></tr>
+                  <tr><td colSpan={10} style={{ padding: '2rem', textAlign: 'center', color: 'var(--de-text-secondary)' }}>ยังไม่มีข้อมูลการระดมสมอง — กดปุ่ม &quot;+ บันทึกการระดมสมองใหม่&quot; เพื่อเริ่ม</td></tr>
                 ) : rows.map((r) => {
-                  const sc = STATUS_COLORS[r.status] || { bg: '#f3f4f6', text: '#6b7280', label: r.status };
+                  const sc = STATUS_COLORS[r.status] || { bg: 'var(--de-bg-subtle)', text: 'var(--de-text-secondary)', label: r.status };
                   const qScore = r.textQualityScore !== null ? `${(r.textQualityScore * 100).toFixed(0)}%` : '—';
                   const fileLabel = r.originalFilename
                     ? (r.originalFilename.length > 24 ? r.originalFilename.slice(0, 24) + '…' : r.originalFilename)
                     : null;
                   return (
-                    <tr key={r.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ padding: '0.6rem 1rem', color: '#666' }}>#{r.id}</td>
-                      <td style={{ padding: '0.6rem 1rem', color: '#333', fontSize: '0.85rem' }}>{r.schoolCode ? `${r.schoolCode} ` : ''}{r.schoolName}</td>
-                      <td style={{ padding: '0.6rem 1rem', color: '#666' }}>{r.academicYear}</td>
-                      <td style={{ padding: '0.6rem 1rem', color: '#333' }}>{LEVEL_LABEL[r.level] || r.level}</td>
-                      <td style={{ padding: '0.6rem 1rem', color: '#666', fontSize: '0.8rem' }} title={r.originalFilename || ''}>
+                    <tr key={r.id} style={{ borderBottom: '1px solid var(--de-border)' }}>
+                      <td style={{ padding: '0.6rem 1rem', color: 'var(--de-text-secondary)' }}>#{r.id}</td>
+                      <td style={{ padding: '0.6rem 1rem', color: 'var(--de-text-primary)', fontSize: '0.85rem' }}>{r.schoolCode ? `${r.schoolCode} ` : ''}{r.schoolName}</td>
+                      <td style={{ padding: '0.6rem 1rem', color: 'var(--de-text-secondary)' }}>{r.academicYear}</td>
+                      <td style={{ padding: '0.6rem 1rem', color: 'var(--de-text-primary)' }}>{LEVEL_LABEL[r.level] || r.level}</td>
+                      <td style={{ padding: '0.6rem 1rem', color: 'var(--de-text-secondary)', fontSize: '0.8rem' }} title={r.originalFilename || ''}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
                           {r.hasFile && fileLabel && <span>📎 {fileLabel}</span>}
-                          {r.hasBodyText && <span style={{ color: '#7c3aed' }}>📝 ข้อความ {r.bodyTextLength.toLocaleString()} ตัวอักษร</span>}
-                          {!r.hasFile && !r.hasBodyText && <span style={{ color: '#dc2626' }}>—</span>}
+                          {r.hasBodyText && <span style={{ color: 'var(--de-primary)' }}>📝 ข้อความ {r.bodyTextLength.toLocaleString()} ตัวอักษร</span>}
+                          {!r.hasFile && !r.hasBodyText && <span style={{ color: 'var(--de-danger)' }}>—</span>}
                         </div>
                       </td>
                       <td style={{ padding: '0.6rem 1rem', textAlign: 'center' }}>
@@ -222,14 +222,14 @@ export default function SarListPage() {
                           {sc.label}
                         </span>
                       </td>
-                      <td style={{ padding: '0.6rem 1rem', textAlign: 'center', color: '#666' }}>
+                      <td style={{ padding: '0.6rem 1rem', textAlign: 'center', color: 'var(--de-text-secondary)' }}>
                         {r.pagesStored}/{r.pageCount ?? '?'}
                       </td>
-                      <td style={{ padding: '0.6rem 1rem', textAlign: 'center', color: '#666' }}>{qScore}</td>
-                      <td style={{ padding: '0.6rem 1rem', textAlign: 'center', color: '#666' }}>v{r.versions}</td>
+                      <td style={{ padding: '0.6rem 1rem', textAlign: 'center', color: 'var(--de-text-secondary)' }}>{qScore}</td>
+                      <td style={{ padding: '0.6rem 1rem', textAlign: 'center', color: 'var(--de-text-secondary)' }}>v{r.versions}</td>
                       <td style={{ padding: '0.6rem 1rem' }}>
                         <div style={{ display: 'inline-flex', gap: '0.4rem' }}>
-                          <Link href={`/admin/sar/${r.id}`} style={{ padding: '0.25rem 0.7rem', background: '#667eea', color: 'white', borderRadius: '0.3rem', textDecoration: 'none', fontSize: '0.8rem' }}>
+                          <Link href={`/admin/sar/${r.id}`} style={{ padding: '0.25rem 0.7rem', background: 'var(--de-primary)', color: 'var(--de-on-primary)', borderRadius: '0.3rem', textDecoration: 'none', fontSize: '0.8rem' }}>
                             เปิด
                           </Link>
                           {isAdmin && (
@@ -240,7 +240,7 @@ export default function SarListPage() {
                               title="ลบรายการนี้ (Soft Delete — ข้อมูลเดิมยังเก็บไว้)"
                               style={{
                                 padding: '0.25rem 0.7rem',
-                                background: deletingId === r.id ? '#fca5a5' : '#ef4444',
+                                background: deletingId === r.id ? 'var(--de-danger-soft)' : 'var(--de-danger)',
                                 color: 'white',
                                 border: 'none',
                                 borderRadius: '0.3rem',

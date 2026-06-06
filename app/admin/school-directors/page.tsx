@@ -323,28 +323,28 @@ export default function AdminSchoolDirectorsPage() {
   }), [directors]);
 
   if (loading) {
-    return <div style={{ padding: '2rem', textAlign: 'center', color: '#666' }}>กำลังโหลด...</div>;
+    return <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--de-text-secondary)' }}>กำลังโหลด...</div>;
   }
 
   if (error) {
     return (
       <div style={{ padding: '2rem', textAlign: 'center' }}>
-        <p style={{ color: '#ef4444', marginBottom: '1rem' }}>{error}</p>
-        <Link href="/dashboard" style={{ color: '#667eea', textDecoration: 'none' }}>← Dashboard</Link>
+        <p style={{ color: 'var(--de-danger)', marginBottom: '1rem' }}>{error}</p>
+        <Link href="/dashboard" style={{ color: 'var(--de-primary)', textDecoration: 'none' }}>← Dashboard</Link>
       </div>
     );
   }
 
   return (
-    <div style={{ minHeight: '100vh', padding: '2rem', background: '#f5f5f5' }}>
+    <div style={{ minHeight: '100vh', padding: '2rem', background: 'var(--de-bg-canvas)' }}>
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
         {/* Header */}
         <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
-            <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#333', marginBottom: '0.5rem' }}>
+            <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--de-text-primary)', marginBottom: '0.5rem' }}>
               🏫 กำหนดผู้อำนวยการประจำโรงเรียน
             </h1>
-            <p style={{ color: '#666' }}>
+            <p style={{ color: 'var(--de-text-secondary)' }}>
               ผูกผู้ใช้สิทธิ์ <strong>ผู้อำนวยการ</strong> (SCHOOL_LEADER) เข้ากับโรงเรียน — เพื่อใช้เป็นผู้ประเมินคู่ของครู (Thai ป.1–3) และสิทธิ์อื่น ๆ ที่ผูกตามโรงเรียน
             </p>
           </div>
@@ -354,7 +354,7 @@ export default function AdminSchoolDirectorsPage() {
               onClick={openAddModal}
               style={{
                 padding: '0.55rem 1.1rem',
-                background: '#10b981',
+                background: 'var(--de-success)',
                 color: 'white',
                 border: 'none',
                 borderRadius: '0.5rem',
@@ -365,7 +365,7 @@ export default function AdminSchoolDirectorsPage() {
             >
               + เพิ่มผู้อำนวยการ
             </button>
-            <Link href="/dashboard" style={{ padding: '0.5rem 1rem', background: '#667eea', color: 'white', borderRadius: '0.5rem', textDecoration: 'none' }}>
+            <Link href="/dashboard" style={{ padding: '0.5rem 1rem', background: 'var(--de-primary)', color: 'var(--de-on-primary)', borderRadius: '0.5rem', textDecoration: 'none' }}>
               ← Dashboard
             </Link>
           </div>
@@ -373,14 +373,14 @@ export default function AdminSchoolDirectorsPage() {
 
         {/* Summary */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.85rem', marginBottom: '1rem' }}>
-          <SummaryCard label="ผอ. ทั้งหมด" value={counts.total} color="#667eea" />
-          <SummaryCard label="ผูกโรงเรียนแล้ว" value={counts.bound} color="#10b981" />
-          <SummaryCard label="ยังไม่ผูก" value={counts.unbound} color="#f59e0b" />
+          <SummaryCard label="ผอ. ทั้งหมด" value={counts.total} color="var(--de-primary)" />
+          <SummaryCard label="ผูกโรงเรียนแล้ว" value={counts.bound} color="var(--de-success)" />
+          <SummaryCard label="ยังไม่ผูก" value={counts.unbound} color="var(--de-warning)" />
         </div>
 
         {/* Filters */}
         <div style={{
-          background: 'white',
+          background: 'var(--de-bg-surface)',
           padding: '1rem 1.5rem',
           borderRadius: '0.5rem',
           boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
@@ -394,7 +394,7 @@ export default function AdminSchoolDirectorsPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="ค้นหา (ชื่อ / อีเมล / โรงเรียน)"
-            style={{ flex: '1 1 280px', padding: '0.6rem 0.85rem', border: '1px solid #ddd', borderRadius: '0.4rem', fontSize: '0.95rem' }}
+            style={{ flex: '1 1 280px', padding: '0.6rem 0.85rem', border: '1px solid var(--de-border)', borderRadius: '0.4rem', fontSize: '0.95rem' }}
           />
           <div style={{ display: 'inline-flex', gap: '0.4rem' }}>
             {(['all', 'bound', 'unbound'] as const).map((key) => {
@@ -410,10 +410,10 @@ export default function AdminSchoolDirectorsPage() {
                   onClick={() => setStatusFilter(key)}
                   style={{
                     padding: '0.45rem 0.85rem',
-                    background: isOn ? '#667eea' : 'white',
-                    color: isOn ? 'white' : '#374151',
+                    background: isOn ? 'var(--de-primary)' : 'var(--de-bg-subtle)',
+                    color: isOn ? 'var(--de-on-primary)' : 'var(--de-text-primary)',
                     border: '1px solid',
-                    borderColor: isOn ? '#667eea' : '#d1d5db',
+                    borderColor: isOn ? 'var(--de-primary)' : 'var(--de-border-strong)',
                     borderRadius: '0.4rem',
                     fontSize: '0.85rem',
                     fontWeight: 600,
@@ -428,10 +428,10 @@ export default function AdminSchoolDirectorsPage() {
         </div>
 
         {/* Table */}
-        <div style={{ background: 'white', borderRadius: '0.5rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+        <div style={{ background: 'var(--de-bg-surface)', borderRadius: '0.5rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
             <thead>
-              <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
+              <tr style={{ background: 'var(--de-bg-canvas)', borderBottom: '1px solid var(--de-border)' }}>
                 <th style={thStyle}>ผู้อำนวยการ (SCHOOL_LEADER)</th>
                 <th style={thStyle}>อีเมล</th>
                 <th style={thStyle}>โรงเรียนที่ผูก</th>
@@ -441,18 +441,18 @@ export default function AdminSchoolDirectorsPage() {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={4} style={{ padding: '2rem', textAlign: 'center', color: '#9ca3af' }}>
+                  <td colSpan={4} style={{ padding: '2rem', textAlign: 'center', color: 'var(--de-text-tertiary)' }}>
                     {search || statusFilter !== 'all' ? 'ไม่พบรายการตามเงื่อนไข' : 'ยังไม่มีผู้ใช้สิทธิ์ ผอ. (SCHOOL_LEADER) ที่ใช้งาน'}
                   </td>
                 </tr>
               ) : (
                 filtered.map((row) => (
-                  <tr key={row.userId} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                  <tr key={row.userId} style={{ borderBottom: '1px solid var(--de-bg-subtle)' }}>
                     <td style={tdStyle}>
-                      <div style={{ fontWeight: 600, color: '#1f2937' }}>{row.name}</div>
-                      <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>userId: {row.userId}</div>
+                      <div style={{ fontWeight: 600, color: 'var(--de-text-primary)' }}>{row.name}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--de-text-tertiary)' }}>userId: {row.userId}</div>
                     </td>
-                    <td style={{ ...tdStyle, color: '#6b7280' }}>{row.email}</td>
+                    <td style={{ ...tdStyle, color: 'var(--de-text-secondary)' }}>{row.email}</td>
                     <td style={tdStyle}>
                       <select
                         value={row.currentSchool?.id ?? ''}
@@ -465,10 +465,10 @@ export default function AdminSchoolDirectorsPage() {
                           width: '100%',
                           maxWidth: '420px',
                           padding: '0.45rem 0.6rem',
-                          border: '1px solid ' + (row.currentSchool ? '#10b981' : '#fbbf24'),
+                          border: '1px solid ' + (row.currentSchool ? 'var(--de-success)' : 'var(--de-warning)'),
                           borderRadius: '0.4rem',
                           fontSize: '0.88rem',
-                          background: row.currentSchool ? '#ecfdf5' : '#fffbeb',
+                          background: row.currentSchool ? 'var(--de-success-soft)' : 'var(--de-warning-soft)',
                           cursor: busy === row.userId ? 'wait' : 'pointer',
                         }}
                       >
@@ -487,9 +487,9 @@ export default function AdminSchoolDirectorsPage() {
                           disabled={busy === row.userId}
                           style={{
                             padding: '0.4rem 0.75rem',
-                            background: busy === row.userId ? '#e5e7eb' : '#fee2e2',
-                            color: busy === row.userId ? '#9ca3af' : '#b91c1c',
-                            border: '1px solid ' + (busy === row.userId ? '#e5e7eb' : '#fca5a5'),
+                            background: busy === row.userId ? 'var(--de-border)' : 'var(--de-danger-soft)',
+                            color: busy === row.userId ? 'var(--de-text-tertiary)' : 'var(--de-danger)',
+                            border: '1px solid ' + (busy === row.userId ? 'var(--de-border)' : 'var(--de-danger-soft)'),
                             borderRadius: '0.4rem',
                             fontSize: '0.82rem',
                             fontWeight: 600,
@@ -499,7 +499,7 @@ export default function AdminSchoolDirectorsPage() {
                           ยกเลิก
                         </button>
                       ) : (
-                        <span style={{ fontSize: '0.78rem', color: '#9ca3af', fontStyle: 'italic' }}>—</span>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--de-text-tertiary)', fontStyle: 'italic' }}>—</span>
                       )}
                     </td>
                   </tr>
@@ -510,7 +510,7 @@ export default function AdminSchoolDirectorsPage() {
         </div>
 
         {/* Help footer */}
-        <div style={{ marginTop: '1.25rem', padding: '0.85rem 1rem', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '0.5rem', fontSize: '0.82rem', color: '#1e40af', lineHeight: 1.55 }}>
+        <div style={{ marginTop: '1.25rem', padding: '0.85rem 1rem', background: 'var(--de-accent-soft)', border: '1px solid var(--de-accent-soft)', borderRadius: '0.5rem', fontSize: '0.82rem', color: 'var(--de-accent)', lineHeight: 1.55 }}>
           💡 เคล็ดลับ: เลือกโรงเรียนจาก dropdown เพื่อผูก ผอ. กับโรงเรียน — ระบบจะบันทึกอัตโนมัติ
           การผูกนี้ใช้ใน <strong>/evaluations/new</strong> (สร้างการประเมินคู่ Thai ป.1–3) และตรงสิทธิ์อื่น ๆ ที่ผูกตามโรงเรียน
           ผอ. หนึ่งคนสามารถผูกได้กับโรงเรียนเดียวเท่านั้น (ถ้าต้องการย้าย เลือกโรงเรียนใหม่จาก dropdown ได้เลย)
@@ -532,17 +532,17 @@ export default function AdminSchoolDirectorsPage() {
             onClick={(e) => e.stopPropagation()}
             style={{
               width: '100%', maxWidth: 640, maxHeight: '92vh',
-              background: 'white', borderRadius: 12, boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+              background: 'var(--de-bg-surface)', borderRadius: 12, boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
               display: 'flex', flexDirection: 'column', overflow: 'hidden',
             }}
           >
-            <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1f2937' }}>➕ เพิ่มผู้อำนวยการ</div>
-              <button type="button" onClick={closeAddModal} disabled={addSubmitting} style={{ background: 'transparent', border: 'none', color: '#9ca3af', fontSize: '1.4rem', cursor: addSubmitting ? 'not-allowed' : 'pointer' }}>✕</button>
+            <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--de-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--de-text-primary)' }}>➕ เพิ่มผู้อำนวยการ</div>
+              <button type="button" onClick={closeAddModal} disabled={addSubmitting} style={{ background: 'transparent', border: 'none', color: 'var(--de-text-tertiary)', fontSize: '1.4rem', cursor: addSubmitting ? 'not-allowed' : 'pointer' }}>✕</button>
             </div>
 
             {/* Tabs */}
-            <div style={{ display: 'flex', borderBottom: '1px solid #e5e7eb' }}>
+            <div style={{ display: 'flex', borderBottom: '1px solid var(--de-border)' }}>
               {(['promote', 'create'] as const).map((t) => {
                 const isOn = addTab === t;
                 return (
@@ -553,10 +553,10 @@ export default function AdminSchoolDirectorsPage() {
                     style={{
                       flex: 1,
                       padding: '0.75rem 1rem',
-                      background: isOn ? '#eef2ff' : 'white',
-                      color: isOn ? '#3730a3' : '#6b7280',
+                      background: isOn ? 'var(--de-primary-soft)' : 'var(--de-bg-subtle)',
+                      color: isOn ? 'var(--de-primary)' : 'var(--de-text-secondary)',
                       borderTop: 'none', borderLeft: 'none', borderRight: 'none',
-                      borderBottom: `3px solid ${isOn ? '#6366f1' : 'transparent'}`,
+                      borderBottom: `3px solid ${isOn ? 'var(--de-primary)' : 'transparent'}`,
                       fontWeight: 600, fontSize: '0.9rem',
                       cursor: 'pointer',
                     }}
@@ -575,14 +575,14 @@ export default function AdminSchoolDirectorsPage() {
                     value={candidateSearch}
                     onChange={(e) => setCandidateSearch(e.target.value)}
                     placeholder="ค้นหาชื่อหรืออีเมล..."
-                    style={{ width: '100%', padding: '0.6rem 0.85rem', border: '1px solid #ddd', borderRadius: '0.4rem', fontSize: '0.95rem', marginBottom: '0.75rem', boxSizing: 'border-box' }}
+                    style={{ width: '100%', padding: '0.6rem 0.85rem', border: '1px solid var(--de-border)', borderRadius: '0.4rem', fontSize: '0.95rem', marginBottom: '0.75rem', boxSizing: 'border-box' }}
                   />
-                  <div style={{ border: '1px solid #e5e7eb', borderRadius: '0.4rem', maxHeight: '260px', overflowY: 'auto' }}>
+                  <div style={{ border: '1px solid var(--de-border)', borderRadius: '0.4rem', maxHeight: '260px', overflowY: 'auto' }}>
                     {candidatesLoading && (
-                      <div style={{ padding: '1.5rem', textAlign: 'center', color: '#6b7280' }}>กำลังโหลด...</div>
+                      <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--de-text-secondary)' }}>กำลังโหลด...</div>
                     )}
                     {!candidatesLoading && candidates.length === 0 && (
-                      <div style={{ padding: '1.5rem', textAlign: 'center', color: '#9ca3af' }}>ไม่พบผู้ใช้ที่ตรง — ลองเปลี่ยนคำค้น หรือใช้แท็บ "สร้างผู้ใช้ใหม่"</div>
+                      <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--de-text-tertiary)' }}>ไม่พบผู้ใช้ที่ตรง — ลองเปลี่ยนคำค้น หรือใช้แท็บ "สร้างผู้ใช้ใหม่"</div>
                     )}
                     {!candidatesLoading && candidates.map((c) => (
                       <label
@@ -590,8 +590,8 @@ export default function AdminSchoolDirectorsPage() {
                         style={{
                           display: 'flex', alignItems: 'center', gap: '0.75rem',
                           padding: '0.65rem 0.85rem',
-                          borderBottom: '1px solid #f3f4f6',
-                          background: pickedCandidateId === c.userId ? '#eff6ff' : 'transparent',
+                          borderBottom: '1px solid var(--de-bg-subtle)',
+                          background: pickedCandidateId === c.userId ? 'var(--de-accent-soft)' : 'transparent',
                           cursor: 'pointer',
                         }}
                       >
@@ -602,10 +602,10 @@ export default function AdminSchoolDirectorsPage() {
                           onChange={() => setPickedCandidateId(c.userId)}
                         />
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 600, color: '#1f2937' }}>{c.name}</div>
-                          <div style={{ fontSize: '0.78rem', color: '#6b7280' }}>{c.email}</div>
+                          <div style={{ fontWeight: 600, color: 'var(--de-text-primary)' }}>{c.name}</div>
+                          <div style={{ fontSize: '0.78rem', color: 'var(--de-text-secondary)' }}>{c.email}</div>
                           {c.roles.length > 0 && (
-                            <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: 2 }}>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--de-text-tertiary)', marginTop: 2 }}>
                               บทบาทเดิม: {c.roles.join(', ')}
                             </div>
                           )}
@@ -642,14 +642,14 @@ export default function AdminSchoolDirectorsPage() {
                       style={inputStyle}
                     />
                   </Field>
-                  <div style={{ fontSize: '0.78rem', color: '#92400e', padding: '0.5rem 0.75rem', background: '#fef3c7', borderRadius: '0.4rem', borderLeft: '3px solid #f59e0b' }}>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--de-warning)', padding: '0.5rem 0.75rem', background: 'var(--de-warning-soft)', borderRadius: '0.4rem', borderLeft: '3px solid var(--de-warning)' }}>
                     ⚠️ จดรหัสผ่านไว้ส่งให้ ผอ. ด้วย — ระบบไม่แสดงรหัสผ่านอีกหลังบันทึก
                   </div>
                 </div>
               )}
 
               {/* School selector — shared by both tabs */}
-              <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed #e5e7eb' }}>
+              <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed var(--de-border)' }}>
                 <Field label="ผูกกับโรงเรียน (ถ้าทราบเลย — เลือกภายหลังก็ได้)">
                   <select value={addSchoolId} onChange={(e) => setAddSchoolId(e.target.value)} style={inputStyle}>
                     <option value="">— ยังไม่ผูกตอนนี้ —</option>
@@ -664,12 +664,12 @@ export default function AdminSchoolDirectorsPage() {
             </div>
 
             {/* Footer */}
-            <div style={{ padding: '0.85rem 1.25rem', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', background: '#f9fafb' }}>
+            <div style={{ padding: '0.85rem 1.25rem', borderTop: '1px solid var(--de-border)', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', background: 'var(--de-bg-canvas)' }}>
               <button
                 type="button"
                 onClick={closeAddModal}
                 disabled={addSubmitting}
-                style={{ padding: '0.55rem 1.1rem', background: 'white', color: '#374151', border: '1px solid #d1d5db', borderRadius: '0.4rem', cursor: addSubmitting ? 'not-allowed' : 'pointer', fontSize: '0.9rem', fontWeight: 500 }}
+                style={{ padding: '0.55rem 1.1rem', background: 'var(--de-bg-surface)', color: 'var(--de-text-primary)', border: '1px solid var(--de-border-strong)', borderRadius: '0.4rem', cursor: addSubmitting ? 'not-allowed' : 'pointer', fontSize: '0.9rem', fontWeight: 500 }}
               >
                 ยกเลิก
               </button>
@@ -677,7 +677,7 @@ export default function AdminSchoolDirectorsPage() {
                 type="button"
                 onClick={handleAddSubmit}
                 disabled={addSubmitting}
-                style={{ padding: '0.55rem 1.4rem', background: addSubmitting ? '#9ca3af' : '#10b981', color: 'white', border: 'none', borderRadius: '0.4rem', cursor: addSubmitting ? 'not-allowed' : 'pointer', fontSize: '0.95rem', fontWeight: 600 }}
+                style={{ padding: '0.55rem 1.4rem', background: addSubmitting ? 'var(--de-text-tertiary)' : 'var(--de-success)', color: 'white', border: 'none', borderRadius: '0.4rem', cursor: addSubmitting ? 'not-allowed' : 'pointer', fontSize: '0.95rem', fontWeight: 600 }}
               >
                 {addSubmitting ? 'กำลังบันทึก...' : 'บันทึก'}
               </button>
@@ -692,7 +692,7 @@ export default function AdminSchoolDirectorsPage() {
 const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '0.55rem 0.75rem',
-  border: '1px solid #d1d5db',
+  border: '1px solid var(--de-border-strong)',
   borderRadius: '0.4rem',
   fontSize: '0.9rem',
   boxSizing: 'border-box',
@@ -701,7 +701,7 @@ const inputStyle: React.CSSProperties = {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--de-text-primary)', marginBottom: 4 }}>{label}</div>
       {children}
     </div>
   );
@@ -711,27 +711,27 @@ const thStyle: React.CSSProperties = {
   padding: '0.75rem 1rem',
   textAlign: 'left',
   fontWeight: 600,
-  color: '#374151',
+  color: 'var(--de-text-primary)',
   fontSize: '0.85rem',
 };
 
 const tdStyle: React.CSSProperties = {
   padding: '0.75rem 1rem',
-  color: '#1f2937',
+  color: 'var(--de-text-primary)',
   verticalAlign: 'middle',
 };
 
 function SummaryCard({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <div style={{
-      background: 'white',
+      background: 'var(--de-bg-surface)',
       padding: '1rem 1.25rem',
       borderRadius: '0.5rem',
       borderLeft: `4px solid ${color}`,
       boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
     }}>
-      <div style={{ fontSize: '0.78rem', color: '#6b7280', marginBottom: '0.25rem' }}>{label}</div>
-      <div style={{ fontSize: '1.6rem', fontWeight: 700, color: '#1f2937' }}>{value.toLocaleString()}</div>
+      <div style={{ fontSize: '0.78rem', color: 'var(--de-text-secondary)', marginBottom: '0.25rem' }}>{label}</div>
+      <div style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--de-text-primary)' }}>{value.toLocaleString()}</div>
     </div>
   );
 }

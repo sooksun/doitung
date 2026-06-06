@@ -356,6 +356,14 @@ body {
 }
 button { font-family: inherit; cursor: pointer; }
 input, textarea, select { font-family: inherit; }
+/* Theme un-styled form controls so they follow dark mode.
+   Inline styles and component classNames still override this. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+textarea, select {
+  background: var(--de-bg-surface);
+  color: var(--de-text-primary);
+  border-color: var(--de-border-strong);
+}
 ::selection { background: var(--de-purple-200); color: var(--de-purple-900); }
 
 /* Scrollbar */

@@ -79,22 +79,22 @@ export default function FeatureFlagsAdminPage() {
     : rows;
 
   return (
-    <div style={{ minHeight: '100vh', padding: '2rem', background: '#f5f5f5' }}>
+    <div style={{ minHeight: '100vh', padding: '2rem', background: 'var(--de-bg-canvas)' }}>
       <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
         <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
-            <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#333', marginBottom: '0.5rem' }}>
+            <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--de-text-primary)', marginBottom: '0.5rem' }}>
               🚦 Feature Flags
             </h1>
-            <p style={{ color: '#666' }}>เปิด/ปิด AI · SAR · Growth Tracker รายโรงเรียน — ค่าเริ่มต้นปิดทุกอย่าง</p>
+            <p style={{ color: 'var(--de-text-secondary)' }}>เปิด/ปิด AI · SAR · Growth Tracker รายโรงเรียน — ค่าเริ่มต้นปิดทุกอย่าง</p>
           </div>
-          <Link href="/dashboard" style={{ padding: '0.5rem 1rem', background: '#667eea', color: 'white', borderRadius: '0.5rem', textDecoration: 'none' }}>
+          <Link href="/dashboard" style={{ padding: '0.5rem 1rem', background: 'var(--de-primary)', color: 'var(--de-on-primary)', borderRadius: '0.5rem', textDecoration: 'none' }}>
             ← Dashboard
           </Link>
         </div>
 
         <div style={{
-          background: 'white',
+          background: 'var(--de-bg-surface)',
           padding: '1rem 1.5rem',
           borderRadius: '0.5rem',
           boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
@@ -104,19 +104,19 @@ export default function FeatureFlagsAdminPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="ค้นหา (รหัสหรือชื่อโรงเรียน)"
-            style={{ width: '100%', padding: '0.6rem 0.85rem', border: '1px solid #ddd', borderRadius: '0.4rem', fontSize: '0.95rem' }}
+            style={{ width: '100%', padding: '0.6rem 0.85rem', border: '1px solid var(--de-border)', borderRadius: '0.4rem', fontSize: '0.95rem' }}
           />
         </div>
 
         {error && (
-          <div style={{ padding: '1rem', background: '#fee', color: '#c33', borderRadius: '0.5rem', marginBottom: '1rem' }}>{error}</div>
+          <div style={{ padding: '1rem', background: 'var(--de-danger-soft)', color: 'var(--de-danger)', borderRadius: '0.5rem', marginBottom: '1rem' }}>{error}</div>
         )}
 
-        <div style={{ background: 'white', borderRadius: '0.5rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+        <div style={{ background: 'var(--de-bg-surface)', borderRadius: '0.5rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
               <thead>
-                <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+                <tr style={{ background: 'var(--de-bg-canvas)', borderBottom: '2px solid var(--de-border)' }}>
                   <th style={{ padding: '0.75rem 1rem', textAlign: 'left' }}>รหัส</th>
                   <th style={{ padding: '0.75rem 1rem', textAlign: 'left' }}>โรงเรียน</th>
                   <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>SAR Evidence</th>
@@ -126,13 +126,13 @@ export default function FeatureFlagsAdminPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: '#666' }}>กำลังโหลด...</td></tr>
+                  <tr><td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: 'var(--de-text-secondary)' }}>กำลังโหลด...</td></tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: '#666' }}>ไม่พบโรงเรียน</td></tr>
+                  <tr><td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: 'var(--de-text-secondary)' }}>ไม่พบโรงเรียน</td></tr>
                 ) : filtered.map((r) => (
-                  <tr key={r.schoolId} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                    <td style={{ padding: '0.6rem 1rem', color: '#666', fontFamily: 'ui-monospace, monospace', fontSize: '0.85rem' }}>{r.schoolCode || '-'}</td>
-                    <td style={{ padding: '0.6rem 1rem', color: '#333' }}>{r.schoolName}</td>
+                  <tr key={r.schoolId} style={{ borderBottom: '1px solid var(--de-border)' }}>
+                    <td style={{ padding: '0.6rem 1rem', color: 'var(--de-text-secondary)', fontFamily: 'ui-monospace, monospace', fontSize: '0.85rem' }}>{r.schoolCode || '-'}</td>
+                    <td style={{ padding: '0.6rem 1rem', color: 'var(--de-text-primary)' }}>{r.schoolName}</td>
                     <td style={{ padding: '0.6rem 1rem', textAlign: 'center' }}>
                       <Toggle checked={r.flags.sarEnabled} onChange={(v) => toggle(r.schoolId, 'sarEnabled', v)} />
                     </td>
@@ -164,7 +164,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
       />
       <span style={{
         width: '36px', height: '20px', borderRadius: '10px',
-        background: checked ? '#10b981' : '#d1d5db',
+        background: checked ? 'var(--de-success)' : 'var(--de-border-strong)',
         position: 'relative', transition: 'background 0.2s',
         display: 'inline-block',
       }}>
@@ -173,7 +173,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
           top: '2px',
           left: checked ? '18px' : '2px',
           width: '16px', height: '16px',
-          borderRadius: '50%', background: 'white',
+          borderRadius: '50%', background: 'var(--de-bg-surface)',
           transition: 'left 0.2s',
           boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
         }} />
