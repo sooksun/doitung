@@ -29,6 +29,26 @@ function palette(dark: boolean) {
     : { cardBg: '#ffffff', text: '#111827', text2: '#374151', muted: '#6b7280', headBg: '#f8fafc', border: '#e5e7eb', rowHover: '#f8fafc', grid: '#e5e7eb', shadow: '0 2px 4px rgba(0,0,0,0.08)', cardBorder: 'none', link: '#4f46e5', inputBg: '#ffffff' };
 }
 
+// Module-level so it has a stable component identity across parent re-renders
+// (the live-dashboard "seconds ago" ticker re-renders the page every 1s; an inline
+// component would remount the RadarChart each time and replay its animation forever).
+function Spider({ dims, showDirector, P }: { dims: Dim[]; showDirector: boolean; P: ReturnType<typeof palette> }) {
+  const chartData = dims.map((d) => ({ group: d.sectionName, 'ครูประเมินตนเอง': d.selfAvg || 0, 'ผอ.ประเมิน': d.directorAvg || 0, 'ค่าเป้าหมาย': d.targetAvg || 0 }));
+  return (
+    <ResponsiveContainer width="100%" height={360}>
+      <RadarChart data={chartData}>
+        <PolarGrid stroke={P.grid} />
+        <PolarAngleAxis dataKey="group" tick={{ fill: P.text2, fontSize: 11, fontFamily: 'Kanit, sans-serif' }} />
+        <PolarRadiusAxis angle={90} domain={[0, 4]} tickCount={5} tick={{ fill: P.muted, fontSize: 10 }} />
+        <Radar name="ครูประเมินตนเอง" dataKey="ครูประเมินตนเอง" stroke={C.self} fill={C.self} fillOpacity={0.25} strokeWidth={2} isAnimationActive={false} />
+        {showDirector && <Radar name="ผอ.ประเมิน" dataKey="ผอ.ประเมิน" stroke={C.director} fill={C.director} fillOpacity={0.2} strokeWidth={2} isAnimationActive={false} />}
+        <Radar name="ค่าเป้าหมาย" dataKey="ค่าเป้าหมาย" stroke={C.target} fill={C.target} fillOpacity={0.15} strokeWidth={2} isAnimationActive={false} />
+        <Legend wrapperStyle={{ fontFamily: 'Kanit, sans-serif', fontSize: '0.82rem', color: P.text2 }} iconType="line" />
+      </RadarChart>
+    </ResponsiveContainer>
+  );
+}
+
 export default function ThaiP13DashboardView({ dark = false }: { dark?: boolean }) {
   const P = palette(dark);
   const [token, setToken] = useState<string | null>(null);
@@ -81,22 +101,8 @@ export default function ThaiP13DashboardView({ dark = false }: { dark?: boolean 
   const th: React.CSSProperties = { border: `1px solid ${P.border}`, padding: '0.5rem 0.6rem', background: P.headBg, fontSize: '0.82rem', textAlign: 'center', color: P.text2 };
   const td: React.CSSProperties = { border: `1px solid ${P.border}`, padding: '0.5rem 0.6rem', fontSize: '0.85rem', color: P.text2 };
 
-  const Spider = ({ dims, showDirector }: { dims: Dim[]; showDirector: boolean }) => {
-    const chartData = dims.map((d) => ({ group: d.sectionName, 'ครูประเมินตนเอง': d.selfAvg || 0, 'ผอ.ประเมิน': d.directorAvg || 0, 'ค่าเป้าหมาย': d.targetAvg || 0 }));
-    return (
-      <ResponsiveContainer width="100%" height={360}>
-        <RadarChart data={chartData}>
-          <PolarGrid stroke={P.grid} />
-          <PolarAngleAxis dataKey="group" tick={{ fill: P.text2, fontSize: 11, fontFamily: 'Kanit, sans-serif' }} />
-          <PolarRadiusAxis angle={90} domain={[0, 4]} tickCount={5} tick={{ fill: P.muted, fontSize: 10 }} />
-          <Radar name="ครูประเมินตนเอง" dataKey="ครูประเมินตนเอง" stroke={C.self} fill={C.self} fillOpacity={0.25} strokeWidth={2} />
-          {showDirector && <Radar name="ผอ.ประเมิน" dataKey="ผอ.ประเมิน" stroke={C.director} fill={C.director} fillOpacity={0.2} strokeWidth={2} />}
-          <Radar name="ค่าเป้าหมาย" dataKey="ค่าเป้าหมาย" stroke={C.target} fill={C.target} fillOpacity={0.15} strokeWidth={2} />
-          <Legend wrapperStyle={{ fontFamily: 'Kanit, sans-serif', fontSize: '0.82rem', color: P.text2 }} iconType="line" />
-        </RadarChart>
-      </ResponsiveContainer>
-    );
-  };
+  // Spider is a module-level component (defined above) so it keeps a stable identity
+  // and does not remount/re-animate when the parent re-renders (live-dashboard ticks every 1s).
 
   const KpiCard = ({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) => (
     <div style={{ background: P.cardBg, border: P.cardBorder, padding: '1.1rem 1.25rem', borderRadius: '0.75rem', boxShadow: P.shadow, borderTop: `3px solid ${color || C.self}` }}>
@@ -169,7 +175,7 @@ export default function ThaiP13DashboardView({ dark = false }: { dark?: boolean 
                 <KpiCard label="คะแนนเฉลี่ย (ครูประเมินตนเอง)" value={num(data.kpis.overallSelf)} sub="มาตรา 1–4" color={C.director} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: '1.25rem' }}>
-                <div style={card}><h3 style={{ marginTop: 0, fontSize: '1rem', color: P.text2 }}>ภาพรวมรายด้าน (Spider)</h3><Spider dims={data.dimensions} showDirector /></div>
+                <div style={card}><h3 style={{ marginTop: 0, fontSize: '1rem', color: P.text2 }}>ภาพรวมรายด้าน (Spider)</h3><Spider dims={data.dimensions} showDirector P={P} /></div>
                 <div style={card}><h3 style={{ marginTop: 0, fontSize: '1rem', color: P.text2 }}>คะแนนเฉลี่ยรายด้าน</h3><DimensionTable dims={data.dimensions} showDirector /></div>
               </div>
               <div style={card}>
@@ -206,7 +212,7 @@ export default function ThaiP13DashboardView({ dark = false }: { dark?: boolean 
                 <KpiCard label="จำนวนคำตอบ" value={String(data.kpis.totalResponses)} color={C.self} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: '1.25rem' }}>
-                <div style={card}><h3 style={{ marginTop: 0, fontSize: '1rem', color: P.text2 }}>ภาพรวมรายด้าน</h3><Spider dims={data.dimensions} showDirector /></div>
+                <div style={card}><h3 style={{ marginTop: 0, fontSize: '1rem', color: P.text2 }}>ภาพรวมรายด้าน</h3><Spider dims={data.dimensions} showDirector P={P} /></div>
                 <div style={card}><h3 style={{ marginTop: 0, fontSize: '1rem', color: P.text2 }}>คะแนนเฉลี่ยรายด้าน</h3><DimensionTable dims={data.dimensions} showDirector /></div>
               </div>
               <div style={card}>
@@ -247,7 +253,7 @@ export default function ThaiP13DashboardView({ dark = false }: { dark?: boolean 
                 </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: '1.25rem' }}>
-                <div style={card}><h3 style={{ marginTop: 0, fontSize: '1rem', color: P.text2 }}>ครู vs ผอ. vs เป้าหมาย</h3><Spider dims={data.dimensions} showDirector /></div>
+                <div style={card}><h3 style={{ marginTop: 0, fontSize: '1rem', color: P.text2 }}>ครู vs ผอ. vs เป้าหมาย</h3><Spider dims={data.dimensions} showDirector P={P} /></div>
                 <div style={card}><h3 style={{ marginTop: 0, fontSize: '1rem', color: P.text2 }}>คะแนนรายด้าน + ช่องว่างถึงเป้าหมาย</h3><DimensionTable dims={data.dimensions} showDirector /></div>
               </div>
               <div style={card}>

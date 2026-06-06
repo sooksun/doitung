@@ -87,7 +87,7 @@ export default function LiveSpiderChart({ data, height = 420, dark = true }: Liv
             fillOpacity={0.22}
             strokeWidth={2.5}
             dot={{ fill: COLOR_BLUE, r: 4 }}
-            connectNulls={false}
+            connectNulls={false} isAnimationActive={false}
           />
           <Radar
             name="เป็นอยู่"
@@ -97,7 +97,7 @@ export default function LiveSpiderChart({ data, height = 420, dark = true }: Liv
             fillOpacity={0.22}
             strokeWidth={2.5}
             dot={{ fill: COLOR_VIOLET, r: 4 }}
-            connectNulls={false}
+            connectNulls={false} isAnimationActive={false}
           />
         </RadarChart>
       </ResponsiveContainer>
