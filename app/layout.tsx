@@ -23,7 +23,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'TSQMn แม่ฟ้าหลวง — Doitung Development Evaluation',
+  title: 'พัฒนาครูแม่ฟ้าหลวง — Doitung Development Evaluation',
   description: 'ระบบประเมินและพัฒนาคุณภาพโรงเรียนด้วยเครื่องมือ DERS, Thai P.1-3, และ Q-Model',
 };
 

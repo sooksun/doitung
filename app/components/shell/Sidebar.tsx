@@ -86,9 +86,9 @@ export function Sidebar({ activeId, collapsed, setCollapsed, mobileOpen, setMobi
         {/* Logo zone */}
         <div style={{ height: 'var(--header-h)', display: 'flex', alignItems: 'center', justifyContent: showCollapsed ? 'center' : 'space-between', padding: showCollapsed ? 0 : '0 18px', borderBottom: '1px solid rgba(255,255,255,0.12)', flexShrink: 0 }}>
           {showCollapsed ? (
-            <span style={{ fontSize: 15, fontWeight: 700, color: '#fff', letterSpacing: '0.02em' }}>TSQMn</span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: '#fff', letterSpacing: '0.02em' }}>พัฒนาครู</span>
           ) : (
-            <span style={{ fontSize: 19, fontWeight: 700, color: '#fff', letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>TSQMn แม่ฟ้าหลวง</span>
+            <span style={{ fontSize: 19, fontWeight: 700, color: '#fff', letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>พัฒนาครูแม่ฟ้าหลวง</span>
           )}
           {!showCollapsed ? (
             <button

@@ -83,7 +83,7 @@ export default function LoginPage() {
           <DeIcon name={theme === 'dark' ? 'sun' : 'moon'} size={20} />
         </button>
         <form onSubmit={handleSubmit} className="de-slide-up" style={{ width: '100%', maxWidth: 400 }}>
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><span style={{ fontSize: 26, fontWeight: 700, letterSpacing: '0.01em', color: 'var(--de-text-primary)' }}>TSQMn แม่ฟ้าหลวง</span></div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><span style={{ fontSize: 26, fontWeight: 700, letterSpacing: '0.01em', color: 'var(--de-text-primary)' }}>พัฒนาครูแม่ฟ้าหลวง</span></div>
           <h2 style={{ fontSize: 28, fontWeight: 700, textAlign: 'center', letterSpacing: '-0.02em' }}>ยินดีต้อนรับกลับ</h2>
           <p style={{ fontSize: 15, color: 'var(--de-text-secondary)', textAlign: 'center', marginTop: 6, marginBottom: 32 }}>เข้าสู่ระบบด้วยบัญชีของคุณ</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>

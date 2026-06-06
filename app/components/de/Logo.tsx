@@ -8,7 +8,7 @@ export function LogoMark({ size = 36, radius = 10 }: { size?: number; radius?: n
   return (
     <img
       src="/brand/logo.png"
-      alt="TSQMn แม่ฟ้าหลวง"
+      alt="พัฒนาครูแม่ฟ้าหลวง"
       width={size}
       height={size}
       style={{
@@ -45,7 +45,7 @@ export function Logo({ size = 36, light = false, showWord = true, sub = true }: 
               whiteSpace: 'nowrap',
             }}
           >
-            TSQMn แม่ฟ้าหลวง
+            พัฒนาครูแม่ฟ้าหลวง
           </span>
           {sub ? (
             <span
