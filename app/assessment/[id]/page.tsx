@@ -7,7 +7,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { toastConfirm } from '@/lib/toast';
+import { toastConfirm, toastWarning } from '@/lib/toast';
+import { checkThaiTargetVsRating } from '@/lib/thai-score-rule';
 
 interface Section {
   id: number;
@@ -338,6 +339,17 @@ export default function AssessmentPage() {
     const current = (responsesRef.current[targetSessionId] || {})[indicatorId] || { score: null, score2: null };
     const updated = { ...current, [field]: value };
 
+    // THAI ป.1–3: ค่าเป้าหมาย (score2) ต้องไม่เท่ากับระดับการประเมิน (score) ยกเว้นระดับ 4.
+    // Mirror the server rule here so the teacher gets instant feedback — the auto-save
+    // swallows POST errors silently, so this client guard is what surfaces the rejection.
+    if (isThaiTarget) {
+      const ruleError = checkThaiTargetVsRating(updated.score, updated.score2);
+      if (ruleError) {
+        toastWarning(ruleError);
+        return; // reject: do not apply optimistically and do not POST
+      }
+    }
+
     // Optimistic local update first so the radio reflects the choice immediately.
     setResponsesBySession((prev) => ({
       ...prev,
@@ -395,7 +407,7 @@ export default function AssessmentPage() {
         setSaving(null);
       }
     }
-  }, [token, isDualState]);
+  }, [token, isDualState, isThaiTarget]);
 
   const handleClearAll = async () => {
     if (!token || !sessionId) return;

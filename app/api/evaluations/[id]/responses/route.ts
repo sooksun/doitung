@@ -6,6 +6,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { successResponse, errorResponse, handleApiError, requireAuth, hasRole } from '@/lib/api-utils';
 import { EvaluationResponseDto } from '@/lib/api-types';
+import { checkThaiTargetVsRating } from '@/lib/thai-score-rule';
 
 export async function GET(
   request: NextRequest,
@@ -108,6 +109,12 @@ export async function POST(
       return errorResponse('responses must be an array', 400);
     }
 
+    // THAI_P1_3 carries the "target must differ from rating" rule; other instruments don't.
+    const instrumentType = (await prisma.instrument.findUnique({
+      where: { id: evaluationSession.instrumentId },
+      select: { type: true },
+    }))?.type;
+
     // Validate and prepare responses
     const responsesData = [];
     for (const response of responses) {
@@ -140,6 +147,17 @@ export async function POST(
             `Score2 ${score2} out of range for indicator ${indicatorId} (${indicator.minScore}-${indicator.maxScore})`,
             400
           );
+        }
+      }
+
+      // THAI_P1_3: ค่าเป้าหมาย (score2) ต้องไม่เท่ากับระดับการประเมิน (score) ยกเว้นระดับ 4
+      if (instrumentType === 'THAI_P1_3') {
+        const ruleError = checkThaiTargetVsRating(
+          parseInt(score, 10),
+          score2 !== undefined && score2 !== null ? parseInt(score2, 10) : null,
+        );
+        if (ruleError) {
+          return errorResponse(`${ruleError} (ตัวชี้วัด ${indicator.itemCode ?? indicatorId})`, 400);
         }
       }
 
