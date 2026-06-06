@@ -170,20 +170,20 @@ async function main() {
 
   // --- ACADEMIC YEAR & TERM ---
   // AcademicYear.year is not @unique, so use findFirst + create
-  let academicYear = await prisma.academicYear.findFirst({ where: { year: '2568' } });
+  let academicYear = await prisma.academicYear.findFirst({ where: { year: '2569' } });
   if (!academicYear) {
     academicYear = await prisma.academicYear.create({
-      data: { year: '2568' },
+      data: { year: '2569' },
     });
   }
 
   // Term has no termNumber field — use name as identifier
-  let term1 = await prisma.term.findFirst({ where: { academicYearId: academicYear.id, name: '1/2568' } });
+  let term1 = await prisma.term.findFirst({ where: { academicYearId: academicYear.id, name: '1/2569' } });
   if (!term1) {
     term1 = await prisma.term.create({
       data: {
-        academicYearId: academicYear.id, name: '1/2568',
-        startDate: new Date('2025-05-16'), endDate: new Date('2025-10-10'),
+        academicYearId: academicYear.id, name: '1/2569',
+        startDate: new Date('2026-05-16'), endDate: new Date('2026-10-10'),
       },
     });
   }
@@ -203,11 +203,11 @@ async function main() {
   // changes to indicators (rename/remove) must go through a one-shot migration script,
   // never through this seed.
   const qInstrument = await prisma.instrument.upsert({
-    where: { code: 'Q-MODEL-2568' },
+    where: { code: 'Q-MODEL-2569' },
     update: {},
     create: {
-      code: 'Q-MODEL-2568', nameTh: 'แบบประเมิน Q-Model ปี 2568',
-      nameEn: 'Q-Model Assessment 2568', type: 'Q_MODEL', version: '1.0', isActive: true,
+      code: 'Q-MODEL-2569', nameTh: 'แบบประเมิน Q-Model ปี 2569',
+      nameEn: 'Q-Model Assessment 2569', type: 'Q_MODEL', version: '1.0', isActive: true,
     },
   });
 
