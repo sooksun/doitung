@@ -5,9 +5,9 @@
 //   score  = ระดับการประเมิน (rating, 1–4)
 //   score2 = ค่าเป้าหมาย     (development target, 1–4)
 //
-// The development target must be set HIGHER than the current rating, so it may NOT
-// equal the rating — EXCEPT when the rating is already the maximum (4), where the
-// only sensible target is 4 (maintain the top level).
+// The development target must be set HIGHER than the current rating, so it may NOT be
+// less than OR equal to the rating — EXCEPT when the rating is already the maximum (4),
+// where the rule is waived (you cannot aim above 4).
 //
 // Pure & dependency-free so it can run on both the client (live form feedback) and
 // the server (authoritative enforcement in /api/evaluations/[id]/responses).
@@ -15,7 +15,7 @@
 export const THAI_MAX_RATING = 4;
 
 /**
- * Check the THAI_P1_3 "target must differ from rating (unless rating = 4)" rule.
+ * Check the THAI_P1_3 "target must exceed rating (unless rating = 4)" rule.
  * @param rating  ระดับการประเมิน — EvaluationResponse.score for THAI_P1_3
  * @param target  ค่าเป้าหมาย     — EvaluationResponse.score2 for THAI_P1_3
  * @returns a Thai error message when invalid, or null when valid.
@@ -26,8 +26,8 @@ export function checkThaiTargetVsRating(
 ): string | null {
   // Nothing to validate until both the rating and a target are present.
   if (rating == null || target == null) return null;
-  if (target === rating && rating !== THAI_MAX_RATING) {
-    return `ค่าเป้าหมายต้องไม่เท่ากับระดับการประเมิน — ตั้งเป้าหมายให้สูงกว่าระดับปัจจุบัน (ยกเว้นระดับ ${THAI_MAX_RATING} ที่ตั้งเป้าคงระดับได้)`;
+  if (target <= rating && rating !== THAI_MAX_RATING) {
+    return `ค่าเป้าหมายต้องสูงกว่าระดับการประเมิน — ตั้งเป้าหมายให้สูงกว่าระดับปัจจุบัน (ยกเว้นระดับ ${THAI_MAX_RATING})`;
   }
   return null;
 }
