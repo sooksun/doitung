@@ -50,3 +50,28 @@ next-env.d.ts
 /scripts/school-*.txt
 /scripts/*credentials*.xlsx
 /scripts/*credentials*.csv
+
+# --- Local editor / agent scratch (not part of the app) ---
+/.claude/
+
+# --- DB dumps, backups, exports (generated locally; never commit) ---
+/backup/
+/exports/
+
+# --- Design handoff prototype (standalone HTML/CSS/JSX, not wired into the build) ---
+/de-soar/
+
+# --- Binary / document artifacts (no source of these is tracked; public/ images stay safe) ---
+*.zip
+*.pdf
+*.docx
+*.html
+
+# --- Root-level scratch: SQL pastes, notes, sample images, ad-hoc reports ---
+/*.txt
+/*.jpg
+/*.jpeg
+/TEST_RESULTS.md
+
+# --- docs/: keep .md sources, drop generated binaries ---
+/docs/*.png
