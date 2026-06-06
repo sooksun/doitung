@@ -196,20 +196,20 @@ export default function ThaiSummaryPage() {
     finally { setDownloading(null); }
   };
 
-  const inputStyle: React.CSSProperties = { width: '100%', padding: '0.6rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', fontSize: '0.95rem', boxSizing: 'border-box' };
-  const labelStyle: React.CSSProperties = { display: 'block', marginBottom: '0.4rem', fontWeight: 600, color: '#374151', fontSize: '0.88rem' };
-  const card: React.CSSProperties = { background: 'white', padding: '1.5rem', borderRadius: '0.75rem', boxShadow: '0 2px 4px rgba(0,0,0,0.08)', marginBottom: '1.25rem' };
+  const inputStyle: React.CSSProperties = { width: '100%', padding: '0.6rem 0.75rem', border: '1px solid var(--de-border-strong)', borderRadius: '0.5rem', fontSize: '0.95rem', background: 'var(--de-bg-surface)', color: 'var(--de-text-primary)', boxSizing: 'border-box' };
+  const labelStyle: React.CSSProperties = { display: 'block', marginBottom: '0.4rem', fontWeight: 600, color: 'var(--de-text-primary)', fontSize: '0.88rem' };
+  const card: React.CSSProperties = { background: 'var(--de-bg-surface)', padding: '1.5rem', borderRadius: '0.75rem', boxShadow: '0 2px 4px rgba(0,0,0,0.08)', marginBottom: '1.25rem' };
 
   if (!ready) return <div style={{ padding: '2rem', textAlign: 'center' }}>กำลังโหลด...</div>;
 
   if (denied) {
     return (
-      <div style={{ minHeight: '100vh', background: '#f5f5f5', padding: '2rem' }}>
+      <div style={{ minHeight: '100vh', background: 'var(--de-bg-canvas)', padding: '2rem' }}>
         <div style={{ maxWidth: '640px', margin: '0 auto' }}>
-          <Link href="/dashboard" style={{ color: '#7c3aed', textDecoration: 'none', fontSize: '0.9rem' }}>← กลับแดชบอร์ด</Link>
-          <div style={{ ...card, marginTop: '1rem', textAlign: 'center', color: '#991b1b', background: '#fef2f2', border: '1px solid #fecaca' }}>
+          <Link href="/dashboard" style={{ color: 'var(--de-primary)', textDecoration: 'none', fontSize: '0.9rem' }}>← กลับแดชบอร์ด</Link>
+          <div style={{ ...card, marginTop: '1rem', textAlign: 'center', color: 'var(--de-danger)', background: 'var(--de-danger-soft)', border: '1px solid var(--de-danger-soft)' }}>
             🔒 หน้านี้สำหรับ <strong>ผู้ดูแลระบบ (ADMIN)</strong> และ <strong>ผู้อำนวยการ (ผอ.)</strong> ที่ผูกกับโรงเรียนเท่านั้น
-            <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: '#7f1d1d' }}>หากท่านเป็น ผอ. แต่เข้าไม่ได้ โปรดตรวจสอบว่าบัญชีของท่านผูกกับโรงเรียนแล้ว</div>
+            <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: 'var(--de-danger)' }}>หากท่านเป็น ผอ. แต่เข้าไม่ได้ โปรดตรวจสอบว่าบัญชีของท่านผูกกับโรงเรียนแล้ว</div>
           </div>
         </div>
       </div>
@@ -220,11 +220,11 @@ export default function ThaiSummaryPage() {
   const visibleTabs = isAdmin ? SCOPE_TABS : SCOPE_TABS.filter((t) => t.key !== 'project');
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f5f5f5', padding: '2rem' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--de-bg-canvas)', padding: '2rem' }}>
       <div style={{ maxWidth: '960px', margin: '0 auto' }}>
-        <Link href="/dashboard" style={{ color: '#7c3aed', textDecoration: 'none', fontSize: '0.9rem' }}>← กลับแดชบอร์ด</Link>
-        <h1 style={{ fontSize: '1.6rem', fontWeight: 700, color: '#111827', margin: '0.5rem 0 0.25rem' }}>🤖 สรุปผลภาษาไทย ป.1–3 ด้วย AI</h1>
-        <p style={{ color: '#6b7280', margin: '0 0 1.25rem' }}>
+        <Link href="/dashboard" style={{ color: 'var(--de-primary)', textDecoration: 'none', fontSize: '0.9rem' }}>← กลับแดชบอร์ด</Link>
+        <h1 style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--de-text-primary)', margin: '0.5rem 0 0.25rem' }}>🤖 สรุปผลภาษาไทย ป.1–3 ด้วย AI</h1>
+        <p style={{ color: 'var(--de-text-secondary)', margin: '0 0 1.25rem' }}>
           {isAdmin
             ? 'สรุปผู้บริหาร (รายบุคคล/โรงเรียน/โครงการ) และบทนิเทศสำหรับทีมหนุนเสริม — ส่งออก Excel · Word · PDF'
             : `โรงเรียน: ${mySchool?.nameTh || '—'} · สรุปรายบุคคล/โรงเรียน และบทนิเทศ — ส่งออก Excel · Word · PDF`}
@@ -234,7 +234,7 @@ export default function ThaiSummaryPage() {
           {visibleTabs.map((t) => (
             <button key={t.key} onClick={() => setScope(t.key)} style={{
               padding: '0.55rem 1.1rem', borderRadius: '999px', border: '1px solid', cursor: 'pointer', fontSize: '0.88rem', fontWeight: 600,
-              borderColor: scope === t.key ? '#4f46e5' : '#d1d5db', background: scope === t.key ? '#4f46e5' : 'white', color: scope === t.key ? 'white' : '#374151',
+              borderColor: scope === t.key ? 'var(--de-primary)' : 'var(--de-border-strong)', background: scope === t.key ? 'var(--de-primary)' : 'var(--de-bg-surface)', color: scope === t.key ? 'var(--de-on-primary)' : 'var(--de-text-secondary)',
             }}>{t.label}</button>
           ))}
         </div>
@@ -257,7 +257,7 @@ export default function ThaiSummaryPage() {
                     {schools.map((s) => <option key={s.id} value={s.id}>{s.code ? `${s.code} ` : ''}{s.nameTh || s.code}</option>)}
                   </select>
                 ) : (
-                  <div style={{ ...inputStyle, background: '#f5f3ff', border: '1px solid #c4b5fd', color: '#4c1d95', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <div style={{ ...inputStyle, background: 'var(--de-primary-soft)', border: '1px solid var(--de-primary)', color: 'var(--de-primary)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                     🔒 {mySchool?.nameTh || '—'}
                   </div>
                 )}
@@ -278,9 +278,9 @@ export default function ThaiSummaryPage() {
           {isSupervision && teacherId && (
             <div style={{
               margin: '0 0 1rem', padding: '0.7rem 1rem', borderRadius: '0.5rem', fontSize: '0.88rem',
-              background: checkingRound ? '#f3f4f6' : roundStatus?.ok ? '#f0fdf4' : '#fef2f2',
-              border: `1px solid ${roundStatus?.ok ? '#bbf7d0' : '#fecaca'}`,
-              color: roundStatus?.ok ? '#166534' : '#991b1b',
+              background: checkingRound ? 'var(--de-bg-subtle)' : roundStatus?.ok ? 'var(--de-success-soft)' : 'var(--de-danger-soft)',
+              border: `1px solid ${roundStatus?.ok ? 'var(--de-success-soft)' : 'var(--de-danger-soft)'}`,
+              color: roundStatus?.ok ? 'var(--de-success)' : 'var(--de-danger)',
             }}>
               {checkingRound ? 'กำลังตรวจสอบสถานะการประเมิน...' : roundStatus ? (roundStatus.ok ? `✓ ${roundStatus.message}` : `⚠️ ${roundStatus.message}`) : ''}
               {roundStatus && !roundStatus.ok && (
@@ -292,32 +292,32 @@ export default function ThaiSummaryPage() {
           )}
 
           <button onClick={generate} disabled={!canRun || generating} style={{
-            padding: '0.65rem 1.5rem', background: !canRun || generating ? '#9ca3af' : '#10b981', color: 'white', border: 'none', borderRadius: '0.5rem',
+            padding: '0.65rem 1.5rem', background: !canRun || generating ? 'var(--de-text-tertiary)' : 'var(--de-success)', color: 'white', border: 'none', borderRadius: '0.5rem',
             fontSize: '0.95rem', fontWeight: 700, cursor: !canRun || generating ? 'not-allowed' : 'pointer',
           }}>
             {generating || summary?.status === 'RUNNING' ? '⏳ กำลังสร้างด้วย AI...' : summary?.status === 'DONE' ? '🔄 สร้างใหม่อีกครั้ง' : isSupervision ? '🚀 สร้างบทนิเทศด้วย AI' : '🚀 สร้างบทสรุปด้วย AI'}
           </button>
-          {scope === 'project' && <p style={{ margin: '0.6rem 0 0', fontSize: '0.82rem', color: '#6b7280' }}>รวมข้อมูลทุกโรงเรียนในปีการศึกษาที่เลือก</p>}
-          {isSupervision && <p style={{ margin: '0.6rem 0 0', fontSize: '0.82rem', color: '#6b7280' }}>บทสรุปรายบุคคลสำหรับทีมหนุนเสริมก่อนเข้านิเทศ — ต้องประเมินครั้งที่ {round} เสร็จก่อนจึงสร้างได้</p>}
+          {scope === 'project' && <p style={{ margin: '0.6rem 0 0', fontSize: '0.82rem', color: 'var(--de-text-secondary)' }}>รวมข้อมูลทุกโรงเรียนในปีการศึกษาที่เลือก</p>}
+          {isSupervision && <p style={{ margin: '0.6rem 0 0', fontSize: '0.82rem', color: 'var(--de-text-secondary)' }}>บทสรุปรายบุคคลสำหรับทีมหนุนเสริมก่อนเข้านิเทศ — ต้องประเมินครั้งที่ {round} เสร็จก่อนจึงสร้างได้</p>}
         </div>
 
-        {summary?.status === 'RUNNING' && <div style={{ ...card, background: '#eef2ff', color: '#3730a3' }}>⏳ AI กำลังประมวลผล — ประมาณ 30 วินาที กรุณารอสักครู่...</div>}
-        {summary?.status === 'FAILED' && <div style={{ ...card, background: '#fef2f2', color: '#991b1b' }}>❌ {summary.error || 'สร้างบทสรุปไม่สำเร็จ'}</div>}
+        {summary?.status === 'RUNNING' && <div style={{ ...card, background: 'var(--de-primary-soft)', color: 'var(--de-primary)' }}>⏳ AI กำลังประมวลผล — ประมาณ 30 วินาที กรุณารอสักครู่...</div>}
+        {summary?.status === 'FAILED' && <div style={{ ...card, background: 'var(--de-danger-soft)', color: 'var(--de-danger)' }}>❌ {summary.error || 'สร้างบทสรุปไม่สำเร็จ'}</div>}
 
         {summary?.status === 'DONE' && result && (
           <>
             <div style={{ ...card, display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ fontWeight: 600, color: '#374151' }}>ส่งออก:</span>
-              <button onClick={() => download('xlsx')} disabled={downloading === 'xlsx'} style={{ padding: '0.5rem 1rem', background: '#16a34a', color: 'white', border: 'none', borderRadius: '0.45rem', fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer' }}>{downloading === 'xlsx' ? '...' : '📊 Excel'}</button>
-              <button onClick={() => download('docx')} disabled={downloading === 'docx'} style={{ padding: '0.5rem 1rem', background: '#2563eb', color: 'white', border: 'none', borderRadius: '0.45rem', fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer' }}>{downloading === 'docx' ? '...' : '📝 Word'}</button>
-              <a href={`/admin/thai-summary/${summary.id}/print`} target="_blank" rel="noopener noreferrer" style={{ padding: '0.5rem 1rem', background: '#dc2626', color: 'white', borderRadius: '0.45rem', fontWeight: 600, fontSize: '0.88rem', textDecoration: 'none' }}>🖨️ PDF (พิมพ์)</a>
-              <span style={{ marginLeft: 'auto', fontSize: '0.78rem', color: '#9ca3af' }}>{result.generatedAt ? new Date(result.generatedAt).toLocaleString('th-TH') : ''}</span>
+              <span style={{ fontWeight: 600, color: 'var(--de-text-primary)' }}>ส่งออก:</span>
+              <button onClick={() => download('xlsx')} disabled={downloading === 'xlsx'} style={{ padding: '0.5rem 1rem', background: 'var(--de-success)', color: 'white', border: 'none', borderRadius: '0.45rem', fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer' }}>{downloading === 'xlsx' ? '...' : '📊 Excel'}</button>
+              <button onClick={() => download('docx')} disabled={downloading === 'docx'} style={{ padding: '0.5rem 1rem', background: 'var(--de-accent)', color: 'white', border: 'none', borderRadius: '0.45rem', fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer' }}>{downloading === 'docx' ? '...' : '📝 Word'}</button>
+              <a href={`/admin/thai-summary/${summary.id}/print`} target="_blank" rel="noopener noreferrer" style={{ padding: '0.5rem 1rem', background: 'var(--de-danger)', color: 'white', borderRadius: '0.45rem', fontWeight: 600, fontSize: '0.88rem', textDecoration: 'none' }}>🖨️ PDF (พิมพ์)</a>
+              <span style={{ marginLeft: 'auto', fontSize: '0.78rem', color: 'var(--de-text-tertiary)' }}>{result.generatedAt ? new Date(result.generatedAt).toLocaleString('th-TH') : ''}</span>
             </div>
 
             <div style={card}>
-              <div style={{ marginBottom: '1rem', paddingBottom: '0.75rem', borderBottom: '1px solid #e5e7eb' }}>
-                <div style={{ fontWeight: 700, fontSize: '1.1rem', color: '#111827' }}>{result.subjectLabel}{result.schoolName ? ` · ${result.schoolName}` : ''}</div>
-                <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>
+              <div style={{ marginBottom: '1rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--de-border)' }}>
+                <div style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--de-text-primary)' }}>{result.subjectLabel}{result.schoolName ? ` · ${result.schoolName}` : ''}</div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--de-text-secondary)' }}>
                   ปีการศึกษา {result.academicYearLabel}
                   {result.termLabel ? ` · ภาคเรียน ${result.termLabel}` : ''}
                   {result.kind !== 'supervision' && result.teacherCount != null ? ` · ครู ${result.teacherCount} คน` : ''}
@@ -328,7 +328,7 @@ export default function ThaiSummaryPage() {
 
               {summarySections(result).map((sec: any, i: number) => (
                 <Section key={i} title={sec.title}>
-                  {sec.text ? <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.8, margin: 0, color: '#374151' }}>{sec.text}</p> : sec.items ? <Bullets items={sec.items} /> : null}
+                  {sec.text ? <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.8, margin: 0, color: 'var(--de-text-primary)' }}>{sec.text}</p> : sec.items ? <Bullets items={sec.items} /> : null}
                 </Section>
               ))}
 
@@ -336,20 +336,20 @@ export default function ThaiSummaryPage() {
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                     <thead>
-                      <tr style={{ background: '#ecfdf5' }}>
+                      <tr style={{ background: 'var(--de-success-soft)' }}>
                         {['ด้าน', 'ครูประเมินตนเอง', 'ผอ.ประเมิน', 'ค่าเป้าหมาย', 'จำนวนคำตอบ'].map((h) => (
-                          <th key={h} style={{ border: '1px solid #cbd5e1', padding: '0.5rem', textAlign: h === 'ด้าน' ? 'left' : 'center' }}>{h}</th>
+                          <th key={h} style={{ border: '1px solid var(--de-border-strong)', padding: '0.5rem', textAlign: h === 'ด้าน' ? 'left' : 'center' }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {(result.scoreboard || []).map((d: Dim, i: number) => (
                         <tr key={i}>
-                          <td style={{ border: '1px solid #cbd5e1', padding: '0.5rem' }}>{d.sectionName}</td>
-                          <td style={{ border: '1px solid #cbd5e1', padding: '0.5rem', textAlign: 'center' }}>{num(d.selfAvg)}</td>
-                          <td style={{ border: '1px solid #cbd5e1', padding: '0.5rem', textAlign: 'center' }}>{num(d.directorAvg)}</td>
-                          <td style={{ border: '1px solid #cbd5e1', padding: '0.5rem', textAlign: 'center' }}>{num(d.targetAvg)}</td>
-                          <td style={{ border: '1px solid #cbd5e1', padding: '0.5rem', textAlign: 'center' }}>{d.responseCount}</td>
+                          <td style={{ border: '1px solid var(--de-border-strong)', padding: '0.5rem' }}>{d.sectionName}</td>
+                          <td style={{ border: '1px solid var(--de-border-strong)', padding: '0.5rem', textAlign: 'center' }}>{num(d.selfAvg)}</td>
+                          <td style={{ border: '1px solid var(--de-border-strong)', padding: '0.5rem', textAlign: 'center' }}>{num(d.directorAvg)}</td>
+                          <td style={{ border: '1px solid var(--de-border-strong)', padding: '0.5rem', textAlign: 'center' }}>{num(d.targetAvg)}</td>
+                          <td style={{ border: '1px solid var(--de-border-strong)', padding: '0.5rem', textAlign: 'center' }}>{d.responseCount}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -361,7 +361,7 @@ export default function ThaiSummaryPage() {
         )}
 
         {!summary && selectionReady && (!isSupervision || roundStatus?.ok) && (
-          <div style={{ ...card, color: '#6b7280', textAlign: 'center' }}>ยังไม่มีบทสรุปสำหรับช่วงที่เลือก — กดปุ่มสร้างด้านบน</div>
+          <div style={{ ...card, color: 'var(--de-text-secondary)', textAlign: 'center' }}>ยังไม่มีบทสรุปสำหรับช่วงที่เลือก — กดปุ่มสร้างด้านบน</div>
         )}
       </div>
     </div>
@@ -371,7 +371,7 @@ export default function ThaiSummaryPage() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: '1.25rem' }}>
-      <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#166534', borderBottom: '2px solid #bbf7d0', paddingBottom: '0.25rem', marginBottom: '0.5rem' }}>{title}</h3>
+      <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--de-success)', borderBottom: '2px solid var(--de-success-soft)', paddingBottom: '0.25rem', marginBottom: '0.5rem' }}>{title}</h3>
       {children}
     </div>
   );
@@ -380,7 +380,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Bullets({ items }: { items: string[] }) {
   return (
     <ul style={{ margin: 0, paddingLeft: '0.5rem', lineHeight: 1.7, listStyle: 'none' }}>
-      {items.map((t, i) => <li key={i} style={{ marginBottom: '0.3rem', color: '#374151', display: 'flex', gap: '0.5rem' }}><span style={{ color: '#16a34a', flexShrink: 0 }}>•</span><span>{t}</span></li>)}
+      {items.map((t, i) => <li key={i} style={{ marginBottom: '0.3rem', color: 'var(--de-text-primary)', display: 'flex', gap: '0.5rem' }}><span style={{ color: 'var(--de-success)', flexShrink: 0 }}>•</span><span>{t}</span></li>)}
     </ul>
   );
 }
