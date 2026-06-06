@@ -150,7 +150,7 @@ export async function POST(
         }
       }
 
-      // THAI_P1_3: ค่าเป้าหมาย (score2) ต้องสูงกว่าระดับการประเมิน (score) ยกเว้นระดับการประเมิน = 4
+      // THAI_P1_3: ค่าเป้าหมาย (score2) ต้องสูงกว่าระดับการประเมิน (score) — ถ้า rating = 4 ค่าเป้าหมายต้องเป็น 4
       if (instrumentType === 'THAI_P1_3') {
         const ruleError = checkThaiTargetVsRating(
           parseInt(score, 10),

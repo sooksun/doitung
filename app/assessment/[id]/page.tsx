@@ -339,7 +339,7 @@ export default function AssessmentPage() {
     const current = (responsesRef.current[targetSessionId] || {})[indicatorId] || { score: null, score2: null };
     const updated = { ...current, [field]: value };
 
-    // THAI ป.1–3: ค่าเป้าหมาย (score2) ต้องสูงกว่าระดับการประเมิน (score) ยกเว้นระดับการประเมิน = 4.
+    // THAI ป.1–3: ค่าเป้าหมาย (score2) ต้องสูงกว่าระดับการประเมิน (score) — ถ้า rating = 4 ค่าเป้าหมายต้องเป็น 4.
     // Mirror the server rule here so the teacher gets instant feedback — the auto-save
     // swallows POST errors silently, so this client guard is what surfaces the rejection.
     if (isThaiTarget) {
