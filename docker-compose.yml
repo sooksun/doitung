@@ -26,17 +26,17 @@ services:
       - --collation-server=utf8mb4_unicode_ci
       - --default-authentication-plugin=mysql_native_password
     environment:
-      MARIADB_ROOT_PASSWORD: rootpassword
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?set MARIADB_ROOT_PASSWORD in .env}
       MARIADB_DATABASE: okrsdoitung
       MARIADB_USER: doitung_user
-      MARIADB_PASSWORD: doitung_pass
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:?set MARIADB_PASSWORD in .env}
       TZ: Asia/Bangkok
     volumes:
       - mysql_data:/var/lib/mysql
     networks:
       - eqap_network
     healthcheck:
-      test: ["CMD-SHELL", "mariadb-admin ping -h 127.0.0.1 -u root -prootpassword --silent"]
+      test: ["CMD-SHELL", "mariadb-admin ping -h 127.0.0.1 -u root -p$$MARIADB_ROOT_PASSWORD --silent"]
       interval: 10s
       timeout: 5s
       retries: 15
@@ -64,8 +64,8 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: mysql://doitung_user:doitung_pass@eqap_db:3306/okrsdoitung
-      JWT_SECRET: 5f2b8c1b49e3f6ab7d9c0e4dfe1a92c13af4b8a2de76c9f05d17bc403fb9217a
+      DATABASE_URL: mysql://doitung_user:${MARIADB_PASSWORD:?set MARIADB_PASSWORD in .env}@eqap_db:3306/okrsdoitung
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
       JWT_EXPIRES_IN: 7d
       NEXT_PUBLIC_APP_URL: https://doitung.cnppai.com
       NODE_ENV: production
