@@ -16,13 +16,15 @@ import { THAI_P13_SUMMARY_SYSTEM_PROMPT } from './prompts/thai-p13-summary';
 import { THAI_P13_SUPERVISION_SYSTEM_PROMPT } from './prompts/thai-p13-supervision';
 import { SOAR_SYSTEM_PROMPT } from './prompts/soar-coach';
 import { SAR_EXTRACT_SYSTEM } from './prompts/sar-thai-extract';
+import { CHATBOT_SYSTEM_PROMPT } from './prompts/chatbot';
 
 export type PromptKey =
   | 'exec-summary'
   | 'thai-p13-summary'
   | 'thai-p13-supervision'
   | 'soar'
-  | 'sar-extract';
+  | 'sar-extract'
+  | 'chatbot';
 
 export interface PromptMeta {
   key: PromptKey;
@@ -63,6 +65,12 @@ export const PROMPT_REGISTRY: PromptMeta[] = [
     label: 'สกัดข้อความ SAR (OCR)',
     description: 'ถอดข้อความภาษาไทยจาก PDF เอกสาร SAR — แก้เฉพาะเมื่อจำเป็น (กระทบความแม่นยำการสกัด)',
     default: SAR_EXTRACT_SYSTEM,
+  },
+  {
+    key: 'chatbot',
+    label: 'แชตบอตผู้ช่วย — ตอบคำถามในระบบ',
+    description: 'ผู้ช่วย AI ตอบคำถามเรื่องหลักการ ทฤษฎี และความหมายตัวชี้วัด (ฐานความรู้ดึงจากตัวชี้วัดจริง)',
+    default: CHATBOT_SYSTEM_PROMPT,
   },
 ];
 

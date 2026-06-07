@@ -187,6 +187,18 @@ DELETE /api/admin/ai-prompts/[key]    — คืนค่าเริ่มต�
 - โครงสร้าง: code const ใน `lib/ai/prompts/*` = **default** เสมอ; `AiPromptConfig` (PK=`key`, String, no migrate needed) เก็บเฉพาะ override. Resolver = [`getSystemPrompt(key)`](lib/ai/prompt-config.ts) คืน override เมื่อมี row && `enabled` && ไม่ว่าง ไม่งั้น default. รายการ prompt ที่แก้ได้คุมด้วย `PROMPT_REGISTRY` ในโค้ด.
 - jobs ทั้ง 5 (`run-exec-summary`, `run-thai-p13-summary`, `run-thai-p13-supervision`, `run-soar`, `extract-or-ocr`) เรียก `getSystemPrompt(key)` แทน const โดยตรง. `promptVersion` ที่เก็บลง DB คงเป็นเวอร์ชันเทมเพลตเดิม; การแก้ของ admin ตามรอยด้วย `AiPromptConfig.updatedAt` + `AuditLog` (`AI_PROMPT_UPDATE`/`AI_PROMPT_RESET`).
 
+### AI Chatbot — ผู้ช่วยตอบคำถามในระบบ
+```
+POST   /api/ai/chat                          — ส่งข้อความ { conversationId?, message } → { conversationId, answer }
+GET    /api/ai/chat/conversations            — list ห้องแชตของผู้ใช้
+GET/DELETE /api/ai/chat/conversations/[id]   — ข้อความในห้อง / ลบห้อง (owner-scoped)
+```
+- **Floating widget ทุกหน้าหลัง login**: [`app/components/chat/ChatWidget.tsx`](app/components/chat/ChatWidget.tsx) mount ใน [`AppShell`](app/components/shell/AppShell.tsx) (ConditionalShell กัน `/`, `/login`, `/print`). ปุ่มลอยมุมขวาล่าง + panel (createPortal). **ตอบทีเดียว** (ไม่ streaming) + typing indicator.
+- **Ground ความรู้**: [`lib/ai/chat-knowledge.ts`](lib/ai/chat-knowledge.ts) `getKnowledgeBase()` สร้างฐานความรู้จาก **ตัวชี้วัดจริงใน DB** (Q-Model + THAI ป.1–3 ทุกตัว + level descriptors) + กรอบทฤษฎีย่อ (Q-Model/THAI/SOAR/Iceberg) — cache ใน module memory (เรียก `invalidateKnowledgeBase()` ถ้าตัวชี้วัดเปลี่ยน).
+- **AI call**: `generateText()` ใน [`lib/ai/client.ts`](lib/ai/client.ts) (plain text, ไม่ใช่ JSON, reuse `aiClient`/`withBackoff`/`MODEL`). system = `getSystemPrompt('chatbot')` + KB; ส่งประวัติล่าสุด ~10 ข้อความ.
+- **System prompt แก้ได้จากหน้า admin**: key `'chatbot'` อยู่ใน `PROMPT_REGISTRY` → [/admin/settings/ai-prompts](app/admin/settings/ai-prompts/page.tsx) ปรับ persona/กฎได้.
+- **เก็บประวัติ DB**: models `ChatConversation` + `ChatMessage` (cascade ลบ). เส้นทางอยู่ใต้ `/api/ai` จึงผ่าน middleware gate อยู่แล้ว; owner-scoped ด้วย `requireAuth`. ต้องมี `OPENROUTER_API_KEY`.
+
 ---
 
 ## Core Calculation Logic (Live Dashboard)

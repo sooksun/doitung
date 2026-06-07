@@ -167,6 +167,48 @@ export async function generateJson(opts: {
   return { json: parsed, usage };
 }
 
+export interface ChatTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+/**
+ * Free-text (non-JSON) chat completion with retry-on-transient. Pass the system
+ * instruction plus the prior conversation turns; returns the assistant's text.
+ * Used by the in-app chatbot (no response_format → plain prose, not JSON).
+ */
+export async function generateText(opts: {
+  systemInstruction: string;
+  messages: ChatTurn[];
+  maxOutputTokens?: number;
+}): Promise<{ text: string; usage: { in: number; out: number } }> {
+  const ai = aiClient();
+  const res = await withBackoff(() =>
+    ai.chat.completions.create({
+      model: MODEL,
+      messages: [
+        { role: 'system', content: opts.systemInstruction },
+        ...opts.messages.map((m) => ({ role: m.role, content: m.content })),
+      ],
+      max_tokens: opts.maxOutputTokens ?? 4000,
+    })
+  );
+
+  const choice = res?.choices?.[0];
+  const text = (choice?.message?.content ?? '').trim();
+  const usage = {
+    in: res?.usage?.prompt_tokens ?? 0,
+    out: res?.usage?.completion_tokens ?? 0,
+  };
+  if (!text) {
+    throw new Error(
+      `AI returned empty response (finish=${choice?.finish_reason || 'unknown'}). ` +
+      `Likely a provider-side error — try again in a moment.`
+    );
+  }
+  return { text, usage };
+}
+
 /**
  * Convert an OpenRouter/OpenAI error into a short Thai message suitable for
  * showing to school admins. Falls back to the original message if it doesn't

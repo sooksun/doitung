@@ -9,6 +9,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useTheme } from '@/app/components/ui';
 import { Sidebar } from './Sidebar';
 import { TopHeader } from './TopHeader';
+import ChatWidget from '@/app/components/chat/ChatWidget';
 import {
   getActiveNavId, getCrumbs, normalizeRoles, roleLabel, isAdminRoles, initialsFrom,
   type ShellUser,
@@ -105,6 +106,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </div>
       </main>
+      <ChatWidget />
     </div>
   );
 }
