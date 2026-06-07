@@ -7,10 +7,10 @@ import path from 'node:path';
 import { prisma } from '@/lib/prisma';
 import { generateJson, friendlyAiError } from '@/lib/ai/client';
 import {
-  SAR_EXTRACT_SYSTEM,
   SAR_EXTRACT_USER,
   SAR_EXTRACT_RESPONSE_SCHEMA,
 } from '@/lib/ai/prompts/sar-thai-extract';
+import { getSystemPrompt } from '@/lib/ai/prompt-config';
 
 const MIN_THAI_RATIO = 0.4;
 
@@ -83,12 +83,12 @@ function parsePagesPayload(raw: any): { pages: PdfParsePage[]; confidences: numb
   return { pages, confidences };
 }
 
-async function aiExtractRange(filePath: string, startPage: number | null, endPage: number | null): Promise<AiExtractResult> {
+async function aiExtractRange(filePath: string, startPage: number | null, endPage: number | null, systemPrompt: string): Promise<AiExtractResult> {
   const rangeNote = startPage && endPage
     ? `\n\nสำคัญ: รอบนี้ให้ถอดข้อความ**เฉพาะหน้า ${startPage} ถึง ${endPage}** เท่านั้น (ไม่รวมหน้าก่อนหรือหลังช่วงนี้) คงเลขหน้าจริงตามเอกสาร`
     : '';
   const result = await generateJson({
-    systemInstruction: SAR_EXTRACT_SYSTEM,
+    systemInstruction: systemPrompt,
     userPrompt: SAR_EXTRACT_USER + rangeNote,
     responseSchema: SAR_EXTRACT_RESPONSE_SCHEMA,
     schemaName: 'sar_extract',
@@ -99,17 +99,17 @@ async function aiExtractRange(filePath: string, startPage: number | null, endPag
   return { pages, pageCount: pages.length, confidences };
 }
 
-async function aiExtract(filePath: string, knownPageCount: number): Promise<AiExtractResult> {
+async function aiExtract(filePath: string, knownPageCount: number, systemPrompt: string): Promise<AiExtractResult> {
   // Short docs: one shot. Long docs: chunk to avoid hitting the per-response
   // token ceiling on Thai content (which inflates badly under JSON encoding).
   if (knownPageCount > 0 && knownPageCount <= AI_CHUNK_SIZE) {
-    return aiExtractRange(filePath, null, null);
+    return aiExtractRange(filePath, null, null, systemPrompt);
   }
   if (knownPageCount === 0) {
     // pdf-parse couldn't even tell us a page count — best-effort single shot
     // with a smaller token budget so we get a clean truncation error if huge.
     console.warn('[aiExtract] page count unknown, falling back to single-shot');
-    return aiExtractRange(filePath, null, null);
+    return aiExtractRange(filePath, null, null, systemPrompt);
   }
 
   const allPages: PdfParsePage[] = [];
@@ -117,7 +117,7 @@ async function aiExtract(filePath: string, knownPageCount: number): Promise<AiEx
   for (let start = 1; start <= knownPageCount; start += AI_CHUNK_SIZE) {
     const end = Math.min(start + AI_CHUNK_SIZE - 1, knownPageCount);
     console.log(`[aiExtract] chunk pages ${start}-${end} of ${knownPageCount}`);
-    const chunk = await aiExtractRange(filePath, start, end);
+    const chunk = await aiExtractRange(filePath, start, end, systemPrompt);
     for (let i = 0; i < chunk.pages.length; i++) {
       const p = chunk.pages[i];
       // Guard: model occasionally returns out-of-range pages — keep only what we asked for
@@ -189,7 +189,8 @@ export async function extractOrOcr(documentId: number): Promise<void> {
 
         if (!native.ok || native.pages.every((p) => p.text.length < 20)) {
           console.log(`[extractOrOcr] doc=${documentId} native quality low (${pdfQuality.toFixed(2)}, pages=${native.pageCount}), falling back to AI`);
-          const g = await aiExtract(fullPath, native.pageCount);
+          const sarExtractSystem = await getSystemPrompt('sar-extract');
+          const g = await aiExtract(fullPath, native.pageCount, sarExtractSystem);
           if (g.pages.length > 0) {
             pdfExtractMethod = 'ai';
             pdfPages = g.pages;

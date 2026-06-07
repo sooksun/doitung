@@ -20,11 +20,13 @@ export async function resolveThaiAccess(me: { id: number; roles?: unknown }): Pr
 
 // Whether `acc` may act on (scope, scopeId). Returns a Thai error message, or null if allowed.
 //   scope='project'                          → admin only
+//   scope='network'                          → admin only (spans multiple schools)
 //   scope='school'                           → scopeId is a schoolId; must match the leader's
 //   scope='individual' | 'supervision-t*'    → scopeId is a teacherId; must be in the leader's school
 export async function checkThaiScopeAccess(acc: ThaiAccess, scope: string, scopeId: number): Promise<string | null> {
   if (acc.isAdmin) return null;
   if (scope === 'project') return 'ภาพรวมทั้งโครงการสำหรับผู้ดูแลระบบเท่านั้น';
+  if (scope === 'network') return 'สรุประดับกลุ่มเครือข่ายสำหรับผู้ดูแลระบบเท่านั้น';
   if (scope === 'school') {
     return scopeId === acc.schoolId ? null : 'ดูได้เฉพาะโรงเรียนของท่านเท่านั้น';
   }

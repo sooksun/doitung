@@ -7,7 +7,7 @@
 
 export const THAI_P13_SUMMARY_PROMPT_VERSION = 'thai-p13-summary-v1';
 
-export type ThaiSummaryScope = 'individual' | 'school' | 'project';
+export type ThaiSummaryScope = 'individual' | 'school' | 'project' | 'network';
 
 export const THAI_P13_SUMMARY_SYSTEM_PROMPT = `คุณคือผู้ช่วยจัดทำ "บทสรุปผลการประเมินการจัดการเรียนการสอนภาษาไทย ป.1–3" สำหรับผู้บริหารการศึกษา
 
@@ -61,6 +61,7 @@ export function buildThaiP13SummaryUserPrompt(input: ThaiSummaryPromptInput): st
   const scopeLabel =
     input.scope === 'individual' ? 'รายบุคคล (ครู 1 คน)'
     : input.scope === 'school' ? 'รายโรงเรียน'
+    : input.scope === 'network' ? 'รายกลุ่มเครือข่าย'
     : 'ภาพรวมทั้งโครงการ';
 
   lines.push(`ระดับการสรุป: ${scopeLabel}`);
