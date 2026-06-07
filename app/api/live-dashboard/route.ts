@@ -7,7 +7,7 @@
 
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { successResponse, handleApiError, parseIntParam } from '@/lib/api-utils';
+import { successResponse, errorResponse, handleApiError, parseIntParam, getCurrentUser, hasRole } from '@/lib/api-utils';
 
 const Q_DIMENSIONS = [
   { key: 'Q-Leadership', labelTh: 'Q-Leadership ผู้บริหาร', order: 1 },
@@ -21,12 +21,27 @@ type Status = 'green' | 'yellow' | 'red';
 export async function GET(request: NextRequest) {
   try {
     const sp = request.nextUrl.searchParams;
-    const scope = sp.get('scope') || 'district'; // school | network | district
-    const schoolId = parseIntParam(sp, 'schoolId');
-    const networkId = parseIntParam(sp, 'networkId');
+    let scope = sp.get('scope') || 'district'; // school | network | district
+    let schoolId = parseIntParam(sp, 'schoolId');
+    let networkId = parseIntParam(sp, 'networkId');
     const academicYearId = parseIntParam(sp, 'academicYearId');
     const termId = parseIntParam(sp, 'termId');
     const instrumentId = parseIntParam(sp, 'instrumentId');
+
+    // Access scoping (enforced server-side — this route is otherwise open):
+    // a school-bound user (non-admin with a Teacher.schoolId) may ONLY ever see
+    // their own school, regardless of the scope/schoolId they request. ADMIN and
+    // non-school users (e.g. SUPERVISOR, no Teacher row) keep full access.
+    const me = await getCurrentUser(request);
+    if (!me) return errorResponse('Unauthorized: กรุณาเข้าสู่ระบบ', 401);
+    if (!hasRole(me, 'ADMIN')) {
+      const t = await prisma.teacher.findUnique({ where: { userId: me.id }, select: { schoolId: true } });
+      if (t?.schoolId) {
+        scope = 'school';
+        schoolId = t.schoolId;
+        networkId = undefined;
+      }
+    }
 
     // Resolve scope → school filter
     let schoolFilter: { schoolId?: number | { in: number[] } } = {};
