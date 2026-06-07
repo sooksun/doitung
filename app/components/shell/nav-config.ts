@@ -18,14 +18,13 @@ export const NAV_MAIN: NavItemDef[] = [
   { id: 'dashboard', label: 'หน้าหลัก', icon: 'home', href: '/dashboard' },
   { id: 'live-dashboard', label: 'Live Dashboard', icon: 'activity', href: '/live-dashboard' },
   { id: 'evaluations', label: 'รายการประเมิน', icon: 'clipboard', href: '/evaluations' },
-  { id: 'reports', label: 'รายงาน', icon: 'fileText', href: '/reports' },
   // สรุปผล/นิเทศ ป.1–3 ด้วย AI (3 ระดับ + บทนิเทศทีมหนุนเสริม). Access: ADMIN (ทั้งหมด) +
   // SCHOOL_LEADER (เฉพาะโรงเรียนตน) — ตรงกับ lib/thai-summary-access.ts.
   { id: 'thai-summary', label: 'สรุปผล/นิเทศ (AI)', icon: 'sparkles', href: '/admin/thai-summary', roles: ['ADMIN', 'SCHOOL_LEADER'] },
 ];
 
 export const NAV_ADMIN: NavItemDef[] = [
-  { id: 'admin-sar', label: 'เอกสาร SAR', icon: 'folder', href: '/admin/sar' },
+  { id: 'admin-sar', label: 'คลังข้อมูลการระดมสมอง', icon: 'folder', href: '/admin/sar' },
   { id: 'admin-schools', label: 'โรงเรียน', icon: 'school', href: '/admin/schools' },
   { id: 'admin-networks', label: 'เครือข่าย', icon: 'network', href: '/admin/networks' },
   { id: 'admin-directors', label: 'ผู้อำนวยการ', icon: 'userTie', href: '/admin/school-directors' },
