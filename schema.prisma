@@ -139,6 +139,7 @@ model User {
   sarEvidenceVerified SarEvidenceLink[]
   aiAnalysisRuns      AiAnalysisRun[]
   aiOutputsReviewed   AiAnalysisOutput[]
+  chatConversations   ChatConversation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -706,6 +707,32 @@ model AiPromptConfig {
   updatedById  Int?
   updatedAt    DateTime @updatedAt
   createdAt    DateTime @default(now())
+}
+
+// AI chatbot conversation history (per user). The assistant answers questions
+// about the system's frameworks/theory and the meaning of each indicator,
+// grounded on a knowledge base built from the live Indicator data.
+model ChatConversation {
+  id        Int           @id @default(autoincrement())
+  userId    Int
+  title     String        @default("แชตใหม่") @db.VarChar(255)
+  user      User          @relation(fields: [userId], references: [id])
+  messages  ChatMessage[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([userId])
+}
+
+model ChatMessage {
+  id             Int              @id @default(autoincrement())
+  conversationId Int
+  role           String // 'user' | 'assistant'
+  content        String           @db.Text
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime         @default(now())
+
+  @@index([conversationId])
 }
 
 model AuditLog {
