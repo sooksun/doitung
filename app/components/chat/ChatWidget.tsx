@@ -13,6 +13,21 @@ import { toastError } from '@/lib/toast';
 interface ConvItem { id: number; title: string; updatedAt: string }
 interface Msg { role: 'user' | 'assistant'; content: string; pending?: boolean }
 
+// Line-style AI robot icon (inherits color via currentColor).
+function RobotIcon({ size = 28 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden focusable="false">
+      <path d="M12 5V2.4" />
+      <circle cx="12" cy="2" r="1.1" fill="currentColor" stroke="none" />
+      <rect x="4.5" y="5.5" width="15" height="12.5" rx="3.5" />
+      <path d="M2.5 11v2.6M21.5 11v2.6" />
+      <circle cx="9.4" cy="11.6" r="1.25" fill="currentColor" stroke="none" />
+      <circle cx="14.6" cy="11.6" r="1.25" fill="currentColor" stroke="none" />
+      <path d="M9.5 15.1h5" />
+    </svg>
+  );
+}
+
 export default function ChatWidget() {
   const [mounted, setMounted] = useState(false);
   const [token, setToken] = useState<string | null>(null);
@@ -113,8 +128,9 @@ export default function ChatWidget() {
         width: 56, height: 56, borderRadius: '50%', border: 'none', cursor: 'pointer',
         background: 'var(--de-primary)', color: 'var(--de-on-primary)', fontSize: 26,
         boxShadow: '0 6px 18px rgba(0,0,0,0.25)',
+        display: 'grid', placeItems: 'center',
       }}
-    >{open ? '✕' : '💬'}</button>
+    >{open ? '✕' : <RobotIcon size={30} />}</button>
   );
 
   const panel = open && (
@@ -131,7 +147,7 @@ export default function ChatWidget() {
     >
       {/* header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.7rem 0.9rem', background: 'var(--de-primary)', color: 'var(--de-on-primary)' }}>
-        <span style={{ fontSize: 18 }}>🤖</span>
+        <RobotIcon size={20} />
         <strong style={{ fontSize: '0.95rem', flex: 1 }}>ผู้ช่วย AI — ถาม-ตอบในระบบ</strong>
         <button onClick={() => setView(view === 'chat' ? 'history' : 'chat')} title="ประวัติการสนทนา"
           style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 16 }}>
