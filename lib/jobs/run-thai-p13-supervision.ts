@@ -16,12 +16,12 @@ import {
   THAI_P13_SUPERVISION_RESPONSE_SCHEMA,
 } from '@/lib/ai/schemas/thai-p13-supervision';
 import {
-  THAI_P13_SUPERVISION_SYSTEM_PROMPT,
   THAI_P13_SUPERVISION_PROMPT_VERSION,
   buildThaiP13SupervisionUserPrompt,
   type SupervisionDimension,
   type SupervisionReflection,
 } from '@/lib/ai/prompts/thai-p13-supervision';
+import { getSystemPrompt } from '@/lib/ai/prompt-config';
 import { redactPII } from '@/lib/ai/redact';
 
 const mean = (xs: number[]): number | null => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
@@ -173,9 +173,10 @@ export async function runThaiP13Supervision(teacherId: number, academicYearId: n
       round, teacherName, schoolName, academicYearLabel, termLabel: gate.termLabel, scoreboard, reflections: promptReflections,
     });
 
+    const baseSystem = await getSystemPrompt('thai-p13-supervision');
     const callAI = async (extra = '') =>
       generateJson({
-        systemInstruction: THAI_P13_SUPERVISION_SYSTEM_PROMPT + extra,
+        systemInstruction: baseSystem + extra,
         userPrompt,
         responseSchema: THAI_P13_SUPERVISION_RESPONSE_SCHEMA,
         schemaName: 'thai_p13_supervision',

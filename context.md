@@ -163,6 +163,30 @@ GET /api/live-dashboard
 
 > **เลือกเครื่องมือได้**: `/live-dashboard` มี dropdown เลือก instrument. มิติ (dimensions) มาจาก section ของเครื่องมือที่เลือก — Q-Model คง 4 มิติ (match `nameEn`, current=`score2`/target=`score`); เครื่องมืออื่น (ป.1–3 5 ด้าน, DERS ฯลฯ) ใช้ section ของตัวเอง (current=`score`/target=`score2`). KPI/completion/spider/indicator health คำนวณตามเครื่องมือที่เลือก. `maxScale` มาจาก indicator max (5 สำหรับ Q-Model, 4 สำหรับ ป.1–3) ใช้กำหนด domain ของ spider. การรวมผล ป.1–3 รวมทั้งฝั่งครูประเมินตนเอง + ผอ.
 
+### AI Summary (THAI ป.1–3) — บทสรุปด้วย AI
+```
+POST/GET /api/admin/thai-p13-summary   — สร้าง/อ่านบทสรุปด้วย AI (admin/ผอ.)
+  Body/Params: scope, scopeId, academicYearId
+  scope (leadership): individual (scopeId=teacherId) | school (schoolId)
+                      | network (networkId) | project (scopeId=0)
+  scope (supervision): supervision-t1 | supervision-t2 (scopeId=teacherId, รายรอบ)
+```
+- หน้า UI: `/admin/thai-summary` (tab เลือก scope) → ผล render ผ่าน `lib/thai-summary-sections.ts` ใช้ร่วมกับ export Excel/Word + หน้า print PDF (`/admin/thai-summary/[id]/print`).
+- Job: `lib/jobs/run-thai-p13-summary.ts` (leadership) / `run-thai-p13-supervision.ts` (นิเทศ, hard-gate ต้องประเมินรอบนั้นเสร็จก่อน). เก็บผลใน `ThaiP13Summary` (unique `[scope, scopeId, academicYearId]`, `scope` เป็น String จึงเพิ่ม scope ใหม่ได้โดยไม่ต้อง migrate).
+- **scope=network**: resolve `networkId → schoolIds` ผ่าน `SchoolNetworkMember` (pattern เดียวกับ `/api/dashboard/summary`) แล้วรวมทุกโรงเรียนในเครือข่าย. **project + network = admin เท่านั้น** (บังคับใน `lib/thai-summary-access.ts`); school/individual/supervision → ผอ. ทำได้เฉพาะโรงเรียน/ครูในสังกัด.
+- ครอบคลุมระดับการสรุป: รายคน / รายโรงเรียน / **รายกลุ่มเครือข่าย** / ทั้งโครงการ. (Q-Model exec-summary ยังเป็น per-SAR ระดับโรงเรียนเท่านั้น — ดู SAR module)
+
+### AI Prompt config (Admin) — แก้ system prompt ได้จากหน้าเว็บ
+```
+GET    /api/admin/ai-prompts          — list 5 prompt (default + override + active)
+PATCH  /api/admin/ai-prompts/[key]    — บันทึก override (systemPrompt / enabled)
+DELETE /api/admin/ai-prompts/[key]    — คืนค่าเริ่มต้น (ลบ override)
+```
+- หน้า UI: `/admin/settings/ai-prompts` (ADMIN เท่านั้น) — ลิงก์จาก header หน้า `/admin/thai-summary`.
+- **เฉพาะ system prompt** ของ 5 ฟีเจอร์ AI แก้ได้: `thai-p13-summary`, `thai-p13-supervision`, `exec-summary`, `soar`, `sar-extract`. ระดับ **global** (ชุดเดียวทั้งโครงการ). user-prompt template (มีตัวแปร interpolate) ยังคงอยู่ในโค้ด ไม่เปิดให้แก้.
+- โครงสร้าง: code const ใน `lib/ai/prompts/*` = **default** เสมอ; `AiPromptConfig` (PK=`key`, String, no migrate needed) เก็บเฉพาะ override. Resolver = [`getSystemPrompt(key)`](lib/ai/prompt-config.ts) คืน override เมื่อมี row && `enabled` && ไม่ว่าง ไม่งั้น default. รายการ prompt ที่แก้ได้คุมด้วย `PROMPT_REGISTRY` ในโค้ด.
+- jobs ทั้ง 5 (`run-exec-summary`, `run-thai-p13-summary`, `run-thai-p13-supervision`, `run-soar`, `extract-or-ocr`) เรียก `getSystemPrompt(key)` แทน const โดยตรง. `promptVersion` ที่เก็บลง DB คงเป็นเวอร์ชันเทมเพลตเดิม; การแก้ของ admin ตามรอยด้วย `AiPromptConfig.updatedAt` + `AuditLog` (`AI_PROMPT_UPDATE`/`AI_PROMPT_RESET`).
+
 ---
 
 ## Core Calculation Logic (Live Dashboard)

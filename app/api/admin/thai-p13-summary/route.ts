@@ -18,7 +18,7 @@ import { THAI_P13_SUPERVISION_PROMPT_VERSION } from '@/lib/ai/prompts/thai-p13-s
 import { OPENROUTER_MODEL } from '@/lib/ai/client';
 import { logAudit } from '@/lib/audit';
 
-const LEADERSHIP_SCOPES = ['individual', 'school', 'project'];
+const LEADERSHIP_SCOPES = ['individual', 'school', 'project', 'network'];
 const SUPERVISION_SCOPES = ['supervision-t1', 'supervision-t2'];
 const ALL_SCOPES = [...LEADERSHIP_SCOPES, ...SUPERVISION_SCOPES];
 
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     let scopeId = 0;
     if (scope !== 'project') {
       scopeId = Number(body.scopeId);
-      if (!Number.isFinite(scopeId) || scopeId <= 0) return errorResponse(scope === 'individual' ? 'กรุณาเลือกครู' : 'กรุณาเลือกโรงเรียน', 400);
+      if (!Number.isFinite(scopeId) || scopeId <= 0) return errorResponse(scope === 'individual' ? 'กรุณาเลือกครู' : scope === 'network' ? 'กรุณาเลือกกลุ่มเครือข่าย' : 'กรุณาเลือกโรงเรียน', 400);
     }
 
     const accErr = await checkThaiScopeAccess(acc, scope, scopeId);

@@ -11,7 +11,8 @@ export type EntityType =
   | 'AiAnalysisOutput'
   | 'FeatureFlag'
   | 'School'
-  | 'ThaiP13Summary';
+  | 'ThaiP13Summary'
+  | 'AiPromptConfig';
 
 export interface AuditEvent {
   userId: number;

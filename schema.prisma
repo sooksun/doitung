@@ -649,8 +649,8 @@ model ThaiReflectionFile {
 // `result` holds the whole envelope: { scoreboard, reflectionDigest, ai:{...} }.
 model ThaiP13Summary {
   id             Int       @id @default(autoincrement())
-  scope          String // 'individual' | 'school' | 'project'
-  scopeId        Int       @default(0) // targetTeacherId | schoolId | 0(project)
+  scope          String // 'individual' | 'school' | 'network' | 'project' | 'supervision-t1' | 'supervision-t2'
+  scopeId        Int       @default(0) // targetTeacherId | schoolId | networkId | 0(project)
   academicYearId Int
   status         String // 'RUNNING' | 'DONE' | 'FAILED'
   result         Json?
@@ -693,6 +693,19 @@ model FeatureFlag {
   createdAt            DateTime @default(now())
 
   school School @relation(fields: [schoolId], references: [id])
+}
+
+// Admin-editable override for AI system prompts (global / project-wide).
+// Code consts in lib/ai/prompts/* remain the DEFAULT; a row here overrides one
+// prompt by `key` (see PROMPT_REGISTRY in lib/ai/prompt-config.ts). No row, or
+// enabled=false, or blank text → fall back to the code default.
+model AiPromptConfig {
+  key          String   @id // 'exec-summary' | 'thai-p13-summary' | 'thai-p13-supervision' | 'soar' | 'sar-extract'
+  systemPrompt String   @db.Text
+  enabled      Boolean  @default(true) // false = use code default without discarding the saved text
+  updatedById  Int?
+  updatedAt    DateTime @updatedAt
+  createdAt    DateTime @default(now())
 }
 
 model AuditLog {

@@ -18,6 +18,7 @@ function scopeLabel(scope: string) {
   if (scope === 'individual') return 'รายบุคคล';
   if (scope === 'school') return 'รายโรงเรียน';
   if (scope === 'project') return 'ภาพรวมโครงการ';
+  if (scope === 'network') return 'รายกลุ่มเครือข่าย';
   if (scope === 'supervision-t1') return 'นิเทศ ครั้งที่ 1';
   if (scope === 'supervision-t2') return 'นิเทศ ครั้งที่ 2';
   return scope;

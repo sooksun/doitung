@@ -15,13 +15,13 @@ import {
   THAI_P13_SUMMARY_RESPONSE_SCHEMA,
 } from '@/lib/ai/schemas/thai-p13-summary';
 import {
-  THAI_P13_SUMMARY_SYSTEM_PROMPT,
   THAI_P13_SUMMARY_PROMPT_VERSION,
   buildThaiP13SummaryUserPrompt,
   type ThaiSummaryScope,
   type ThaiSummaryDimension,
   type ThaiReflectionDigestItem,
 } from '@/lib/ai/prompts/thai-p13-summary';
+import { getSystemPrompt } from '@/lib/ai/prompt-config';
 import { redactPII } from '@/lib/ai/redact';
 
 const mean = (xs: number[]): number | null => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
@@ -92,6 +92,15 @@ export async function runThaiP13Summary(
     };
     if (scope === 'individual') sessionWhere.targetTeacherId = scopeId;
     else if (scope === 'school') sessionWhere.schoolId = scopeId;
+    else if (scope === 'network') {
+      const members = await prisma.schoolNetworkMember.findMany({
+        where: { networkId: scopeId, isActive: true },
+        select: { schoolId: true },
+      });
+      const ids = members.map((m) => m.schoolId);
+      if (ids.length === 0) throw new Error('กลุ่มเครือข่ายนี้ยังไม่มีโรงเรียนในสังกัด');
+      sessionWhere.schoolId = { in: ids };
+    }
 
     const sessions = await prisma.evaluationSession.findMany({
       where: sessionWhere,
@@ -179,6 +188,10 @@ export async function runThaiP13Summary(
     } else if (scope === 'school') {
       const sc = await prisma.school.findUnique({ where: { id: scopeId }, select: { nameTh: true, name: true } });
       subjectLabel = sc?.nameTh || sc?.name || `โรงเรียน #${scopeId}`;
+    } else if (scope === 'network') {
+      const net = await prisma.schoolNetwork.findUnique({ where: { id: scopeId }, select: { nameTh: true, name: true } });
+      subjectLabel = net?.nameTh || net?.name || `กลุ่มเครือข่าย #${scopeId}`;
+      schoolCount = distinctSchools;
     } else {
       schoolCount = distinctSchools;
     }
@@ -193,9 +206,10 @@ export async function runThaiP13Summary(
       schoolCount, scoreboard, reflections: promptReflections,
     });
 
+    const baseSystem = await getSystemPrompt('thai-p13-summary');
     const callAI = async (extra = '') => {
       const { json, usage } = await generateJson({
-        systemInstruction: THAI_P13_SUMMARY_SYSTEM_PROMPT + extra,
+        systemInstruction: baseSystem + extra,
         userPrompt,
         responseSchema: THAI_P13_SUMMARY_RESPONSE_SCHEMA,
         schemaName: 'thai_p13_summary',

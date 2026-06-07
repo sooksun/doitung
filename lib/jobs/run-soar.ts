@@ -9,10 +9,10 @@ import { prisma } from '@/lib/prisma';
 import { generateJson, friendlyAiError, OPENROUTER_MODEL } from '@/lib/ai/client';
 import { soarOutputSchema, SOAR_RESPONSE_SCHEMA } from '@/lib/ai/schemas/soar-output';
 import {
-  SOAR_SYSTEM_PROMPT,
   SOAR_PROMPT_VERSION,
   buildSoarUserPrompt,
 } from '@/lib/ai/prompts/soar-coach';
+import { getSystemPrompt } from '@/lib/ai/prompt-config';
 import { inputHash } from '@/lib/ai/hash';
 import { redactPII } from '@/lib/ai/redact';
 
@@ -140,8 +140,9 @@ export async function runSoar(runId: number): Promise<void> {
     }
 
     // 6. Call AI provider
+    const soarSystem = await getSystemPrompt('soar');
     const { json: raw, usage } = await generateJson({
-      systemInstruction: SOAR_SYSTEM_PROMPT,
+      systemInstruction: soarSystem,
       userPrompt,
       responseSchema: SOAR_RESPONSE_SCHEMA,
       schemaName: 'soar_output',
@@ -156,7 +157,7 @@ export async function runSoar(runId: number): Promise<void> {
       console.warn('[runSoar] schema fail on first attempt, retrying with stricter system');
       const retryPrompt = `STRICT MODE: ทุก Item ต้องมี evidenceLinks (array, อาจว่าง) และ evidenceMissing (boolean). หาก evidenceLinks ว่าง ต้องตั้ง evidenceMissing=true เสมอ. ตอบ JSON เท่านั้น ห้ามมีคำพูดอื่น.\n\n${userPrompt}`;
       const retry = await generateJson({
-        systemInstruction: SOAR_SYSTEM_PROMPT + '\n\n' + 'หากผลลัพธ์รอบก่อนไม่ผ่าน schema ให้ตอบใหม่โดยรักษากฎ evidenceLinks/evidenceMissing อย่างเคร่งครัด',
+        systemInstruction: soarSystem + '\n\n' + 'หากผลลัพธ์รอบก่อนไม่ผ่าน schema ให้ตอบใหม่โดยรักษากฎ evidenceLinks/evidenceMissing อย่างเคร่งครัด',
         userPrompt: retryPrompt,
         responseSchema: SOAR_RESPONSE_SCHEMA,
         schemaName: 'soar_output',

@@ -17,11 +17,11 @@ import {
   EXEC_SUMMARY_RESPONSE_SCHEMA,
 } from '@/lib/ai/schemas/exec-summary-output';
 import {
-  EXEC_SUMMARY_SYSTEM_PROMPT,
   EXEC_SUMMARY_PROMPT_VERSION,
   buildExecSummaryUserPrompt,
   type ExecSummaryDimension,
 } from '@/lib/ai/prompts/exec-summary';
+import { getSystemPrompt } from '@/lib/ai/prompt-config';
 import { redactPII } from '@/lib/ai/redact';
 
 const Q_DIMENSIONS = [
@@ -192,8 +192,9 @@ export async function runExecSummary(sarDocumentId: number): Promise<void> {
       qualitativeText,
     });
 
+    const execSystem = await getSystemPrompt('exec-summary');
     const { json: raw, usage } = await generateJson({
-      systemInstruction: EXEC_SUMMARY_SYSTEM_PROMPT,
+      systemInstruction: execSystem,
       userPrompt,
       responseSchema: EXEC_SUMMARY_RESPONSE_SCHEMA,
       schemaName: 'exec_summary',
@@ -206,7 +207,7 @@ export async function runExecSummary(sarDocumentId: number): Promise<void> {
       console.warn('[runExecSummary] schema fail, retrying', sarDocumentId);
       const retry = await generateJson({
         systemInstruction:
-          EXEC_SUMMARY_SYSTEM_PROMPT +
+          execSystem +
           '\n\nรอบก่อนผลลัพธ์ไม่ผ่านโครงสร้าง ให้ตอบใหม่เป็น JSON ที่มีครบทุก field: executiveSummary, quantitativeFindings, qualitativeFindings, discussion, recommendations เท่านั้น',
         userPrompt,
         responseSchema: EXEC_SUMMARY_RESPONSE_SCHEMA,

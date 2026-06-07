@@ -15,6 +15,7 @@ import { summarySections } from '@/lib/thai-summary-sections';
 
 interface Year { id: number; year: number }
 interface School { id: number; code: string | null; nameTh: string | null }
+interface Network { id: number; code: string | null; nameTh: string | null; name: string | null }
 interface Teacher { teacherId: number; userId: number | null; name: string }
 interface Dim { sectionName: string; selfAvg: number | null; directorAvg: number | null; targetAvg: number | null; responseCount: number }
 interface SummaryRow { id: number; status: string; error: string | null; result: any | null }
@@ -24,6 +25,7 @@ const num = (v: number | null) => (v == null ? '—' : v.toFixed(2));
 const SCOPE_TABS = [
   { key: 'individual', label: 'รายบุคคล' },
   { key: 'school', label: 'รายโรงเรียน' },
+  { key: 'network', label: 'รายกลุ่มเครือข่าย' },
   { key: 'project', label: 'ภาพรวมโครงการ' },
   { key: 'supervision-t1', label: 'ทีมหนุนเสริม · นิเทศครั้งที่ 1' },
   { key: 'supervision-t2', label: 'ทีมหนุนเสริม · นิเทศครั้งที่ 2' },
@@ -37,9 +39,11 @@ export default function ThaiSummaryPage() {
   const [scope, setScope] = useState('individual');
   const [years, setYears] = useState<Year[]>([]);
   const [schools, setSchools] = useState<School[]>([]);
+  const [networks, setNetworks] = useState<Network[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [academicYearId, setAcademicYearId] = useState('');
   const [schoolId, setSchoolId] = useState('');
+  const [networkId, setNetworkId] = useState('');
   const [teacherId, setTeacherId] = useState('');
 
   const [summary, setSummary] = useState<SummaryRow | null>(null);
@@ -56,8 +60,9 @@ export default function ThaiSummaryPage() {
 
   const isSupervision = scope.startsWith('supervision');
   const round = scope === 'supervision-t2' ? 2 : 1;
-  const needsSchool = scope !== 'project';
   const needsTeacher = scope === 'individual' || isSupervision;
+  const needsNetwork = scope === 'network';
+  const needsSchool = scope === 'school' || needsTeacher;
 
   useEffect(() => {
     const stored = localStorage.getItem('token');
@@ -81,12 +86,13 @@ export default function ThaiSummaryPage() {
           setSchoolId(String(me.school.id));
           setScope('individual'); // leaders can't use the project scope
         }
-        const [yRes, sRes] = await Promise.all([fetch('/api/academic-years', auth), fetch('/api/schools?isActive=true', auth)]);
-        const yJson = await yRes.json(); const sJson = await sRes.json();
+        const [yRes, sRes, nRes] = await Promise.all([fetch('/api/academic-years', auth), fetch('/api/schools?isActive=true', auth), fetch('/api/networks?isActive=true', auth)]);
+        const yJson = await yRes.json(); const sJson = await sRes.json(); const nJson = await nRes.json();
         const ys: Year[] = yJson.success ? yJson.data : Array.isArray(yJson) ? yJson : [];
         setYears(ys);
         if (ys.length) setAcademicYearId(String(ys[0].id));
         setSchools(sJson.success ? sJson.data : Array.isArray(sJson) ? sJson : []);
+        setNetworks(nJson.success ? nJson.data : Array.isArray(nJson) ? nJson : []);
         setReady(true);
       } catch { toastError('โหลดข้อมูลตั้งต้นไม่สำเร็จ'); }
     })();
@@ -106,8 +112,8 @@ export default function ThaiSummaryPage() {
     return () => { cancelled = true; };
   }, [needsTeacher, schoolId, token]);
 
-  const scopeId = scope === 'project' ? 0 : needsTeacher ? Number(teacherId) : Number(schoolId);
-  const selectionReady = !!academicYearId && (scope === 'project' || (needsTeacher ? !!teacherId : !!schoolId));
+  const scopeId = scope === 'project' ? 0 : needsTeacher ? Number(teacherId) : needsNetwork ? Number(networkId) : Number(schoolId);
+  const selectionReady = !!academicYearId && (scope === 'project' || (needsTeacher ? !!teacherId : needsNetwork ? !!networkId : !!schoolId));
 
   // Supervision gate: check whether the round is complete (UI feedback before generate)
   useEffect(() => {
@@ -217,12 +223,15 @@ export default function ThaiSummaryPage() {
   }
 
   const result = summary?.result;
-  const visibleTabs = isAdmin ? SCOPE_TABS : SCOPE_TABS.filter((t) => t.key !== 'project');
+  const visibleTabs = isAdmin ? SCOPE_TABS : SCOPE_TABS.filter((t) => t.key !== 'project' && t.key !== 'network');
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--de-bg-canvas)', padding: '2rem' }}>
       <div style={{ maxWidth: '960px', margin: '0 auto' }}>
-        <Link href="/dashboard" style={{ color: 'var(--de-primary)', textDecoration: 'none', fontSize: '0.9rem' }}>← กลับแดชบอร์ด</Link>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+          <Link href="/dashboard" style={{ color: 'var(--de-primary)', textDecoration: 'none', fontSize: '0.9rem' }}>← กลับแดชบอร์ด</Link>
+          {isAdmin && <Link href="/admin/settings/ai-prompts" style={{ color: 'var(--de-primary)', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 600 }}>⚙️ ตั้งค่า AI prompt</Link>}
+        </div>
         <h1 style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--de-text-primary)', margin: '0.5rem 0 0.25rem' }}>🤖 สรุปผลภาษาไทย ป.1–3 ด้วย AI</h1>
         <p style={{ color: 'var(--de-text-secondary)', margin: '0 0 1.25rem' }}>
           {isAdmin
@@ -248,6 +257,15 @@ export default function ThaiSummaryPage() {
                 {years.map((y) => <option key={y.id} value={y.id}>{y.year}</option>)}
               </select>
             </div>
+            {needsNetwork && (
+              <div>
+                <label style={labelStyle}>กลุ่มเครือข่าย *</label>
+                <select value={networkId} onChange={(e) => setNetworkId(e.target.value)} style={inputStyle}>
+                  <option value="">เลือกกลุ่มเครือข่าย</option>
+                  {networks.map((n) => <option key={n.id} value={n.id}>{n.code ? `${n.code} ` : ''}{n.nameTh || n.name || `เครือข่าย #${n.id}`}</option>)}
+                </select>
+              </div>
+            )}
             {needsSchool && (
               <div>
                 <label style={labelStyle}>โรงเรียน *</label>
@@ -298,6 +316,7 @@ export default function ThaiSummaryPage() {
             {generating || summary?.status === 'RUNNING' ? '⏳ กำลังสร้างด้วย AI...' : summary?.status === 'DONE' ? '🔄 สร้างใหม่อีกครั้ง' : isSupervision ? '🚀 สร้างบทนิเทศด้วย AI' : '🚀 สร้างบทสรุปด้วย AI'}
           </button>
           {scope === 'project' && <p style={{ margin: '0.6rem 0 0', fontSize: '0.82rem', color: 'var(--de-text-secondary)' }}>รวมข้อมูลทุกโรงเรียนในปีการศึกษาที่เลือก</p>}
+          {scope === 'network' && <p style={{ margin: '0.6rem 0 0', fontSize: '0.82rem', color: 'var(--de-text-secondary)' }}>รวมข้อมูลทุกโรงเรียนในกลุ่มเครือข่ายที่เลือก</p>}
           {isSupervision && <p style={{ margin: '0.6rem 0 0', fontSize: '0.82rem', color: 'var(--de-text-secondary)' }}>บทสรุปรายบุคคลสำหรับทีมหนุนเสริมก่อนเข้านิเทศ — ต้องประเมินครั้งที่ {round} เสร็จก่อนจึงสร้างได้</p>}
         </div>
 
