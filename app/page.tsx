@@ -204,6 +204,88 @@ function HowItWorks() {
   );
 }
 
+function RobotMascot() {
+  return (
+    <svg viewBox="0 0 220 230" width="200" height="208" fill="none" role="img" aria-label="หุ่นยนต์ AI"
+      style={{ filter: 'drop-shadow(0 14px 32px rgba(0,0,0,0.35))', animation: 'de-float 6s ease-in-out infinite' }}>
+      {/* antenna */}
+      <line x1="110" y1="44" x2="110" y2="20" stroke="#C4B5FD" strokeWidth="4" strokeLinecap="round" />
+      <circle cx="110" cy="15" r="7" fill="#C4B5FD" />
+      {/* ears */}
+      <rect x="36" y="78" width="12" height="34" rx="6" fill="#C4B5FD" />
+      <rect x="172" y="78" width="12" height="34" rx="6" fill="#C4B5FD" />
+      {/* head */}
+      <rect x="48" y="44" width="124" height="96" rx="26" fill="#ffffff" />
+      {/* face screen */}
+      <rect x="66" y="62" width="88" height="60" rx="18" fill="#1E1B4B" />
+      {/* eyes + smile */}
+      <circle cx="91" cy="86" r="9" fill="#93C5FD" />
+      <circle cx="129" cy="86" r="9" fill="#93C5FD" />
+      <path d="M87 103 q23 17 46 0" stroke="#93C5FD" strokeWidth="4" strokeLinecap="round" fill="none" />
+      {/* arms */}
+      <rect x="38" y="156" width="14" height="46" rx="7" fill="#ffffff" />
+      <rect x="168" y="156" width="14" height="46" rx="7" fill="#ffffff" />
+      {/* body */}
+      <rect x="60" y="150" width="100" height="60" rx="20" fill="#ffffff" />
+      <rect x="80" y="166" width="60" height="28" rx="8" fill="#EDE9FE" />
+      <circle cx="96" cy="180" r="4" fill="#A78BFA" />
+      <circle cx="110" cy="180" r="4" fill="#60A5FA" />
+      <circle cx="124" cy="180" r="4" fill="#A78BFA" />
+    </svg>
+  );
+}
+
+function AiHelper({ onLogin }: { onLogin: () => void }) {
+  const items: [Parameters<typeof DeIcon>[0]['name'], string, string][] = [
+    ['fileText', 'วิเคราะห์ SAR อัตโนมัติ', 'อ่านเอกสาร SAR แล้วสรุป SOAR จุดเด่น/จุดที่ควรพัฒนา และบทสรุปผู้บริหารให้ทันที'],
+    ['activity', 'สรุปผลด้วย AI ทุกระดับ', 'สรุปผลการประเมินรายครู รายโรงเรียน รายกลุ่มเครือข่าย และทั้งโครงการ โดยอัตโนมัติ'],
+    ['sparkles', 'แชตบอตผู้ช่วย', 'ถาม-ตอบเรื่องหลักการ ทฤษฎี และความหมายของตัวชี้วัดแต่ละตัว ได้ตลอดเวลา'],
+  ];
+  return (
+    <section style={{ background: 'var(--de-bg-surface)', padding: '100px clamp(20px,5vw,64px)' }}>
+      <div style={{ maxWidth: 1180, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: 56, alignItems: 'center' }}>
+        {/* Robot illustration */}
+        <div style={{ position: 'relative', display: 'grid', placeItems: 'center', background: 'var(--de-gradient-hero)', borderRadius: 'var(--r-xl)', padding: '56px 24px', overflow: 'hidden', minHeight: 320, boxShadow: 'var(--sh-xl)' }}>
+          <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(255,255,255,0.5) 1px, transparent 1px)', backgroundSize: '30px 30px', opacity: 0.07 }} />
+          <div style={{ position: 'absolute', width: 320, height: 320, borderRadius: '50%', background: 'radial-gradient(circle, rgba(196,181,253,0.35), transparent 70%)', filter: 'blur(10px)' }} />
+          <div style={{ position: 'relative' }}><RobotMascot /></div>
+          <div style={{ position: 'absolute', top: 36, right: 'clamp(12px,4vw,46px)', background: '#fff', color: 'var(--de-slate-900)', borderRadius: '14px 14px 14px 4px', padding: '10px 14px', fontSize: 13.5, fontWeight: 500, boxShadow: 'var(--sh-lg)', maxWidth: 200, animation: 'de-float 5s ease-in-out infinite 0.6s' }}>
+            สวัสดีครับ 👋 ถามเรื่องตัวชี้วัดได้เลย
+          </div>
+        </div>
+        {/* Text + capabilities */}
+        <div className="de-slide-up">
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 14px', borderRadius: 999, background: 'var(--de-purple-100)', color: 'var(--de-purple-700)', fontSize: 13.5, fontWeight: 600, marginBottom: 18 }}>
+            <DeIcon name="sparkles" size={15} /> ขับเคลื่อนด้วย AI
+          </div>
+          <h2 style={{ fontSize: 'clamp(28px,3.2vw,42px)', fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.15 }}>
+            มี “ผู้ช่วย AI” ทำงานเคียงข้างคุณ
+          </h2>
+          <p style={{ fontSize: 17, color: 'var(--de-text-secondary)', lineHeight: 1.65, marginTop: 14, maxWidth: 520 }}>
+            ระบบฝังปัญญาประดิษฐ์ไว้ทั่วทั้งงาน — ช่วยอ่านและสรุปเอกสาร วิเคราะห์ผลการประเมิน และตอบคำถามเรื่องตัวชี้วัด เพื่อให้ครูและผู้บริหารทำงานได้เร็วและแม่นยำขึ้น
+          </p>
+          <div style={{ display: 'grid', gap: 16, marginTop: 28 }}>
+            {items.map(([icon, title, desc], i) => (
+              <div key={i} style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                <span style={{ flexShrink: 0, width: 44, height: 44, borderRadius: 'var(--r-lg)', background: 'linear-gradient(135deg,var(--de-purple-100),var(--de-blue-100))', color: 'var(--de-purple-600)', display: 'grid', placeItems: 'center' }}>
+                  <DeIcon name={icon} size={22} />
+                </span>
+                <div>
+                  <div style={{ fontSize: 16.5, fontWeight: 600 }}>{title}</div>
+                  <div style={{ fontSize: 14.5, color: 'var(--de-text-secondary)', lineHeight: 1.55, marginTop: 2 }}>{desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 32 }}>
+            <Button size="lg" variant="gradient" iconRight="arrowRight" onClick={onLogin}>ทดลองใช้ผู้ช่วย AI</Button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function CTA({ onLogin }: { onLogin: () => void }) {
   return (
     <section id="sec2" style={{ padding: '40px clamp(20px,5vw,64px) 100px' }}>
@@ -260,6 +342,7 @@ export default function LandingPage() {
       <StatsBar />
       <Features />
       <HowItWorks />
+      <AiHelper onLogin={onLogin} />
       <CTA onLogin={onLogin} />
       <Footer />
     </div>
