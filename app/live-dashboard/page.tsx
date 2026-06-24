@@ -348,6 +348,40 @@ export default function LiveDashboardPage() {
             </div>
           </div>
         ) : (
+          <>
+            {/* ===== DIMENSION STRIP (full width, above the 3 columns) ===== */}
+            <div className="ld-dim-grid">
+              {dimensionCards.map((d) => (
+                <div key={d.key} className="ld-dim-card">
+                  <span className="ld-dim-name">
+                    <strong>{d.labelTh}</strong> · {d.indCount} ตัวชี้วัด
+                  </span>
+                  <div className="ld-dim-scores">
+                    <div className="ld-dim-score">
+                      <span className="ld-dim-score-num blue">{d.target.toFixed(2)}</span>
+                      <span className="ld-dim-score-cap">พึงประสงค์</span>
+                    </div>
+                    <div className="ld-dim-score">
+                      <span className="ld-dim-score-num violet">{d.current.toFixed(2)}</span>
+                      <span className="ld-dim-score-cap">เป็นอยู่</span>
+                    </div>
+                  </div>
+                  <div className="ld-dim-bars">
+                    <div className="ld-dim-bar">
+                      <div className="ld-dim-bar-fill blue" style={{ width: `${d.targetPct}%` }} />
+                    </div>
+                    <div className="ld-dim-bar">
+                      <div className="ld-dim-bar-fill violet" style={{ width: `${d.currentPct}%` }} />
+                    </div>
+                  </div>
+                  <span className={`ld-dim-meta${d.gap >= 0.6 ? ' warn' : ''}`}>
+                    Gap {d.gap.toFixed(2)} ·{' '}
+                    {d.status === 'green' ? 'พัฒนาเชิงบวก' : d.status === 'yellow' ? 'เฝ้าระวัง' : 'ต้องเร่งพัฒนา'}
+                  </span>
+                </div>
+              ))}
+            </div>
+
           <div className="ld-main">
             {/* ===== LEFT — KPI stack ===== */}
             <aside className="ld-kpi-stack" aria-label="สรุปตัวเลขสำคัญ">
@@ -401,39 +435,6 @@ export default function LiveDashboardPage() {
 
             {/* ===== CENTER ===== */}
             <section className="ld-col-center">
-              {/* Dimension grid */}
-              <div className="ld-dim-grid">
-                {dimensionCards.map((d) => (
-                  <div key={d.key} className="ld-dim-card">
-                    <span className="ld-dim-name">
-                      <strong>{d.labelTh}</strong> · {d.indCount} ตัวชี้วัด
-                    </span>
-                    <div className="ld-dim-scores">
-                      <div className="ld-dim-score">
-                        <span className="ld-dim-score-num blue">{d.target.toFixed(2)}</span>
-                        <span className="ld-dim-score-cap">พึงประสงค์</span>
-                      </div>
-                      <div className="ld-dim-score">
-                        <span className="ld-dim-score-num violet">{d.current.toFixed(2)}</span>
-                        <span className="ld-dim-score-cap">เป็นอยู่</span>
-                      </div>
-                    </div>
-                    <div className="ld-dim-bars">
-                      <div className="ld-dim-bar">
-                        <div className="ld-dim-bar-fill blue" style={{ width: `${d.targetPct}%` }} />
-                      </div>
-                      <div className="ld-dim-bar">
-                        <div className="ld-dim-bar-fill violet" style={{ width: `${d.currentPct}%` }} />
-                      </div>
-                    </div>
-                    <span className={`ld-dim-meta${d.gap >= 0.6 ? ' warn' : ''}`}>
-                      Gap {d.gap.toFixed(2)} ·{' '}
-                      {d.status === 'green' ? 'พัฒนาเชิงบวก' : d.status === 'yellow' ? 'เฝ้าระวัง' : 'ต้องเร่งพัฒนา'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
               {/* Spider chart */}
               <div className="ld-card">
                 <h2 className="ld-card-title">
@@ -442,7 +443,7 @@ export default function LiveDashboardPage() {
                 </h2>
                 <div className="ld-spider-card">
                   <div className="ld-spider-host">
-                    <LiveSpiderChart data={liveData?.spiderData ?? []} height={420} dark={theme === 'dark'} />
+                    <LiveSpiderChart data={liveData?.spiderData ?? []} height={264} dark={theme === 'dark'} />
                   </div>
                   <div className="ld-legend" aria-label="คำอธิบายสี">
                     <div className="ld-legend-item">
@@ -530,6 +531,7 @@ export default function LiveDashboardPage() {
               </div>
             </aside>
           </div>
+          </>
         )}
         </>
         )}

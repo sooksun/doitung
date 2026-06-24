@@ -182,7 +182,7 @@
   justify-content: space-between;
   gap: var(--de-space-4);
   flex-wrap: wrap;
-  margin-bottom: var(--de-space-5);
+  margin-bottom: var(--de-space-4);
 }
 .ld-controls {
   display: flex;
@@ -198,7 +198,7 @@
   font-weight: 600;
 }
 .ld-page-title {
-  font-size: 32px;
+  font-size: 26px;
   font-weight: 600;
   color: var(--de-ink-900);
   letter-spacing: -0.02em;
@@ -218,7 +218,7 @@
   display: flex;
   align-items: center;
   gap: var(--de-space-4);
-  padding: var(--de-space-6) 0 var(--de-space-4);
+  padding: var(--de-space-3) 0 var(--de-space-4);
   flex-wrap: wrap;
 }
 .ld-filter-label {
@@ -293,12 +293,18 @@
 /* === Main grid === */
 .ld-main {
   display: grid;
-  grid-template-columns: 280px 1fr 340px;
-  gap: var(--de-space-6);
-  padding: var(--de-space-2) 0 var(--de-space-12);
+  grid-template-columns: 260px minmax(0, 1fr) 320px;
+  gap: var(--de-space-5);
+  padding: var(--de-space-2) 0 var(--de-space-8);
 }
+/* Embedded inside the AppShell, the 252px sidebar eats the width this layout
+   was designed for standalone (≈1480 container). The center (1fr) therefore
+   shrinks to ~470px at a 1440 viewport — too narrow for 4-up dimension cards
+   plus a side-by-side spider+legend. The dimension/spider breakpoints (raised to
+   ~1560 below, near their own definitions) compensate for the sidebar so those
+   inner grids reflow before they overflow, while all three zones stay visible. */
 @media (max-width: 1280px) {
-  .ld-main { grid-template-columns: 260px 1fr; }
+  .ld-main { grid-template-columns: 240px minmax(0, 1fr); }
   .ld-col-right { grid-column: 1 / -1; }
 }
 @media (max-width: 880px) {
@@ -340,13 +346,13 @@
 .ld-kpi-stack {
   display: flex;
   flex-direction: column;
-  gap: var(--de-space-3);
+  gap: var(--de-space-2);
 }
 .ld-kpi {
   background: var(--de-surface);
   border: 1px solid color-mix(in oklab, var(--de-ink-300) 26%, transparent);
   border-radius: var(--de-radius-xl);
-  padding: var(--de-space-5);
+  padding: var(--de-space-4) var(--de-space-5);
   position: relative;
   overflow: hidden;
   box-shadow: var(--de-shadow-sm);
@@ -367,16 +373,16 @@
   text-transform: uppercase;
 }
 .ld-kpi-value {
-  font-size: 36px;
+  font-size: 30px;
   font-weight: 600;
   color: var(--de-ink-900);
   line-height: 1.05;
-  margin-top: var(--de-space-2);
+  margin-top: var(--de-space-1);
   font-feature-settings: "tnum";
   letter-spacing: -0.02em;
 }
 .ld-kpi-value-sm {
-  font-size: 28px;
+  font-size: 24px;
 }
 .ld-kpi-suffix {
   font-size: 14px;
@@ -388,7 +394,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: var(--de-space-3);
+  margin-top: var(--de-space-2);
   font-size: 12px;
   color: var(--de-ink-500);
 }
@@ -397,7 +403,7 @@
 .ld-col-center {
   display: flex;
   flex-direction: column;
-  gap: var(--de-space-6);
+  gap: var(--de-space-4);
   min-width: 0;
 }
 
@@ -406,20 +412,23 @@
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: var(--de-space-4);
+  margin-bottom: var(--de-space-4);
 }
-@media (max-width: 1100px) { .ld-dim-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 540px)  { .ld-dim-grid { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .ld-dim-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 540px) { .ld-dim-grid { grid-template-columns: 1fr; } }
 
 .ld-dim-card {
   background: var(--de-surface);
   border: 1px solid color-mix(in oklab, var(--de-ink-300) 26%, transparent);
   border-radius: var(--de-radius-lg);
-  padding: var(--de-space-5);
+  padding: var(--de-space-4);
   display: flex;
   flex-direction: column;
-  gap: var(--de-space-3);
+  gap: var(--de-space-2);
+  min-width: 0;
   box-shadow: var(--de-shadow-sm);
 }
+.ld-dim-name { overflow-wrap: anywhere; }
 .ld-dim-name {
   font-size: 13px;
   font-weight: 500;
@@ -441,7 +450,7 @@
   gap: 2px;
 }
 .ld-dim-score-num {
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 600;
   font-feature-settings: "tnum";
   letter-spacing: -0.02em;
@@ -457,8 +466,8 @@
 .ld-dim-bars {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-top: var(--de-space-2);
+  gap: 5px;
+  margin-top: 0;
 }
 .ld-dim-bar {
   position: relative;
@@ -493,7 +502,13 @@
   gap: var(--de-space-6);
   align-items: center;
 }
-@media (max-width: 1100px) { .ld-spider-card { grid-template-columns: 1fr; } }
+/* Narrow center (sidebar present): a side-by-side legend would crush the radar
+   to ~230px and clip its long Thai axis labels. Instead stack the chart at full
+   center width (readable) and lay the legend out as a compact horizontal row so
+   the stack costs little extra height. */
+@media (max-width: 1560px) {
+  .ld-spider-card { grid-template-columns: 1fr; gap: var(--de-space-4); }
+}
 
 .ld-spider-host {
   width: 100%;
@@ -503,14 +518,14 @@
 .ld-legend {
   display: flex;
   flex-direction: column;
-  gap: var(--de-space-3);
+  gap: var(--de-space-2);
 }
 .ld-legend-item {
   display: grid;
-  grid-template-columns: 14px 1fr auto;
-  gap: var(--de-space-3);
+  grid-template-columns: 12px 1fr auto;
+  gap: var(--de-space-2);
   align-items: center;
-  padding: var(--de-space-3);
+  padding: var(--de-space-2) var(--de-space-3);
   border-radius: var(--de-radius-md);
   background: var(--de-surface-muted);
 }
@@ -546,6 +561,17 @@
 .ld-legend-val.warn {
   color: var(--de-warning-600);
 }
+/* When the spider stacks (≤1560, sidebar present), the legend sits *under* a
+   full-width chart, so lay its three items out as a compact horizontal row
+   instead of a tall vertical stack — keeps the spider card short. */
+@media (max-width: 1560px) {
+  .ld-legend { flex-direction: row; flex-wrap: wrap; }
+  .ld-legend-item { flex: 1 1 0; min-width: 130px; }
+}
+@media (max-width: 620px) {
+  .ld-legend { flex-direction: column; }
+  .ld-legend-item { flex: 1 1 auto; }
+}
 
 /* === Right column === */
 .ld-col-right {
@@ -559,6 +585,7 @@
 /* Indicator section tabs (Q-Leadership, Q-PLC, ...) */
 .ld-ind-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--de-space-1);
   margin-bottom: var(--de-space-4);
   border-bottom: 1px solid color-mix(in oklab, var(--de-ink-300) 26%, transparent);
@@ -570,7 +597,7 @@
   border: 0;
   border-bottom: 2px solid transparent;
   color: var(--de-ink-500);
-  padding: 9px 10px;
+  padding: 9px 8px;
   font-family: inherit;
   font-size: 13px;
   font-weight: 500;
@@ -579,7 +606,10 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  flex: 1;
+  /* min-width:0 + wrap lets the tabs shrink and reflow: a tidy 2×2 inside the
+     narrow indicator column, and a single row of 4 when it goes full-width. */
+  flex: 1 1 auto;
+  min-width: 0;
   justify-content: center;
 }
 .ld-ind-tab:hover { color: var(--de-ink-800); }
@@ -606,7 +636,7 @@
   flex-direction: column;
   gap: var(--de-space-2);
   overflow-y: auto;
-  max-height: 540px;
+  max-height: 420px;
   padding-right: 4px;
 }
 .ld-ind-list::-webkit-scrollbar { width: 6px; }
@@ -716,7 +746,7 @@
 .ld-view-tabs {
   display: flex;
   gap: 8px;
-  margin-bottom: var(--de-space-5);
+  margin-bottom: var(--de-space-4);
   flex-wrap: wrap;
 }
 .ld-view-tab {
