@@ -16,6 +16,7 @@ interface Evaluation {
   academicYearId: number;
   termId: number | null;
   evaluatorId: number;
+  evaluatorKind?: string | null;
   status: string;
   createdAt: string;
   submittedAt: string | null;
@@ -78,6 +79,7 @@ export default function EvaluationsPage() {
   const [error, setError] = useState('');
   const [meId, setMeId] = useState<number | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isLeader, setIsLeader] = useState(false);
 
   // School filter — admin only. Non-admins are scoped to their own school
   // server-side regardless of what we send, so the input would be misleading.
@@ -116,6 +118,7 @@ export default function EvaluationsPage() {
           setMeId(j.data.id);
           const admin = Array.isArray(j.data.roles) && j.data.roles.includes('ADMIN');
           setIsAdmin(admin);
+          setIsLeader(Array.isArray(j.data.roles) && j.data.roles.includes('SCHOOL_LEADER'));
           // Lazy-load schools only when the filter would actually appear.
           if (admin) {
             fetch('/api/schools?isActive=true', { headers: { Authorization: `Bearer ${storedToken}` } })
@@ -281,6 +284,15 @@ export default function EvaluationsPage() {
           <tbody>
             {evaluations.map((ev) => {
               const canEdit = meId === ev.evaluatorId || isAdmin;
+              // ผู้อำนวยการ (SCHOOL_LEADER) เห็น SELF sessions ของครูในโรงเรียน
+              // แต่ต้องการปุ่มเพื่อเข้ากรอกฝั่ง DIRECTOR — assessment form จะ route ไปฝั่งที่ถูกต้องอัตโนมัติ
+              const isDirectorPendingRow =
+                isLeader &&
+                !isAdmin &&
+                ev.evaluatorKind === 'SELF' &&
+                ev.instrument?.type === 'THAI_P1_3' &&
+                ev.status === 'DRAFT';
+              const showAssessBtn = (ev.status === 'DRAFT' && canEdit) || isDirectorPendingRow;
               return (
                 <tr key={ev.id} className="de-table-row" style={{ borderTop: '1px solid var(--de-border)' }}>
                   <td style={{ ...td, fontFamily: 'var(--de-font-mono)', fontSize: 13, color: 'var(--de-text-secondary)' }}>#{ev.id}</td>
@@ -296,8 +308,10 @@ export default function EvaluationsPage() {
                   <td style={{ ...td, color: 'var(--de-text-secondary)', fontSize: 13.5 }}>{new Date(ev.createdAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}</td>
                   <td style={td}>
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                      {ev.status === 'DRAFT' && canEdit ? (
-                        <Button size="sm" variant="gradient" icon="edit" onClick={() => router.push(`/assessment/${ev.id}`)}>กรอกแบบประเมิน</Button>
+                      {showAssessBtn ? (
+                        <Button size="sm" variant="gradient" icon="edit" onClick={() => router.push(`/assessment/${ev.id}`)}>
+                          {isDirectorPendingRow ? 'กรอกแบบประเมิน (ผอ.)' : 'กรอกแบบประเมิน'}
+                        </Button>
                       ) : null}
                       <Button size="sm" variant="outline" onClick={() => router.push(`/evaluations/${ev.id}`)}>บันทึกสะท้อนคิด</Button>
                       {canEdit && ev.status !== 'ARCHIVED' ? (

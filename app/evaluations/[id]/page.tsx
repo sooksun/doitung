@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { toastSuccess, toastError, toastConfirm } from '@/lib/toast';
+import ThaiDateTimePicker, { formatThaiDate } from '@/app/components/ThaiDateTimePicker';
 
 interface Indicator { id: number; itemCode: string | null; textTh: string }
 interface Section { id: number; nameTh: string; nameEn: string | null; order: number; indicators: Indicator[] }
@@ -142,7 +143,7 @@ export default function EvaluationEvidencePage() {
           if (!cancelled() && j?.success) {
             const map: Record<number, ThaiReflectionData> = {};
             for (const r of j.data)
-              map[r.sectionId] = { id: r.id, sectionId: r.sectionId, indicatorIds: Array.isArray(r.indicatorIds) ? r.indicatorIds : [], reflectionText: r.reflectionText || '', recordedAt: r.recordedAt ? r.recordedAt.slice(0, 16) : '', files: r.files || [] };
+              map[r.sectionId] = { id: r.id, sectionId: r.sectionId, indicatorIds: Array.isArray(r.indicatorIds) ? r.indicatorIds : [], reflectionText: r.reflectionText || '', recordedAt: r.recordedAt || new Date().toISOString(), files: r.files || [] };
             setThaiReflections(map);
           }
         }
@@ -202,15 +203,15 @@ export default function EvaluationEvidencePage() {
   };
 
   // ── Thai ป.1–3 helpers ───────────────────────────────────────────────────
-  const thaiRefl = (sid: number): ThaiReflectionData => thaiReflections[sid] || { sectionId: sid, indicatorIds: [], reflectionText: '', recordedAt: '', files: [] };
+  const thaiRefl = (sid: number): ThaiReflectionData => thaiReflections[sid] || { sectionId: sid, indicatorIds: [], reflectionText: '', recordedAt: new Date().toISOString(), files: [] };
   const thaiSectionDone = (sid: number) => { const r = thaiReflections[sid]; return !!r && r.indicatorIds.length >= 3 && r.reflectionText.trim().length > 0 && !!r.recordedAt; };
   const thaiDoneCount = sections.filter((s) => thaiSectionDone(s.id)).length;
   const totalSections = sections.length;
   const progressPct = totalSections > 0 ? Math.round(((isThaiP13 ? thaiDoneCount : doneCount) / totalSections) * 100) : 0;
 
-  const toggleThaiIndicator = (sid: number, indId: number) => setThaiReflections((prev) => { const cur = prev[sid] || { sectionId: sid, indicatorIds: [], reflectionText: '', recordedAt: '', files: [] }; const has = cur.indicatorIds.includes(indId); return { ...prev, [sid]: { ...cur, indicatorIds: has ? cur.indicatorIds.filter((x) => x !== indId) : [...cur.indicatorIds, indId] } }; });
-  const setThaiText = (sid: number, text: string) => setThaiReflections((prev) => { const cur = prev[sid] || { sectionId: sid, indicatorIds: [], reflectionText: '', recordedAt: '', files: [] }; return { ...prev, [sid]: { ...cur, reflectionText: text } }; });
-  const setThaiDate = (sid: number, dt: string) => setThaiReflections((prev) => { const cur = prev[sid] || { sectionId: sid, indicatorIds: [], reflectionText: '', recordedAt: '', files: [] }; return { ...prev, [sid]: { ...cur, recordedAt: dt } }; });
+  const toggleThaiIndicator = (sid: number, indId: number) => setThaiReflections((prev) => { const cur = prev[sid] || { sectionId: sid, indicatorIds: [], reflectionText: '', recordedAt: new Date().toISOString(), files: [] }; const has = cur.indicatorIds.includes(indId); return { ...prev, [sid]: { ...cur, indicatorIds: has ? cur.indicatorIds.filter((x) => x !== indId) : [...cur.indicatorIds, indId] } }; });
+  const setThaiText = (sid: number, text: string) => setThaiReflections((prev) => { const cur = prev[sid] || { sectionId: sid, indicatorIds: [], reflectionText: '', recordedAt: new Date().toISOString(), files: [] }; return { ...prev, [sid]: { ...cur, reflectionText: text } }; });
+  const setThaiDate = (sid: number, dt: string) => setThaiReflections((prev) => { const cur = prev[sid] || { sectionId: sid, indicatorIds: [], reflectionText: '', recordedAt: new Date().toISOString(), files: [] }; return { ...prev, [sid]: { ...cur, recordedAt: dt } }; });
 
   const saveThaiReflection = async (sid: number) => {
     if (!token || !evaluation) return;
@@ -406,10 +407,8 @@ export default function EvaluationEvidencePage() {
               <div style={{ marginBottom: '1rem' }}>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#374151', marginBottom: '0.35rem' }}>📅 วันเวลาที่บันทึก *</label>
                 {canEdit
-                  ? <input type="datetime-local" value={tr.recordedAt ? tr.recordedAt.slice(0, 16) : ''} onChange={(e) => setThaiDate(s.id, e.target.value)} style={{ padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '0.4rem', fontSize: '0.9rem', fontFamily: 'inherit' }} />
-                  : tr.recordedAt
-                    ? <span style={{ fontSize: '0.9rem', color: '#374151' }}>{new Date(tr.recordedAt).toLocaleString('th-TH')}</span>
-                    : <span style={{ fontSize: '0.88rem', color: '#9ca3af' }}>— ยังไม่ได้ระบุ —</span>
+                  ? <ThaiDateTimePicker value={tr.recordedAt} onChange={(iso) => setThaiDate(s.id, iso)} />
+                  : <span style={{ fontSize: '0.9rem', color: '#374151' }}>{formatThaiDate(tr.recordedAt)}</span>
                 }
               </div>
 

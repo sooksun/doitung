@@ -145,6 +145,7 @@ export async function GET(request: NextRequest) {
       evaluatorId: evaluation.evaluatorId,
       targetTeacherId: evaluation.targetTeacherId,
       targetSchoolId: evaluation.targetSchoolId,
+      evaluatorKind: evaluation.evaluatorKind ?? undefined,
       status: evaluation.status,
       note: evaluation.note,
       createdAt: evaluation.createdAt,

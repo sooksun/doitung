@@ -1,5 +1,6 @@
 // app/api/admin/schools/[schoolId]/route.ts
-// PATCH /api/admin/schools/:schoolId - toggle a school's isActive flag (admin-only).
+// PATCH  /api/admin/schools/:schoolId - toggle a school's isActive flag (admin-only).
+// DELETE /api/admin/schools/:schoolId - permanently delete a school (admin-only, no sessions allowed).
 //
 // Inactive schools are hidden from /api/schools (when called with ?isActive=true) and
 // from non-admin listings, but their historical data — sessions, responses, SAR
@@ -52,6 +53,43 @@ export async function PATCH(
     });
 
     return successResponse(after, body.isActive ? 'เปิดใช้งานแล้ว' : 'ปิดใช้งานแล้ว');
+  } catch (error: any) {
+    if (typeof error?.message === 'string' && error.message.startsWith('Unauthorized')) {
+      return errorResponse(error.message, 401);
+    }
+    if (typeof error?.message === 'string' && error.message.startsWith('Forbidden')) {
+      return errorResponse(error.message, 403);
+    }
+    return errorResponse('เกิดข้อผิดพลาด', 500);
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { schoolId: string } }
+) {
+  try {
+    await requireRole(request, 'ADMIN');
+
+    const schoolId = parseInt(params.schoolId, 10);
+    if (isNaN(schoolId)) return errorResponse('Invalid schoolId', 400);
+
+    const school = await prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { id: true, nameTh: true, name: true, _count: { select: { evaluationSessions: true } } },
+    });
+    if (!school) return errorResponse('ไม่พบโรงเรียน', 404);
+
+    if (school._count.evaluationSessions > 0) {
+      return errorResponse(
+        `ไม่สามารถลบได้ — มีข้อมูลการประเมิน ${school._count.evaluationSessions} รายการ`,
+        409
+      );
+    }
+
+    await prisma.school.delete({ where: { id: schoolId } });
+
+    return successResponse({ id: schoolId }, 'ลบโรงเรียนเรียบร้อยแล้ว');
   } catch (error: any) {
     if (typeof error?.message === 'string' && error.message.startsWith('Unauthorized')) {
       return errorResponse(error.message, 401);

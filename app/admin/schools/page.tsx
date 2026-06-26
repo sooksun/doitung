@@ -27,6 +27,17 @@ interface SchoolRow {
 
 type StatusFilter = 'all' | 'active' | 'inactive';
 
+interface AddForm {
+  name: string;
+  nameTh: string;
+  code: string;
+  province: string;
+  district: string;
+  address: string;
+}
+
+const emptyForm: AddForm = { name: '', nameTh: '', code: '', province: '', district: '', address: '' };
+
 export default function AdminSchoolsPage() {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
@@ -36,6 +47,9 @@ export default function AdminSchoolsPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [busy, setBusy] = useState<number | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [addForm, setAddForm] = useState<AddForm>(emptyForm);
+  const [addBusy, setAddBusy] = useState(false);
 
   const load = useCallback(async (authToken: string) => {
     try {
@@ -115,6 +129,64 @@ export default function AdminSchoolsPage() {
     });
   }, [rows, search, statusFilter]);
 
+  const handleDelete = async (school: SchoolRow) => {
+    if (!token) return;
+    if (school.sessionCount > 0) {
+      toastError(`ไม่สามารถลบได้ — "${school.nameTh || school.name}" มีข้อมูลการประเมิน ${school.sessionCount} รายการ`);
+      return;
+    }
+    const ok = await toastConfirm(
+      `ลบโรงเรียน "${school.nameTh || school.name}" ถาวร?\n\nข้อมูลทั้งหมดที่เกี่ยวข้องจะหายไปและไม่สามารถกู้คืนได้`,
+      { title: 'ลบโรงเรียน', confirmLabel: 'ลบถาวร', cancelLabel: 'ยกเลิก', danger: true }
+    );
+    if (!ok) return;
+
+    setBusy(school.id);
+    try {
+      const res = await fetch(`/api/admin/schools/${school.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        toastError(json.error || 'ลบไม่สำเร็จ');
+      } else {
+        toastSuccess('ลบโรงเรียนเรียบร้อยแล้ว');
+        setRows((prev) => prev.filter((r) => r.id !== school.id));
+      }
+    } catch {
+      toastError('เกิดข้อผิดพลาด');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token) return;
+    setAddBusy(true);
+    try {
+      const res = await fetch('/api/admin/schools', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...addForm, name: addForm.name.trim() || addForm.nameTh.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        toastError(json.error || 'เพิ่มโรงเรียนไม่สำเร็จ');
+      } else {
+        toastSuccess('เพิ่มโรงเรียนสำเร็จ');
+        setShowAdd(false);
+        setAddForm(emptyForm);
+        load(token);
+      }
+    } catch {
+      toastError('เกิดข้อผิดพลาด');
+    } finally {
+      setAddBusy(false);
+    }
+  };
+
   const counts = useMemo(() => ({
     total: rows.length,
     active: rows.filter((r) => r.isActive).length,
@@ -134,9 +206,17 @@ export default function AdminSchoolsPage() {
               เปิด/ปิด การแสดงผลและการใช้งานของแต่ละโรงเรียน — ข้อมูลเดิมจะถูกเก็บไว้ครบเสมอ
             </p>
           </div>
-          <Link href="/dashboard" style={{ padding: '0.5rem 1rem', background: 'var(--de-primary)', color: 'var(--de-on-primary)', borderRadius: '0.5rem', textDecoration: 'none' }}>
-            ← Dashboard
-          </Link>
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => { setAddForm(emptyForm); setShowAdd(true); }}
+              style={{ padding: '0.5rem 1.1rem', background: 'var(--de-success)', color: '#fff', border: 'none', borderRadius: '0.5rem', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}
+            >
+              + เพิ่มโรงเรียน
+            </button>
+            <Link href="/dashboard" style={{ padding: '0.5rem 1rem', background: 'var(--de-primary)', color: 'var(--de-on-primary)', borderRadius: '0.5rem', textDecoration: 'none' }}>
+              ← Dashboard
+            </Link>
+          </div>
         </div>
 
         {/* Summary cards */}
@@ -211,13 +291,14 @@ export default function AdminSchoolsPage() {
                   <th style={{ ...th, textAlign: 'center' }}>กิจกรรมประเมิน</th>
                   <th style={{ ...th, textAlign: 'center' }}>กลุ่มเครือข่าย</th>
                   <th style={{ ...th, textAlign: 'center' }}>สถานะ</th>
+                  <th style={{ ...th, textAlign: 'center' }}></th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: 'var(--de-text-secondary)' }}>กำลังโหลด...</td></tr>
+                  <tr><td colSpan={7} style={{ padding: '2rem', textAlign: 'center', color: 'var(--de-text-secondary)' }}>กำลังโหลด...</td></tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: 'var(--de-text-secondary)' }}>ไม่พบโรงเรียน</td></tr>
+                  <tr><td colSpan={7} style={{ padding: '2rem', textAlign: 'center', color: 'var(--de-text-secondary)' }}>ไม่พบโรงเรียน</td></tr>
                 ) : filtered.map((r) => {
                   const dimmed = !r.isActive;
                   return (
@@ -252,6 +333,27 @@ export default function AdminSchoolsPage() {
                           </span>
                         </div>
                       </td>
+                      <td style={{ ...td, textAlign: 'center' }}>
+                        <button
+                          onClick={() => handleDelete(r)}
+                          disabled={busy === r.id}
+                          title={r.sessionCount > 0 ? `มีข้อมูลประเมิน ${r.sessionCount} รายการ — ลบไม่ได้` : 'ลบโรงเรียน'}
+                          style={{
+                            padding: '0.3rem 0.65rem',
+                            fontSize: '0.8rem',
+                            fontWeight: 600,
+                            border: '1px solid',
+                            borderRadius: '0.35rem',
+                            cursor: busy === r.id ? 'not-allowed' : 'pointer',
+                            opacity: busy === r.id ? 0.5 : 1,
+                            background: r.sessionCount > 0 ? 'var(--de-bg-subtle)' : 'var(--de-danger-soft)',
+                            color: r.sessionCount > 0 ? 'var(--de-text-tertiary)' : 'var(--de-danger)',
+                            borderColor: r.sessionCount > 0 ? 'var(--de-border)' : 'var(--de-danger)',
+                          }}
+                        >
+                          ลบ
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -265,6 +367,41 @@ export default function AdminSchoolsPage() {
           แต่ข้อมูลเดิมทั้งหมด (sessions, responses, SAR) จะยังถูกเก็บรักษาไว้ครบ — กดเปิดใช้งานเมื่อใดก็จะกลับมาแสดงผลตามปกติ
         </p>
       </div>
+
+      {/* Add School Modal */}
+      {showAdd && (
+        <div
+          onClick={() => !addBusy && setShowAdd(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: 'var(--de-bg-surface)', borderRadius: '0.75rem', padding: '2rem', width: '100%', maxWidth: '480px', boxShadow: '0 8px 32px rgba(0,0,0,0.25)' }}
+          >
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--de-text-primary)', marginBottom: '1.5rem' }}>เพิ่มโรงเรียนใหม่</h2>
+            <form onSubmit={handleAdd} style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+              <FormField label="ชื่อโรงเรียน (ไทย) *" value={addForm.nameTh} onChange={(v) => setAddForm((f) => ({ ...f, nameTh: v }))} placeholder="โรงเรียนตัวอย่าง" />
+              <FormField label="ชื่อโรงเรียน (อังกฤษ)" value={addForm.name} onChange={(v) => setAddForm((f) => ({ ...f, name: v }))} placeholder="Example School" />
+              <FormField label="รหัสโรงเรียน" value={addForm.code} onChange={(v) => setAddForm((f) => ({ ...f, code: v }))} placeholder="1012345678" />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <FormField label="จังหวัด" value={addForm.province} onChange={(v) => setAddForm((f) => ({ ...f, province: v }))} placeholder="เชียงราย" />
+                <FormField label="อำเภอ" value={addForm.district} onChange={(v) => setAddForm((f) => ({ ...f, district: v }))} placeholder="เมือง" />
+              </div>
+              <FormField label="ที่อยู่" value={addForm.address} onChange={(v) => setAddForm((f) => ({ ...f, address: v }))} placeholder="123 ถ...." />
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                <button type="button" onClick={() => setShowAdd(false)} disabled={addBusy}
+                  style={{ padding: '0.55rem 1.2rem', border: '1px solid var(--de-border-strong)', borderRadius: '0.4rem', background: 'var(--de-bg-subtle)', cursor: 'pointer', fontWeight: 500 }}>
+                  ยกเลิก
+                </button>
+                <button type="submit" disabled={addBusy || (!addForm.nameTh.trim() && !addForm.name.trim())}
+                  style={{ padding: '0.55rem 1.4rem', background: 'var(--de-success)', color: '#fff', border: 'none', borderRadius: '0.4rem', fontWeight: 600, cursor: addBusy ? 'not-allowed' : 'pointer', opacity: addBusy ? 0.7 : 1 }}>
+                  {addBusy ? 'กำลังบันทึก...' : 'บันทึก'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -293,6 +430,20 @@ function SummaryCard({ label, value, color }: { label: string; value: number; co
     }}>
       <div style={{ fontSize: '0.78rem', color: 'var(--de-text-secondary)', marginBottom: '0.2rem' }}>{label}</div>
       <div style={{ fontSize: '1.6rem', fontWeight: 700, color }}>{value.toLocaleString('th-TH')}</div>
+    </div>
+  );
+}
+
+function FormField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
+  return (
+    <div>
+      <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--de-text-secondary)', marginBottom: '0.3rem' }}>{label}</label>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={{ width: '100%', padding: '0.6rem 0.85rem', border: '1px solid var(--de-border)', borderRadius: '0.4rem', fontSize: '0.95rem', boxSizing: 'border-box', background: 'var(--de-bg-canvas)', color: 'var(--de-text-primary)' }}
+      />
     </div>
   );
 }
