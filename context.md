@@ -161,6 +161,8 @@ GET /api/live-dashboard
     instrumentId   = เครื่องมือประเมิน (เลือกได้; ไม่ใส่ = ค่าเริ่มต้น Q-Model)
 ```
 
+> **สิทธิ์การเข้าถึง (บังคับที่ route — เดิม API เปิด public):** `GET /api/live-dashboard` เรียก `getCurrentUser` → ไม่มี token = 401. ผู้ใช้ที่ผูกกับโรงเรียน (non-admin มี `Teacher.schoolId` — SCHOOL_LEADER/SCHOOL_ADMIN/TEACHER) ถูก **clamp เป็น scope=school + schoolId ของตน** เสมอ ไม่ว่าจะส่ง param อะไรมา. ADMIN และผู้ใช้ที่ไม่ผูกโรงเรียน (เช่น SUPERVISOR) เห็นได้ทุก scope. ฝั่ง UI ([ScopeSelector](app/live-dashboard/components/ScopeSelector.tsx)) ซ่อนแท็บ scope + ตัวเลือกโรงเรียน/เครือข่าย แสดงป้าย 🔒 โรงเรียนตนเองสำหรับ user ที่ถูกล็อก (ยังเลือกปี/เทอมได้).
+
 > **เลือกเครื่องมือได้**: `/live-dashboard` มี dropdown เลือก instrument. มิติ (dimensions) มาจาก section ของเครื่องมือที่เลือก — Q-Model คง 4 มิติ (match `nameEn`, current=`score2`/target=`score`); เครื่องมืออื่น (ป.1–3 5 ด้าน, DERS ฯลฯ) ใช้ section ของตัวเอง (current=`score`/target=`score2`). KPI/completion/spider/indicator health คำนวณตามเครื่องมือที่เลือก. `maxScale` มาจาก indicator max (5 สำหรับ Q-Model, 4 สำหรับ ป.1–3) ใช้กำหนด domain ของ spider. การรวมผล ป.1–3 รวมทั้งฝั่งครูประเมินตนเอง + ผอ.
 
 ### AI Summary (THAI ป.1–3) — บทสรุปด้วย AI

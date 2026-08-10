@@ -37,6 +37,9 @@ interface ScopeSelectorProps {
   onNetworkChange: (id?: number) => void;
   onYearChange: (id?: number) => void;
   onTermChange: (id?: number) => void;
+  /** When true, the user is locked to one school — hide scope tabs + school/network pickers. */
+  locked?: boolean;
+  lockedLabel?: string;
 }
 
 const SCOPE_LABEL: Record<ScopeSelectorProps['scope'], string> = {
@@ -60,6 +63,8 @@ export default function ScopeSelector({
   onNetworkChange,
   onYearChange,
   onTermChange,
+  locked = false,
+  lockedLabel,
 }: ScopeSelectorProps) {
   const filteredTerms = academicYearId
     ? terms.filter((t) => t.academicYearId === academicYearId)
@@ -68,51 +73,62 @@ export default function ScopeSelector({
   return (
     <>
       <span className="ld-filter-label">ขอบเขต</span>
-      <div className="ld-scope-tabs" role="tablist">
-        {(['school', 'network', 'district'] as const).map((s) => (
-          <button
-            key={s}
-            type="button"
-            role="tab"
-            aria-pressed={scope === s}
-            onClick={() => onScopeChange(s)}
-            className="ld-scope-tab"
-          >
-            {SCOPE_LABEL[s]}
-          </button>
-        ))}
-      </div>
-
-      {scope === 'school' && (
-        <select
-          aria-label="เลือกโรงเรียน"
-          value={schoolId ?? ''}
-          onChange={(e) => onSchoolChange(e.target.value ? parseInt(e.target.value) : undefined)}
-          className="ld-select"
+      {locked ? (
+        <span
+          aria-label="โรงเรียนของคุณ"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 8, background: 'var(--de-primary-soft)', color: 'var(--de-primary)', fontWeight: 600, fontSize: 13.5, whiteSpace: 'nowrap' }}
         >
-          <option value="">— เลือกโรงเรียน —</option>
-          {schools.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.nameTh}
-            </option>
-          ))}
-        </select>
-      )}
+          🔒 {lockedLabel || 'โรงเรียนของฉัน'}
+        </span>
+      ) : (
+        <>
+          <div className="ld-scope-tabs" role="tablist">
+            {(['school', 'network', 'district'] as const).map((s) => (
+              <button
+                key={s}
+                type="button"
+                role="tab"
+                aria-pressed={scope === s}
+                onClick={() => onScopeChange(s)}
+                className="ld-scope-tab"
+              >
+                {SCOPE_LABEL[s]}
+              </button>
+            ))}
+          </div>
 
-      {scope === 'network' && (
-        <select
-          aria-label="เลือกกลุ่มโรงเรียน"
-          value={networkId ?? ''}
-          onChange={(e) => onNetworkChange(e.target.value ? parseInt(e.target.value) : undefined)}
-          className="ld-select"
-        >
-          <option value="">— เลือกกลุ่มโรงเรียน —</option>
-          {networks.map((n) => (
-            <option key={n.id} value={n.id}>
-              {n.name}
-            </option>
-          ))}
-        </select>
+          {scope === 'school' && (
+            <select
+              aria-label="เลือกโรงเรียน"
+              value={schoolId ?? ''}
+              onChange={(e) => onSchoolChange(e.target.value ? parseInt(e.target.value) : undefined)}
+              className="ld-select"
+            >
+              <option value="">— เลือกโรงเรียน —</option>
+              {schools.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nameTh}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {scope === 'network' && (
+            <select
+              aria-label="เลือกกลุ่มโรงเรียน"
+              value={networkId ?? ''}
+              onChange={(e) => onNetworkChange(e.target.value ? parseInt(e.target.value) : undefined)}
+              className="ld-select"
+            >
+              <option value="">— เลือกกลุ่มโรงเรียน —</option>
+              {networks.map((n) => (
+                <option key={n.id} value={n.id}>
+                  {n.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </>
       )}
 
       <select

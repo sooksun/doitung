@@ -74,6 +74,10 @@ export default function LiveDashboardPage() {
   const [academicYearId, setAcademicYearId] = useState<number | undefined>();
   const [termId, setTermId] = useState<number | undefined>();
 
+  // Per-user scope lock: school-bound users are locked to their own school.
+  const [lockedSchool, setLockedSchool] = useState<{ id: number; nameTh: string } | null>(null);
+  const [ready, setReady] = useState(false);
+
   const [schools, setSchools] = useState<School[]>([]);
   const [networks, setNetworks] = useState<Network[]>([]);
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
@@ -90,7 +94,7 @@ export default function LiveDashboardPage() {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Auth
+  // Auth + per-user scope lock (school-bound users → their own school only).
   useEffect(() => {
     const t = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     if (!t) {
@@ -98,6 +102,25 @@ export default function LiveDashboardPage() {
       return;
     }
     setToken(t);
+    (async () => {
+      try {
+        const meRes = await fetch('/api/auth/me', { headers: { Authorization: `Bearer ${t}` } });
+        if (meRes.status === 401) { localStorage.removeItem('token'); router.push('/login'); return; }
+        const me = (await meRes.json())?.data;
+        const admin = Array.isArray(me?.roles) && me.roles.includes('ADMIN');
+        if (!admin && me?.school?.id) {
+          // school-bound (LEADER/SCHOOL_ADMIN/TEACHER) → lock to own school
+          setLockedSchool({ id: me.school.id, nameTh: me.school.nameTh || me.school.code || `โรงเรียน #${me.school.id}` });
+          setScope('school');
+          setSchoolId(me.school.id);
+        }
+        // admin or non-school user (SUPERVISOR) → no lock (backend also enforces)
+      } catch {
+        /* ignore — the API enforces scoping regardless */
+      } finally {
+        setReady(true);
+      }
+    })();
   }, [router]);
 
   // Reference data
@@ -151,7 +174,7 @@ export default function LiveDashboardPage() {
 
   // Polling (only for the Q-Model live view; the THAI tab is a static summary)
   useEffect(() => {
-    if (!token || view !== 'qmodel') return;
+    if (!token || !ready || view !== 'qmodel') return;
     fetchLiveData(token);
     if (!paused) {
       intervalRef.current = setInterval(() => fetchLiveData(token), POLL_INTERVAL);
@@ -159,7 +182,7 @@ export default function LiveDashboardPage() {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [token, paused, view, fetchLiveData]);
+  }, [token, ready, paused, view, fetchLiveData]);
 
   // "seconds ago" ticker
   useEffect(() => {
@@ -328,6 +351,8 @@ export default function LiveDashboardPage() {
             networks={networks}
             academicYears={academicYears}
             terms={terms}
+            locked={!!lockedSchool}
+            lockedLabel={lockedSchool?.nameTh}
             onScopeChange={(s) => {
               setScope(s);
               setSchoolId(undefined);
